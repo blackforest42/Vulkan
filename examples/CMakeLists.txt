@@ -36,7 +36,7 @@ function(buildExample EXAMPLE_NAME)
 	# Add optional readme / tutorial
 	file(GLOB README_FILES "${EXAMPLE_FOLDER}/*.md")
 	if(WIN32)
-		add_executable(${EXAMPLE_NAME} WIN32 ${MAIN_CPP} ${SOURCE} ${MAIN_HEADER} ${SHADERS_GLSL} ${SHADERS_HLSL} ${SHADERS_SLANG} ${README_FILES} "blackhole/blackhole.cpp")
+		add_executable(${EXAMPLE_NAME} WIN32 ${MAIN_CPP} ${SOURCE} ${MAIN_HEADER} ${SHADERS_GLSL} ${SHADERS_HLSL} ${SHADERS_SLANG} ${README_FILES})
 		target_link_libraries(${EXAMPLE_NAME} base ${Vulkan_LIBRARY} ${WINLIBS})
 	else(WIN32)
 		add_executable(${EXAMPLE_NAME} ${MAIN_CPP} ${SOURCE} ${MAIN_HEADER} ${SHADERS_GLSL} ${SHADERS_HLSL} ${SHADERS_SLANG} ${README_FILES})
