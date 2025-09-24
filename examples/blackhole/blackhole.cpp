@@ -30,12 +30,12 @@ class VulkanExample : public VulkanExampleBase {
     int32_t objectIndex = 0;
   } models_;
 
-  struct UniformData {
+  struct uniformData {
     glm::mat4 projection;
     glm::mat4 modelView;
     glm::mat4 inverseModelview;
     float lodBias = 0.0f;
-  } uniformData;
+  } uniformData_;
   std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers_;
 
   struct {
@@ -56,22 +56,6 @@ class VulkanExample : public VulkanExampleBase {
     camera.setRotation(glm::vec3(0.0f));
     camera.setRotationSpeed(0.25f);
     camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
-  }
-
-  ~VulkanExample() {
-    if (device) {
-      vkDestroyImageView(device, cubeMap_.view, nullptr);
-      vkDestroyImage(device, cubeMap_.image, nullptr);
-      vkDestroySampler(device, cubeMap_.sampler, nullptr);
-      vkFreeMemory(device, cubeMap_.deviceMemory, nullptr);
-      vkDestroyPipeline(device, pipelines_.skybox, nullptr);
-      vkDestroyPipeline(device, pipelines_.reflect, nullptr);
-      vkDestroyPipelineLayout(device, pipelineLayout_, nullptr);
-      vkDestroyDescriptorSetLayout(device, descriptorSetLayout_, nullptr);
-      for (auto& buffer : uniformBuffers_) {
-        buffer.destroy();
-      }
-    }
   }
 
   // Enable physical device features required for this example
@@ -428,19 +412,19 @@ class VulkanExample : public VulkanExampleBase {
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer, sizeof(UniformData), &uniformData));
+          &buffer, sizeof(uniformData), &uniformData_));
       VK_CHECK_RESULT(buffer.map());
     }
   }
 
   void updateUniformBuffers() {
-    uniformData.projection = camera.matrices.perspective;
+    uniformData_.projection = camera.matrices.perspective;
     // Note: Both the object and skybox use the same uniform data, the
     // translation part of the skybox is removed in the shader (see skybox.vert)
-    uniformData.modelView = camera.matrices.view;
-    uniformData.inverseModelview = glm::inverse(camera.matrices.view);
-    memcpy(uniformBuffers_[currentBuffer].mapped, &uniformData,
-           sizeof(UniformData));
+    uniformData_.modelView = camera.matrices.view;
+    uniformData_.inverseModelview = glm::inverse(camera.matrices.view);
+    memcpy(uniformBuffers_[currentBuffer].mapped, &uniformData_,
+           sizeof(uniformData_));
   }
 
   void prepare() {
@@ -519,10 +503,26 @@ class VulkanExample : public VulkanExampleBase {
 
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {
     if (overlay->header("Settings")) {
-      overlay->sliderFloat("LOD bias", &uniformData.lodBias, 0.0f,
+      overlay->sliderFloat("LOD bias", &uniformData_.lodBias, 0.0f,
                            (float)cubeMap_.mipLevels);
       overlay->comboBox("Object type", &models_.objectIndex, objectNames_);
       overlay->checkBox("Skybox", &displaySkybox_);
+    }
+  }
+
+  ~VulkanExample() {
+    if (device) {
+      vkDestroyImageView(device, cubeMap_.view, nullptr);
+      vkDestroyImage(device, cubeMap_.image, nullptr);
+      vkDestroySampler(device, cubeMap_.sampler, nullptr);
+      vkFreeMemory(device, cubeMap_.deviceMemory, nullptr);
+      vkDestroyPipeline(device, pipelines_.skybox, nullptr);
+      vkDestroyPipeline(device, pipelines_.reflect, nullptr);
+      vkDestroyPipelineLayout(device, pipelineLayout_, nullptr);
+      vkDestroyDescriptorSetLayout(device, descriptorSetLayout_, nullptr);
+      for (auto& buffer : uniformBuffers_) {
+        buffer.destroy();
+      }
     }
   }
 };
