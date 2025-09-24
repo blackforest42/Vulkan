@@ -58,10 +58,259 @@ class VulkanExample : public VulkanExampleBase {
     camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
   }
 
-  // Enable physical device features required for this example
-  virtual void getEnabledFeatures() {
-    if (deviceFeatures.samplerAnisotropy) {
-      enabledFeatures.samplerAnisotropy = VK_TRUE;
+  // Called once before renderLoop()
+  void prepare() {
+    VulkanExampleBase::prepare();
+    loadAssets();
+    prepareUniformBuffers();
+    setupDescriptors();
+    preparePipelines();
+    prepared = true;
+  }
+
+  void loadAssets() {
+    uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices |
+                                vkglTF::FileLoadingFlags::FlipY;
+    // Skybox
+    models_.skybox.loadFromFile(getAssetPath() + "models/cube.gltf",
+                                vulkanDevice, queue, glTFLoadingFlags);
+    // Objects
+    std::vector<std::string> filenames = {"sphere.gltf", "teapot.gltf",
+                                          "torusknot.gltf", "venus.gltf"};
+    objectNames_ = {"Sphere", "Teapot", "Torusknot", "Venus"};
+    models_.objects.resize(filenames.size());
+    for (size_t i = 0; i < filenames.size(); i++) {
+      models_.objects[i].loadFromFile(getAssetPath() + "models/" + filenames[i],
+                                      vulkanDevice, queue, glTFLoadingFlags);
+    }
+    // Cubemap texture
+    loadCubemap(getAssetPath() + "textures/blackhole/skybox/cubemap.ktx",
+                VK_FORMAT_R8G8B8A8_UNORM);
+  }
+
+  // Prepare and initialize uniform buffer containing shader uniforms
+  void prepareUniformBuffers() {
+    for (auto& buffer : uniformBuffers_) {
+      VK_CHECK_RESULT(vulkanDevice->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer, sizeof(uniformData), &uniformData_));
+      VK_CHECK_RESULT(buffer.map());
+    }
+  }
+
+  void setupDescriptors() {
+    // Pool
+    std::vector<VkDescriptorPoolSize> poolSizes = {
+        vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                              maxConcurrentFrames),
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, maxConcurrentFrames)};
+    VkDescriptorPoolCreateInfo descriptorPoolInfo =
+        vks::initializers::descriptorPoolCreateInfo(poolSizes,
+                                                    maxConcurrentFrames);
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr,
+                                           &descriptorPool));
+
+    // Layout
+    std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
+        // Binding 0 : Vertex shader uniform buffer
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0),
+        // Binding 1 : Fragment shader image sampler
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT, 1)};
+    VkDescriptorSetLayoutCreateInfo descriptorLayout =
+        vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
+        device, &descriptorLayout, nullptr, &descriptorSetLayout_));
+
+    // Image descriptor for the cube map texture
+    VkDescriptorImageInfo textureDescriptor =
+        vks::initializers::descriptorImageInfo(cubeMap_.sampler, cubeMap_.view,
+                                               cubeMap_.imageLayout);
+
+    // Sets per frame, just like the buffers themselves
+    // Images do not need to be duplicated per frame, we reuse the same one for
+    // each frame
+    VkDescriptorSetAllocateInfo allocInfo =
+        vks::initializers::descriptorSetAllocateInfo(descriptorPool,
+                                                     &descriptorSetLayout_, 1);
+    for (auto i = 0; i < uniformBuffers_.size(); i++) {
+      VK_CHECK_RESULT(
+          vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets_[i]));
+      std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+          vks::initializers::writeDescriptorSet(
+              descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
+              &uniformBuffers_[i].descriptor),
+          vks::initializers::writeDescriptorSet(
+              descriptorSets_[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1,
+              &textureDescriptor),
+      };
+      vkUpdateDescriptorSets(device,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
+    }
+  }
+
+  void preparePipelines() {
+    // Layout
+    const VkPipelineLayoutCreateInfo pipelineLayoutCI =
+        vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout_, 1);
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr,
+                                           &pipelineLayout_));
+
+    // Pipeline
+    VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
+        vks::initializers::pipelineInputAssemblyStateCreateInfo(
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
+    VkPipelineRasterizationStateCreateInfo rasterizationState =
+        vks::initializers::pipelineRasterizationStateCreateInfo(
+            VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT,
+            VK_FRONT_FACE_COUNTER_CLOCKWISE, 0);
+    VkPipelineColorBlendAttachmentState blendAttachmentState =
+        vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
+    VkPipelineColorBlendStateCreateInfo colorBlendState =
+        vks::initializers::pipelineColorBlendStateCreateInfo(
+            1, &blendAttachmentState);
+    VkPipelineDepthStencilStateCreateInfo depthStencilState =
+        vks::initializers::pipelineDepthStencilStateCreateInfo(
+            VK_FALSE, VK_FALSE, VK_COMPARE_OP_LESS_OR_EQUAL);
+    VkPipelineViewportStateCreateInfo viewportState =
+        vks::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
+    VkPipelineMultisampleStateCreateInfo multisampleState =
+        vks::initializers::pipelineMultisampleStateCreateInfo(
+            VK_SAMPLE_COUNT_1_BIT, 0);
+    std::vector<VkDynamicState> dynamicStateEnables = {
+        VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dynamicState =
+        vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
+    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
+
+    VkGraphicsPipelineCreateInfo pipelineCI =
+        vks::initializers::pipelineCreateInfo(pipelineLayout_, renderPass, 0);
+    pipelineCI.pInputAssemblyState = &inputAssemblyState;
+    pipelineCI.pRasterizationState = &rasterizationState;
+    pipelineCI.pColorBlendState = &colorBlendState;
+    pipelineCI.pMultisampleState = &multisampleState;
+    pipelineCI.pViewportState = &viewportState;
+    pipelineCI.pDepthStencilState = &depthStencilState;
+    pipelineCI.pDynamicState = &dynamicState;
+    pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
+    pipelineCI.pStages = shaderStages.data();
+    pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState(
+        {vkglTF::VertexComponent::Position, vkglTF::VertexComponent::Normal});
+
+    // Skybox pipeline (background cube)
+    shaderStages[0] =
+        loadShader(getShadersPath() + "texturecubemap/skybox.vert.spv",
+                   VK_SHADER_STAGE_VERTEX_BIT);
+    shaderStages[1] =
+        loadShader(getShadersPath() + "texturecubemap/skybox.frag.spv",
+                   VK_SHADER_STAGE_FRAGMENT_BIT);
+    rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
+        device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.skybox));
+
+    // Cube map reflect pipeline
+    shaderStages[0] =
+        loadShader(getShadersPath() + "texturecubemap/reflect.vert.spv",
+                   VK_SHADER_STAGE_VERTEX_BIT);
+    shaderStages[1] =
+        loadShader(getShadersPath() + "texturecubemap/reflect.frag.spv",
+                   VK_SHADER_STAGE_FRAGMENT_BIT);
+    // Enable depth test and write
+    depthStencilState.depthWriteEnable = VK_TRUE;
+    depthStencilState.depthTestEnable = VK_TRUE;
+    rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
+        device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.reflect));
+  }
+
+  virtual void render() {
+    if (!prepared)
+      return;
+    VulkanExampleBase::prepareFrame();
+    updateUniformBuffers();
+    buildCommandBuffer();
+    VulkanExampleBase::submitFrame();
+  }
+
+  void updateUniformBuffers() {
+    uniformData_.projection = camera.matrices.perspective;
+    // Note: Both the object and skybox use the same uniform data, the
+    // translation part of the skybox is removed in the shader (see skybox.vert)
+    uniformData_.modelView = camera.matrices.view;
+    uniformData_.inverseModelview = glm::inverse(camera.matrices.view);
+    memcpy(uniformBuffers_[currentBuffer].mapped, &uniformData_,
+           sizeof(uniformData_));
+  }
+
+  void buildCommandBuffer() {
+    VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+
+    VkCommandBufferBeginInfo cmdBufInfo =
+        vks::initializers::commandBufferBeginInfo();
+
+    VkClearValue clearValues[2]{};
+    clearValues[0].color = defaultClearColor;
+    clearValues[1].depthStencil = {1.0f, 0};
+
+    VkRenderPassBeginInfo renderPassBeginInfo =
+        vks::initializers::renderPassBeginInfo();
+    renderPassBeginInfo.renderPass = renderPass;
+    renderPassBeginInfo.renderArea.offset.x = 0;
+    renderPassBeginInfo.renderArea.offset.y = 0;
+    renderPassBeginInfo.renderArea.extent.width = width;
+    renderPassBeginInfo.renderArea.extent.height = height;
+    renderPassBeginInfo.clearValueCount = 2;
+    renderPassBeginInfo.pClearValues = clearValues;
+    renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+
+    VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
+
+    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
+                         VK_SUBPASS_CONTENTS_INLINE);
+
+    VkViewport viewport =
+        vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            pipelineLayout_, 0, 1,
+                            &descriptorSets_[currentBuffer], 0, nullptr);
+
+    // Skybox
+    if (displaySkybox_) {
+      vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        pipelines_.skybox);
+      models_.skybox.draw(cmdBuffer);
+    }
+
+    // 3D object
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      pipelines_.reflect);
+    models_.objects[models_.objectIndex].draw(cmdBuffer);
+
+    drawUI(cmdBuffer);
+
+    vkCmdEndRenderPass(cmdBuffer);
+
+    VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
+  }
+
+  virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {
+    if (overlay->header("Settings")) {
+      overlay->sliderFloat("LOD bias", &uniformData_.lodBias, 0.0f,
+                           (float)cubeMap_.mipLevels);
+      overlay->comboBox("Object type", &models_.objectIndex, objectNames_);
+      overlay->checkBox("Skybox", &displaySkybox_);
     }
   }
 
@@ -255,258 +504,10 @@ class VulkanExample : public VulkanExampleBase {
     ktxTexture_Destroy(ktxTexture);
   }
 
-  void loadAssets() {
-    uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices |
-                                vkglTF::FileLoadingFlags::FlipY;
-    // Skybox
-    models_.skybox.loadFromFile(getAssetPath() + "models/cube.gltf",
-                                vulkanDevice, queue, glTFLoadingFlags);
-    // Objects
-    std::vector<std::string> filenames = {"sphere.gltf", "teapot.gltf",
-                                          "torusknot.gltf", "venus.gltf"};
-    objectNames_ = {"Sphere", "Teapot", "Torusknot", "Venus"};
-    models_.objects.resize(filenames.size());
-    for (size_t i = 0; i < filenames.size(); i++) {
-      models_.objects[i].loadFromFile(getAssetPath() + "models/" + filenames[i],
-                                      vulkanDevice, queue, glTFLoadingFlags);
-    }
-    // Cubemap texture
-    loadCubemap(getAssetPath() + "textures/blackhole/skybox/cubemap.ktx",
-                VK_FORMAT_R8G8B8A8_UNORM);
-  }
-
-  void setupDescriptors() {
-    // Pool
-    std::vector<VkDescriptorPoolSize> poolSizes = {
-        vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                              maxConcurrentFrames),
-        vks::initializers::descriptorPoolSize(
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, maxConcurrentFrames)};
-    VkDescriptorPoolCreateInfo descriptorPoolInfo =
-        vks::initializers::descriptorPoolCreateInfo(poolSizes,
-                                                    maxConcurrentFrames);
-    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr,
-                                           &descriptorPool));
-
-    // Layout
-    std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
-        // Binding 0 : Vertex shader uniform buffer
-        vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0),
-        // Binding 1 : Fragment shader image sampler
-        vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_FRAGMENT_BIT, 1)};
-    VkDescriptorSetLayoutCreateInfo descriptorLayout =
-        vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
-        device, &descriptorLayout, nullptr, &descriptorSetLayout_));
-
-    // Image descriptor for the cube map texture
-    VkDescriptorImageInfo textureDescriptor =
-        vks::initializers::descriptorImageInfo(cubeMap_.sampler, cubeMap_.view,
-                                               cubeMap_.imageLayout);
-
-    // Sets per frame, just like the buffers themselves
-    // Images do not need to be duplicated per frame, we reuse the same one for
-    // each frame
-    VkDescriptorSetAllocateInfo allocInfo =
-        vks::initializers::descriptorSetAllocateInfo(descriptorPool,
-                                                     &descriptorSetLayout_, 1);
-    for (auto i = 0; i < uniformBuffers_.size(); i++) {
-      VK_CHECK_RESULT(
-          vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets_[i]));
-      std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-          vks::initializers::writeDescriptorSet(
-              descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
-              &uniformBuffers_[i].descriptor),
-          vks::initializers::writeDescriptorSet(
-              descriptorSets_[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1,
-              &textureDescriptor),
-      };
-      vkUpdateDescriptorSets(device,
-                             static_cast<uint32_t>(writeDescriptorSets.size()),
-                             writeDescriptorSets.data(), 0, nullptr);
-    }
-  }
-
-  void preparePipelines() {
-    // Layout
-    const VkPipelineLayoutCreateInfo pipelineLayoutCI =
-        vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout_, 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr,
-                                           &pipelineLayout_));
-
-    // Pipeline
-    VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
-        vks::initializers::pipelineInputAssemblyStateCreateInfo(
-            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
-    VkPipelineRasterizationStateCreateInfo rasterizationState =
-        vks::initializers::pipelineRasterizationStateCreateInfo(
-            VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT,
-            VK_FRONT_FACE_COUNTER_CLOCKWISE, 0);
-    VkPipelineColorBlendAttachmentState blendAttachmentState =
-        vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
-    VkPipelineColorBlendStateCreateInfo colorBlendState =
-        vks::initializers::pipelineColorBlendStateCreateInfo(
-            1, &blendAttachmentState);
-    VkPipelineDepthStencilStateCreateInfo depthStencilState =
-        vks::initializers::pipelineDepthStencilStateCreateInfo(
-            VK_FALSE, VK_FALSE, VK_COMPARE_OP_LESS_OR_EQUAL);
-    VkPipelineViewportStateCreateInfo viewportState =
-        vks::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
-    VkPipelineMultisampleStateCreateInfo multisampleState =
-        vks::initializers::pipelineMultisampleStateCreateInfo(
-            VK_SAMPLE_COUNT_1_BIT, 0);
-    std::vector<VkDynamicState> dynamicStateEnables = {
-        VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
-    VkPipelineDynamicStateCreateInfo dynamicState =
-        vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
-    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
-
-    VkGraphicsPipelineCreateInfo pipelineCI =
-        vks::initializers::pipelineCreateInfo(pipelineLayout_, renderPass, 0);
-    pipelineCI.pInputAssemblyState = &inputAssemblyState;
-    pipelineCI.pRasterizationState = &rasterizationState;
-    pipelineCI.pColorBlendState = &colorBlendState;
-    pipelineCI.pMultisampleState = &multisampleState;
-    pipelineCI.pViewportState = &viewportState;
-    pipelineCI.pDepthStencilState = &depthStencilState;
-    pipelineCI.pDynamicState = &dynamicState;
-    pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
-    pipelineCI.pStages = shaderStages.data();
-    pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState(
-        {vkglTF::VertexComponent::Position, vkglTF::VertexComponent::Normal});
-
-    // Skybox pipeline (background cube)
-    shaderStages[0] =
-        loadShader(getShadersPath() + "texturecubemap/skybox.vert.spv",
-                   VK_SHADER_STAGE_VERTEX_BIT);
-    shaderStages[1] =
-        loadShader(getShadersPath() + "texturecubemap/skybox.frag.spv",
-                   VK_SHADER_STAGE_FRAGMENT_BIT);
-    rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-        device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.skybox));
-
-    // Cube map reflect pipeline
-    shaderStages[0] =
-        loadShader(getShadersPath() + "texturecubemap/reflect.vert.spv",
-                   VK_SHADER_STAGE_VERTEX_BIT);
-    shaderStages[1] =
-        loadShader(getShadersPath() + "texturecubemap/reflect.frag.spv",
-                   VK_SHADER_STAGE_FRAGMENT_BIT);
-    // Enable depth test and write
-    depthStencilState.depthWriteEnable = VK_TRUE;
-    depthStencilState.depthTestEnable = VK_TRUE;
-    rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-        device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.reflect));
-  }
-
-  // Prepare and initialize uniform buffer containing shader uniforms
-  void prepareUniformBuffers() {
-    for (auto& buffer : uniformBuffers_) {
-      VK_CHECK_RESULT(vulkanDevice->createBuffer(
-          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer, sizeof(uniformData), &uniformData_));
-      VK_CHECK_RESULT(buffer.map());
-    }
-  }
-
-  void updateUniformBuffers() {
-    uniformData_.projection = camera.matrices.perspective;
-    // Note: Both the object and skybox use the same uniform data, the
-    // translation part of the skybox is removed in the shader (see skybox.vert)
-    uniformData_.modelView = camera.matrices.view;
-    uniformData_.inverseModelview = glm::inverse(camera.matrices.view);
-    memcpy(uniformBuffers_[currentBuffer].mapped, &uniformData_,
-           sizeof(uniformData_));
-  }
-
-  void prepare() {
-    VulkanExampleBase::prepare();
-    loadAssets();
-    prepareUniformBuffers();
-    setupDescriptors();
-    preparePipelines();
-    prepared = true;
-  }
-
-  void buildCommandBuffer() {
-    VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
-
-    VkCommandBufferBeginInfo cmdBufInfo =
-        vks::initializers::commandBufferBeginInfo();
-
-    VkClearValue clearValues[2]{};
-    clearValues[0].color = defaultClearColor;
-    clearValues[1].depthStencil = {1.0f, 0};
-
-    VkRenderPassBeginInfo renderPassBeginInfo =
-        vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = renderPass;
-    renderPassBeginInfo.renderArea.offset.x = 0;
-    renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.renderArea.extent.width = width;
-    renderPassBeginInfo.renderArea.extent.height = height;
-    renderPassBeginInfo.clearValueCount = 2;
-    renderPassBeginInfo.pClearValues = clearValues;
-    renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
-
-    VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
-
-    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
-                         VK_SUBPASS_CONTENTS_INLINE);
-
-    VkViewport viewport =
-        vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
-    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
-
-    VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
-    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
-
-    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            pipelineLayout_, 0, 1,
-                            &descriptorSets_[currentBuffer], 0, nullptr);
-
-    // Skybox
-    if (displaySkybox_) {
-      vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        pipelines_.skybox);
-      models_.skybox.draw(cmdBuffer);
-    }
-
-    // 3D object
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      pipelines_.reflect);
-    models_.objects[models_.objectIndex].draw(cmdBuffer);
-
-    drawUI(cmdBuffer);
-
-    vkCmdEndRenderPass(cmdBuffer);
-
-    VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
-  }
-
-  virtual void render() {
-    if (!prepared)
-      return;
-    VulkanExampleBase::prepareFrame();
-    updateUniformBuffers();
-    buildCommandBuffer();
-    VulkanExampleBase::submitFrame();
-  }
-
-  virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {
-    if (overlay->header("Settings")) {
-      overlay->sliderFloat("LOD bias", &uniformData_.lodBias, 0.0f,
-                           (float)cubeMap_.mipLevels);
-      overlay->comboBox("Object type", &models_.objectIndex, objectNames_);
-      overlay->checkBox("Skybox", &displaySkybox_);
+  // Enable physical device features required for this example
+  virtual void getEnabledFeatures() {
+    if (deviceFeatures.samplerAnisotropy) {
+      enabledFeatures.samplerAnisotropy = VK_TRUE;
     }
   }
 
