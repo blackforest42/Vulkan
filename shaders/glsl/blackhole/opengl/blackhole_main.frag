@@ -6,11 +6,11 @@ const float INFINITY = 1000000.0;
 
 out vec4 fragColor;
 
-uniform vec2 resolution; // viewport resolution in pixels
+uniform vec2 resolution;  // viewport resolution in pixels
 uniform float mouseX;
 uniform float mouseY;
 
-uniform float time; // time elapsed in seconds
+uniform float time;  // time elapsed in seconds
 uniform samplerCube galaxy;
 uniform sampler2D colorMap;
 
@@ -41,11 +41,74 @@ struct Ring {
   float rotateSpeed;
 };
 
+#define IN_RANGE(x, a, b) (((x) > (a)) && ((x) < (b)))
+
+vec4 permute(vec4 x);
+vec4 taylorInvSqrt(vec4 r);
+float snoise(vec3 v);
+float ringDistance(vec3 rayOrigin, vec3 rayDir, Ring ring);
+vec3 panoramaColor(sampler2D tex, vec3 dir);
+vec3 accel(float h2, vec3 pos);
+vec4 quadFromAxisAngle(vec3 axis, float angle);
+vec4 quadConj(vec4 q);
+vec4 quat_mult(vec4 q1, vec4 q2);
+vec3 rotateVector(vec3 position, vec3 axis, float angle);
+void cartesianToSpherical(in vec3 xyz,
+                          out float rho,
+                          out float phi,
+                          out float theta);
+vec3 toSpherical(vec3 p);
+vec3 toSpherical2(vec3 pos);
+void ringColor(vec3 rayOrigin,
+               vec3 rayDir,
+               Ring ring,
+               inout float minDistance,
+               inout vec3 color);
+mat3 lookAt(vec3 origin, vec3 target, float roll);
+float sqrLength(vec3 a);
+void adiskColor(vec3 pos, inout vec3 color, inout float alpha);
+vec3 traceColor(vec3 pos, vec3 dir);
+
+void main() {
+  mat3 view;
+
+  vec3 cameraPos;
+  if (mouseControl > 0.5) {
+    vec2 mouse = clamp(vec2(mouseX, mouseY) / resolution.xy, 0.0, 1.0) - 0.5;
+    cameraPos = vec3(-cos(mouse.x * 10.0) * 15.0, mouse.y * 30.0,
+                     sin(mouse.x * 10.0) * 15.0);
+
+  } else if (frontView > 0.5) {
+    cameraPos = vec3(10.0, 1.0, 10.0);
+  } else if (topView > 0.5) {
+    cameraPos = vec3(15.0, 15.0, 0.0);
+  } else {
+    cameraPos = vec3(-cos(time * 0.1) * 15.0, sin(time * 0.1) * 15.0,
+                     sin(time * 0.1) * 15.0);
+  }
+
+  vec3 target = vec3(0.0, 0.0, 0.0);
+  view = lookAt(cameraPos, target, radians(cameraRoll));
+
+  vec2 uv = gl_FragCoord.xy / resolution.xy - vec2(0.5);
+  uv.x *= resolution.x / resolution.y;
+
+  vec3 dir = normalize(vec3(-uv.x * fovScale, uv.y * fovScale, 1.0));
+  vec3 pos = cameraPos;
+  dir = view * dir;
+
+  fragColor.rgb = traceColor(pos, dir);
+}
+
 ///----
 /// Simplex 3D Noise
 /// by Ian McEwan, Ashima Arts
-vec4 permute(vec4 x) { return mod(((x * 34.0) + 1.0) * x, 289.0); }
-vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+vec4 permute(vec4 x) {
+  return mod(((x * 34.0) + 1.0) * x, 289.0);
+}
+vec4 taylorInvSqrt(vec4 r) {
+  return 1.79284291400159 - 0.85373472095314 * r;
+}
 
 float snoise(vec3 v) {
   const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
@@ -74,13 +137,13 @@ float snoise(vec3 v) {
 
   // Gradients
   // ( N*N points uniformly over a square, mapped onto an octahedron.)
-  float n_ = 1.0 / 7.0; // N=7
+  float n_ = 1.0 / 7.0;  // N=7
   vec3 ns = n_ * D.wyz - D.xzx;
 
-  vec4 j = p - 49.0 * floor(p * ns.z * ns.z); //  mod(p,N*N)
+  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);  //  mod(p,N*N)
 
   vec4 x_ = floor(j * ns.z);
-  vec4 y_ = floor(j - 7.0 * x_); // mod(j,N)
+  vec4 y_ = floor(j - 7.0 * x_);  // mod(j,N)
 
   vec4 x = x_ * ns.x + ns.yyyy;
   vec4 y = y_ * ns.x + ns.yyyy;
@@ -162,7 +225,9 @@ vec4 quadFromAxisAngle(vec3 axis, float angle) {
   return qr;
 }
 
-vec4 quadConj(vec4 q) { return vec4(-q.x, -q.y, -q.z, q.w); }
+vec4 quadConj(vec4 q) {
+  return vec4(-q.x, -q.y, -q.z, q.w);
+}
 
 vec4 quat_mult(vec4 q1, vec4 q2) {
   vec4 qr;
@@ -186,7 +251,9 @@ vec3 rotateVector(vec3 position, vec3 axis, float angle) {
 
 #define IN_RANGE(x, a, b) (((x) > (a)) && ((x) < (b)))
 
-void cartesianToSpherical(in vec3 xyz, out float rho, out float phi,
+void cartesianToSpherical(in vec3 xyz,
+                          out float rho,
+                          out float phi,
                           out float theta) {
   rho = sqrt((xyz.x * xyz.x) + (xyz.y * xyz.y) + (xyz.z * xyz.z));
   phi = asin(xyz.y / rho);
@@ -210,7 +277,10 @@ vec3 toSpherical2(vec3 pos) {
   return radialCoords;
 }
 
-void ringColor(vec3 rayOrigin, vec3 rayDir, Ring ring, inout float minDistance,
+void ringColor(vec3 rayOrigin,
+               vec3 rayDir,
+               Ring ring,
+               inout float minDistance,
                inout vec3 color) {
   float distance = ringDistance(rayOrigin, normalize(rayDir), ring);
   if (distance >= EPSILON && distance < minDistance &&
@@ -223,9 +293,9 @@ void ringColor(vec3 rayOrigin, vec3 rayDir, Ring ring, inout float minDistance,
     {
       float dist = length(intersection);
 
-      float v = clamp((dist - ring.innerRadius) /
-                          (ring.outerRadius - ring.innerRadius),
-                      0.0, 1.0);
+      float v = clamp(
+          (dist - ring.innerRadius) / (ring.outerRadius - ring.innerRadius),
+          0.0, 1.0);
 
       vec3 base = cross(ring.normal, vec3(0.0, 0.0, 1.0));
       float angle = acos(dot(normalize(base), normalize(intersection)));
@@ -255,7 +325,9 @@ mat3 lookAt(vec3 origin, vec3 target, float roll) {
   return mat3(uu, vv, ww);
 }
 
-float sqrLength(vec3 a) { return dot(a, a); }
+float sqrLength(vec3 a) {
+  return dot(a, a);
+}
 
 void adiskColor(vec3 pos, inout vec3 color, inout float alpha) {
   float innerRadius = 2.6;
@@ -359,35 +431,4 @@ vec3 traceColor(vec3 pos, vec3 dir) {
   dir = rotateVector(dir, vec3(0.0, 1.0, 0.0), time);
   color += texture(galaxy, dir).rgb * alpha;
   return color;
-}
-
-void main() {
-  mat3 view;
-
-  vec3 cameraPos;
-  if (mouseControl > 0.5) {
-    vec2 mouse = clamp(vec2(mouseX, mouseY) / resolution.xy, 0.0, 1.0) - 0.5;
-    cameraPos = vec3(-cos(mouse.x * 10.0) * 15.0, mouse.y * 30.0,
-                     sin(mouse.x * 10.0) * 15.0);
-
-  } else if (frontView > 0.5) {
-    cameraPos = vec3(10.0, 1.0, 10.0);
-  } else if (topView > 0.5) {
-    cameraPos = vec3(15.0, 15.0, 0.0);
-  } else {
-    cameraPos = vec3(-cos(time * 0.1) * 15.0, sin(time * 0.1) * 15.0,
-                     sin(time * 0.1) * 15.0);
-  }
-
-  vec3 target = vec3(0.0, 0.0, 0.0);
-  view = lookAt(cameraPos, target, radians(cameraRoll));
-
-  vec2 uv = gl_FragCoord.xy / resolution.xy - vec2(0.5);
-  uv.x *= resolution.x / resolution.y;
-
-  vec3 dir = normalize(vec3(-uv.x * fovScale, uv.y * fovScale, 1.0));
-  vec3 pos = cameraPos;
-  dir = view * dir;
-
-  fragColor.rgb = traceColor(pos, dir);
 }
