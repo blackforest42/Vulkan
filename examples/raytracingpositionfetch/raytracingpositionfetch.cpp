@@ -30,12 +30,12 @@ public:
 		glm::mat4 projInverse;
 		glm::vec4 lightPos;
 	} uniformData;
-	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers;
+	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipeline pipeline{ VK_NULL_HANDLE };
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
-	std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets{};
+	std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
 	vkglTF::Model scene;
 
@@ -47,11 +47,11 @@ public:
 	{
 		title = "Ray tracing position fetch";
 		timerSpeed *= 0.5f;
-		camera.rotationSpeed *= 0.25f;
-		camera.type = Camera::CameraType::firstperson;
-		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
-		camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
-		camera.setTranslation(glm::vec3(0.0f, 3.0f, -10.0f));
+		camera_.rotationSpeed *= 0.25f;
+		camera_.type = Camera::CameraType::firstperson;
+		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
+		camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+		camera_.setTranslation(glm::vec3(0.0f, 3.0f, -10.0f));
 		enableExtensions();
 		// Enable the sample specific extension
 		enabledDeviceExtensions.push_back(VK_KHR_RAY_TRACING_POSITION_FETCH_EXTENSION_NAME);
@@ -60,16 +60,16 @@ public:
 
 	~VulkanExample()
 	{
-		vkDestroyPipeline(device, pipeline, nullptr);
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		vkDestroyPipeline(device_, pipeline, nullptr);
+		vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
 		deleteStorageImage();
 		deleteAccelerationStructure(bottomLevelAS);
 		deleteAccelerationStructure(topLevelAS);
 		shaderBindingTables.raygen.destroy();
 		shaderBindingTables.miss.destroy();
 		shaderBindingTables.hit.destroy();
-		for (auto& buffer : uniformBuffers) {
+		for (auto& buffer : uniformBuffers_) {
 			buffer.destroy();
 		}
 	}
@@ -83,7 +83,7 @@ public:
 		// The shaders are accessing the vertex and index buffers of the scene, so the proper usage flag has to be set on the vertex and index buffers for the scene
 		vkglTF::memoryPropertyFlags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
-		scene.loadFromFile(getAssetPath() + "models/treasure_smooth.gltf", vulkanDevice, queue, glTFLoadingFlags);
+		scene.loadFromFile(getAssetPath() + "models/treasure_smooth.gltf", vulkanDevice, queue_, glTFLoadingFlags);
 		
 		VkDeviceOrHostAddressConstKHR vertexBufferDeviceAddress{};
 		VkDeviceOrHostAddressConstKHR indexBufferDeviceAddress{};
@@ -115,7 +115,7 @@ public:
 		accelerationStructureBuildGeometryInfo.geometryCount = 1;
 		accelerationStructureBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
 		VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo = vks::initializers::accelerationStructureBuildSizesInfoKHR();
-		vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &accelerationStructureBuildGeometryInfo, &numTriangles, &accelerationStructureBuildSizesInfo);
+		vkGetAccelerationStructureBuildSizesKHR(device_, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &accelerationStructureBuildGeometryInfo, &numTriangles, &accelerationStructureBuildSizesInfo);
 
 		createAccelerationStructure(bottomLevelAS, VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, accelerationStructureBuildSizesInfo);
 
@@ -143,7 +143,7 @@ public:
 		// Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
 		VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 		vkCmdBuildAccelerationStructuresKHR(commandBuffer, 1, &accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
-		vulkanDevice->flushCommandBuffer(commandBuffer, queue);
+		vulkanDevice->flushCommandBuffer(commandBuffer, queue_);
 
 		deleteScratchBuffer(scratchBuffer);
 	}
@@ -195,7 +195,7 @@ public:
 		uint32_t primitive_count = 1;
 
 		VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo = vks::initializers::accelerationStructureBuildSizesInfoKHR();
-		vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &accelerationStructureBuildGeometryInfo, &primitive_count, &accelerationStructureBuildSizesInfo);
+		vkGetAccelerationStructureBuildSizesKHR(device_, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &accelerationStructureBuildGeometryInfo, &primitive_count, &accelerationStructureBuildSizesInfo);
 
 		createAccelerationStructure(topLevelAS, VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR, accelerationStructureBuildSizesInfo);
 
@@ -222,7 +222,7 @@ public:
 		// Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
 		VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 		vkCmdBuildAccelerationStructuresKHR(commandBuffer, 1, &accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
-		vulkanDevice->flushCommandBuffer(commandBuffer, queue);
+		vulkanDevice->flushCommandBuffer(commandBuffer, queue_);
 
 		deleteScratchBuffer(scratchBuffer);
 		instancesBuffer.destroy();
@@ -249,7 +249,7 @@ public:
 		const uint32_t sbtSize = groupCount * handleSizeAligned;
 
 		std::vector<uint8_t> shaderHandleStorage(sbtSize);
-		VK_CHECK_RESULT(vkGetRayTracingShaderGroupHandlesKHR(device, pipeline, 0, groupCount, sbtSize, shaderHandleStorage.data()));
+		VK_CHECK_RESULT(vkGetRayTracingShaderGroupHandlesKHR(device_, pipeline, 0, groupCount, sbtSize, shaderHandleStorage.data()));
 
 		createShaderBindingTable(shaderBindingTables.raygen, 1);
 		createShaderBindingTable(shaderBindingTables.miss, 1);
@@ -268,18 +268,18 @@ public:
 	{
 		// Pools
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			{ VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, maxConcurrentFrames },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, maxConcurrentFrames },
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames }
+			{ VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, MAX_CONCURRENT_FRAMES },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, MAX_CONCURRENT_FRAMES },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES }
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxConcurrentFrames);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, nullptr, &descriptorPool));
+		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, MAX_CONCURRENT_FRAMES);
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolCreateInfo, nullptr, &descriptorPool_));
 
 		// Sets per frame, just like the buffers themselves
 		// Acceleration structure and images do not need to be duplicated per frame, we use the same for each descriptor to keep things simple
-		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-		for (auto i = 0; i < maxConcurrentFrames; i++) {
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i]));
+		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayout, 1);
+		for (auto i = 0; i < MAX_CONCURRENT_FRAMES; i++) {
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
 
 			// The fragment shader needs access to the ray tracing acceleration structure, so we pass it as a descriptor
 
@@ -292,7 +292,7 @@ public:
 			accelerationStructureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			// The specialized acceleration structure descriptor has to be chained
 			accelerationStructureWrite.pNext = &descriptorAccelerationStructureInfo;
-			accelerationStructureWrite.dstSet = descriptorSets[i];
+			accelerationStructureWrite.dstSet = descriptorSets_[i];
 			accelerationStructureWrite.dstBinding = 0;
 			accelerationStructureWrite.descriptorCount = 1;
 			accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
@@ -305,11 +305,11 @@ public:
 				// Binding 0: Top level acceleration structure
 				accelerationStructureWrite,
 				// Binding 1: Ray tracing result image
-				vks::initializers::writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &storageImageDescriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &storageImageDescriptor),
 				// Binding 2: Uniform data
-				vks::initializers::writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2, &uniformBuffers[i].descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2, &uniformBuffers_[i].descriptor),
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
 		}
 	}
 
@@ -328,10 +328,10 @@ public:
 		};
 
 		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr, &descriptorSetLayout));
 
 		VkPipelineLayoutCreateInfo pPipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pPipelineLayoutCI, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pPipelineLayoutCI, nullptr, &pipelineLayout));
 
 		/*
 			Setup ray tracing shader groups
@@ -384,7 +384,7 @@ public:
 		rayTracingPipelineCI.pGroups = shaderGroups.data();
 		rayTracingPipelineCI.maxPipelineRayRecursionDepth = 1;
 		rayTracingPipelineCI.layout = pipelineLayout;
-		VK_CHECK_RESULT(vkCreateRayTracingPipelinesKHR(device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayTracingPipelineCI, nullptr, &pipeline));
+		VK_CHECK_RESULT(vkCreateRayTracingPipelinesKHR(device_, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayTracingPipelineCI, nullptr, &pipeline));
 	}
 
 	/*
@@ -392,7 +392,7 @@ public:
 	*/
 	void createUniformBuffer()
 	{
-		for (auto& buffer : uniformBuffers) {
+		for (auto& buffer : uniformBuffers_) {
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
 			VK_CHECK_RESULT(buffer.map());
 		}
@@ -404,22 +404,22 @@ public:
 	void handleResize()
 	{
 		// Recreate image
-		createStorageImage(swapChain.colorFormat, { width, height, 1 });
+		createStorageImage(swapChain_.colorFormat, { width_, height_, 1 });
 		// Update descriptors
 		VkDescriptorImageInfo storageImageDescriptor{ VK_NULL_HANDLE, storageImage.view, VK_IMAGE_LAYOUT_GENERAL };
-		for (auto i = 0; i < maxConcurrentFrames; i++) {
-			VkWriteDescriptorSet resultImageWrite = vks::initializers::writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &storageImageDescriptor);
-			vkUpdateDescriptorSets(device, 1, &resultImageWrite, 0, VK_NULL_HANDLE);
+		for (auto i = 0; i < MAX_CONCURRENT_FRAMES; i++) {
+			VkWriteDescriptorSet resultImageWrite = vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &storageImageDescriptor);
+			vkUpdateDescriptorSets(device_, 1, &resultImageWrite, 0, VK_NULL_HANDLE);
 		}
 		resized = false;
 	}
 
 	void updateUniformBuffers()
 	{
-		uniformData.projInverse = glm::inverse(camera.matrices.perspective);
-		uniformData.viewInverse = glm::inverse(camera.matrices.view);
+		uniformData.projInverse = glm::inverse(camera_.matrices.perspective);
+		uniformData.viewInverse = glm::inverse(camera_.matrices.view);
 		uniformData.lightPos = glm::vec4(cos(glm::radians(timer * 360.0f)) * 25.0f, 25.0f, 25.0f + sin(glm::radians(timer * 360.0f)) * 5.0f, 0.0f);
-		memcpy(uniformBuffers[currentBuffer].mapped, &uniformData, sizeof(uniformData));
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(uniformData));
 	}
 
 	void getEnabledFeatures()
@@ -452,12 +452,12 @@ public:
 		createBottomLevelAccelerationStructure();
 		createTopLevelAccelerationStructure();
 
-		createStorageImage(swapChain.colorFormat, { width, height, 1 });
+		createStorageImage(swapChain_.colorFormat, { width_, height_, 1 });
 		createUniformBuffer();
 		createRayTracingPipeline();
 		createShaderBindingTables();
 		createDescriptors();
-		prepared = true;
+		prepared_ = true;
 	}
 
 	void buildCommandBuffer()
@@ -467,7 +467,7 @@ public:
 			handleResize();
 		}
 
-		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -476,7 +476,7 @@ public:
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline);
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, 0, 1, &descriptorSets[currentBuffer], 0, 0);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_], 0, 0);
 
 		/*
 			Dispatch the ray tracing commands
@@ -488,8 +488,8 @@ public:
 			&shaderBindingTables.miss.stridedDeviceAddressRegion,
 			&shaderBindingTables.hit.stridedDeviceAddressRegion,
 			&emptySbtEntry,
-			width,
-			height,
+			width_,
+			height_,
 			1);
 
 		/*
@@ -499,7 +499,7 @@ public:
 		// Prepare current swap chain image as transfer destination
 		vks::tools::setImageLayout(
 			cmdBuffer,
-			swapChain.images[currentImageIndex],
+			swapChain_.images[currentImageIndex_],
 			VK_IMAGE_LAYOUT_UNDEFINED,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			subresourceRange);
@@ -517,13 +517,13 @@ public:
 		copyRegion.srcOffset = { 0, 0, 0 };
 		copyRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
 		copyRegion.dstOffset = { 0, 0, 0 };
-		copyRegion.extent = { width, height, 1 };
-		vkCmdCopyImage(cmdBuffer, storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChain.images[currentImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+		copyRegion.extent = { width_, height_, 1 };
+		vkCmdCopyImage(cmdBuffer, storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChain_.images[currentImageIndex_], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
 		// Transition swap chain image back for presentation
 		vks::tools::setImageLayout(
 			cmdBuffer,
-			swapChain.images[currentImageIndex],
+			swapChain_.images[currentImageIndex_],
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 			subresourceRange);
@@ -536,7 +536,7 @@ public:
 			VK_IMAGE_LAYOUT_GENERAL,
 			subresourceRange);
 
-		drawUI(cmdBuffer, frameBuffers[currentImageIndex]);
+		drawUI(cmdBuffer, frameBuffers_[currentImageIndex_]);
 
 		VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
 	}
@@ -544,7 +544,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared)
+		if (!prepared_)
 			return;
 		VulkanExampleBase::prepareFrame();
 		updateUniformBuffers();

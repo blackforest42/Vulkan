@@ -30,37 +30,37 @@ public:
 		float tessStrength = 0.1f;
 		float tessLevel = 64.0f;
 	} uniformData;
-	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers;
+	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	struct Pipelines {
 		VkPipeline solid{ VK_NULL_HANDLE };
 		VkPipeline wireframe{ VK_NULL_HANDLE };
-	} pipelines;
+	} pipelines_;
 
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
-	std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets{};
+	std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Tessellation shader displacement";
-		camera.type = Camera::CameraType::lookat;
-		camera.setPosition(glm::vec3(0.0f, 0.0f, -1.25f));
-		camera.setRotation(glm::vec3(-20.0f, 45.0f, 0.0f));
-		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
+		camera_.type = Camera::CameraType::lookat;
+		camera_.setPosition(glm::vec3(0.0f, 0.0f, -1.25f));
+		camera_.setRotation(glm::vec3(-20.0f, 45.0f, 0.0f));
+		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 	}
 
 	~VulkanExample()
 	{
-		if (device) {
-			vkDestroyPipeline(device, pipelines.solid, nullptr);
-			if (pipelines.wireframe != VK_NULL_HANDLE) {
-				vkDestroyPipeline(device, pipelines.wireframe, nullptr);
+		if (device_) {
+			vkDestroyPipeline(device_, pipelines_.solid, nullptr);
+			if (pipelines_.wireframe != VK_NULL_HANDLE) {
+				vkDestroyPipeline(device_, pipelines_.wireframe, nullptr);
 			};
-			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
 			colorHeightMap.destroy();
-			for (auto& buffer : uniformBuffers) {
+			for (auto& buffer : uniformBuffers_) {
 				buffer.destroy();
 			}
 		}
@@ -88,19 +88,19 @@ public:
 	void loadAssets()
 	{
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
-		plane.loadFromFile(getAssetPath() + "models/displacement_plane.gltf", vulkanDevice, queue, glTFLoadingFlags);
-		colorHeightMap.loadFromFile(getAssetPath() + "textures/stonefloor03_color_height_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
+		plane.loadFromFile(getAssetPath() + "models/displacement_plane.gltf", vulkanDevice, queue_, glTFLoadingFlags);
+		colorHeightMap.loadFromFile(getAssetPath() + "textures/stonefloor03_color_height_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue_);
 	}
 
 	void setupDescriptors()
 	{
 		// Pool
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames * 2),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, maxConcurrentFrames)
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES * 2),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_CONCURRENT_FRAMES)
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxConcurrentFrames);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
+		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, MAX_CONCURRENT_FRAMES);
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
 
 		// Layout
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -110,18 +110,18 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 1),
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr, &descriptorSetLayout));
 
 		// Sets per frame, just like the buffers themselves
 		// Images do not need to be duplicated per frame, we reuse the same one for each frame
-		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-		for (auto i = 0; i < uniformBuffers.size(); i++) {
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i]));
+		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayout, 1);
+		for (auto i = 0; i < uniformBuffers_.size(); i++) {
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-				vks::initializers::writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers[i].descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &colorHeightMap.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &colorHeightMap.descriptor),
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}
 	}
 
@@ -129,7 +129,7 @@ public:
 	{
 		// Layout
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 
 		// Pipelines
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_PATCH_LIST, 0, VK_FALSE);
@@ -150,7 +150,7 @@ public:
 		shaderStages[2] = loadShader(getShadersPath() + "displacement/displacement.tesc.spv", VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT);
 		shaderStages[3] = loadShader(getShadersPath() + "displacement/displacement.tese.spv", VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
 
-		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass);
+		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_);
 		pipelineCI.pInputAssemblyState = &inputAssemblyState;
 		pipelineCI.pRasterizationState = &rasterizationState;
 		pipelineCI.pColorBlendState = &colorBlendState;
@@ -165,19 +165,19 @@ public:
 
 		// Tessellation pipelines
 		// Solid pipeline
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.solid));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.solid));
 		if (deviceFeatures.fillModeNonSolid) {
 			// Wireframe pipeline
 			rasterizationState.polygonMode = VK_POLYGON_MODE_LINE;
 			rasterizationState.cullMode = VK_CULL_MODE_NONE;
-			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.wireframe));
+			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.wireframe));
 		}
 	}
 
 	// Prepare and initialize uniform buffer containing shader uniforms
 	void prepareUniformBuffers()
 	{
-		for (auto& buffer : uniformBuffers) {
+		for (auto& buffer : uniformBuffers_) {
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
 			VK_CHECK_RESULT(buffer.map());
 		}
@@ -185,8 +185,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera.matrices.perspective;
-		uniformData.modelView = camera.matrices.view;
+		uniformData.projection = camera_.matrices.perspective;
+		uniformData.modelView = camera_.matrices.view;
 		uniformData.lightPos.y = -0.5f - uniformData.tessStrength;
 		// Tessellation control
 		float savedLevel = uniformData.tessLevel;
@@ -194,7 +194,7 @@ public:
 		if (!displacement) {
 			uniformData.tessLevel = 1.0f;
 		}
-		memcpy(uniformBuffers[currentBuffer].mapped, &uniformData, sizeof(UniformData));
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
 		if (!displacement) {
 			uniformData.tessLevel = savedLevel;
 		}
@@ -207,12 +207,12 @@ public:
 		prepareUniformBuffers();
 		setupDescriptors();
 		preparePipelines();
-		prepared = true;
+		prepared_ = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -221,40 +221,40 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass;
+		renderPassBeginInfo.renderPass = renderPass_;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.renderArea.extent.width = width_;
+		renderPassBeginInfo.renderArea.extent.height = height_;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-		VkRect2D scissor = vks::initializers::rect2D(splitScreen ? width / 2 : width, height, 0, 0);
+		VkRect2D scissor = vks::initializers::rect2D(splitScreen ? width_ / 2 : width_, height_, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 		vkCmdSetLineWidth(cmdBuffer, 1.0f);
 
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentBuffer], 0, nullptr);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_], 0, nullptr);
 
 		plane.bindBuffers(cmdBuffer);
 
 		if (splitScreen)
 		{
-			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.wireframe);
+			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.wireframe);
 			plane.draw(cmdBuffer);
-			scissor.offset.x = width / 2;
+			scissor.offset.x = width_ / 2;
 			vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 		}
 
-		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.solid);
+		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.solid);
 		plane.draw(cmdBuffer);
 
 		drawUI(cmdBuffer);
@@ -266,7 +266,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared)
+		if (!prepared_)
 			return;
 		VulkanExampleBase::prepareFrame();
 		updateUniformBuffers();

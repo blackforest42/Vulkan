@@ -35,30 +35,30 @@ public:
 		glm::mat4 projection;
 		glm::mat4 model;
 	} uniformData;
-	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers;
+	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	struct PipelineLayouts {
 		VkPipelineLayout scene{ VK_NULL_HANDLE };
 		VkPipelineLayout fullscreen{ VK_NULL_HANDLE };
-	} pipelineLayouts;
+	} pipelineLayouts_;
 
 	struct Pipelines {
 		VkPipeline triangle{ VK_NULL_HANDLE };
 		VkPipeline triangleConservativeRaster{ VK_NULL_HANDLE };
 		VkPipeline triangleOverlay{ VK_NULL_HANDLE };
 		VkPipeline fullscreen{ VK_NULL_HANDLE };
-	} pipelines;
+	} pipelines_;
 
 	struct DescriptorSetLayouts {
 		VkDescriptorSetLayout scene{ VK_NULL_HANDLE };
 		VkDescriptorSetLayout fullscreen{ VK_NULL_HANDLE };
-	} descriptorSetLayouts;
+	} descriptorSetLayouts_;
 
 	struct DescriptorSets {
 		VkDescriptorSet scene{ VK_NULL_HANDLE };
 		VkDescriptorSet fullscreen{ VK_NULL_HANDLE };
 	};
-	std::array<DescriptorSets, maxConcurrentFrames> descriptorSets;
+	std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_;
 
 	// Framebuffer for offscreen rendering
 	struct FrameBufferAttachment {
@@ -73,15 +73,15 @@ public:
 		VkRenderPass renderPass;
 		VkSampler sampler;
 		VkDescriptorImageInfo descriptor;
-	} offscreenPass{};
+	} offscreenPass_{};
 
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Conservative rasterization";
-		camera.type = Camera::CameraType::lookat;
-		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
-		camera.setRotation(glm::vec3(0.0f));
-		camera.setTranslation(glm::vec3(0.0f, 0.0f, -2.0f));
+		camera_.type = Camera::CameraType::lookat;
+		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
+		camera_.setRotation(glm::vec3(0.0f));
+		camera_.setTranslation(glm::vec3(0.0f, 0.0f, -2.0f));
 
 		// Enable extension required for conservative rasterization
 		enabledDeviceExtensions.push_back(VK_EXT_CONSERVATIVE_RASTERIZATION_EXTENSION_NAME);
@@ -91,27 +91,27 @@ public:
 
 	~VulkanExample()
 	{
-		if (device) {
-			vkDestroyImageView(device, offscreenPass.color.view, nullptr);
-			vkDestroyImage(device, offscreenPass.color.image, nullptr);
-			vkFreeMemory(device, offscreenPass.color.mem, nullptr);
-			vkDestroyImageView(device, offscreenPass.depth.view, nullptr);
-			vkDestroyImage(device, offscreenPass.depth.image, nullptr);
-			vkFreeMemory(device, offscreenPass.depth.mem, nullptr);
-			vkDestroyRenderPass(device, offscreenPass.renderPass, nullptr);
-			vkDestroySampler(device, offscreenPass.sampler, nullptr);
-			vkDestroyFramebuffer(device, offscreenPass.frameBuffer, nullptr);
-			vkDestroyPipeline(device, pipelines.triangle, nullptr);
-			vkDestroyPipeline(device, pipelines.triangleOverlay, nullptr);
-			vkDestroyPipeline(device, pipelines.triangleConservativeRaster, nullptr);
-			vkDestroyPipeline(device, pipelines.fullscreen, nullptr);
-			vkDestroyPipelineLayout(device, pipelineLayouts.fullscreen, nullptr);
-			vkDestroyPipelineLayout(device, pipelineLayouts.scene, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayouts.scene, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayouts.fullscreen, nullptr);
+		if (device_) {
+			vkDestroyImageView(device_, offscreenPass_.color.view, nullptr);
+			vkDestroyImage(device_, offscreenPass_.color.image, nullptr);
+			vkFreeMemory(device_, offscreenPass_.color.mem, nullptr);
+			vkDestroyImageView(device_, offscreenPass_.depth.view, nullptr);
+			vkDestroyImage(device_, offscreenPass_.depth.image, nullptr);
+			vkFreeMemory(device_, offscreenPass_.depth.mem, nullptr);
+			vkDestroyRenderPass(device_, offscreenPass_.renderPass, nullptr);
+			vkDestroySampler(device_, offscreenPass_.sampler, nullptr);
+			vkDestroyFramebuffer(device_, offscreenPass_.frameBuffer, nullptr);
+			vkDestroyPipeline(device_, pipelines_.triangle, nullptr);
+			vkDestroyPipeline(device_, pipelines_.triangleOverlay, nullptr);
+			vkDestroyPipeline(device_, pipelines_.triangleConservativeRaster, nullptr);
+			vkDestroyPipeline(device_, pipelines_.fullscreen, nullptr);
+			vkDestroyPipelineLayout(device_, pipelineLayouts_.fullscreen, nullptr);
+			vkDestroyPipelineLayout(device_, pipelineLayouts_.scene, nullptr);
+			vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.scene, nullptr);
+			vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.fullscreen, nullptr);
 			triangle.vertices.destroy();
 			triangle.indices.destroy();
-			for (auto& buffer : uniformBuffers) {
+			for (auto& buffer : uniformBuffers_) {
 				buffer.destroy();
 			}
 		}
@@ -131,8 +131,8 @@ public:
 		// We "magnify" the offscreen rendered triangle so that the conservative rasterization feature is easier to see
 		const int32_t magnification = 16;
 
-		offscreenPass.width = width / magnification;
-		offscreenPass.height = height / magnification;
+		offscreenPass_.width = width_ / magnification;
+		offscreenPass_.height = height_ / magnification;
 
 		const VkFormat fbColorFormat = VK_FORMAT_R8G8B8A8_UNORM;
 
@@ -145,8 +145,8 @@ public:
 		VkImageCreateInfo image = vks::initializers::imageCreateInfo();
 		image.imageType = VK_IMAGE_TYPE_2D;
 		image.format = fbColorFormat;
-		image.extent.width = offscreenPass.width;
-		image.extent.height = offscreenPass.height;
+		image.extent.width = offscreenPass_.width;
+		image.extent.height = offscreenPass_.height;
 		image.extent.depth = 1;
 		image.mipLevels = 1;
 		image.arrayLayers = 1;
@@ -158,12 +158,12 @@ public:
 		VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
 		VkMemoryRequirements memReqs;
 
-		VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &offscreenPass.color.image));
-		vkGetImageMemoryRequirements(device, offscreenPass.color.image, &memReqs);
+		VK_CHECK_RESULT(vkCreateImage(device_, &image, nullptr, &offscreenPass_.color.image));
+		vkGetImageMemoryRequirements(device_, offscreenPass_.color.image, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
 		memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &offscreenPass.color.mem));
-		VK_CHECK_RESULT(vkBindImageMemory(device, offscreenPass.color.image, offscreenPass.color.mem, 0));
+		VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr, &offscreenPass_.color.mem));
+		VK_CHECK_RESULT(vkBindImageMemory(device_, offscreenPass_.color.image, offscreenPass_.color.mem, 0));
 
 		VkImageViewCreateInfo colorImageView = vks::initializers::imageViewCreateInfo();
 		colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -174,8 +174,8 @@ public:
 		colorImageView.subresourceRange.levelCount = 1;
 		colorImageView.subresourceRange.baseArrayLayer = 0;
 		colorImageView.subresourceRange.layerCount = 1;
-		colorImageView.image = offscreenPass.color.image;
-		VK_CHECK_RESULT(vkCreateImageView(device, &colorImageView, nullptr, &offscreenPass.color.view));
+		colorImageView.image = offscreenPass_.color.image;
+		VK_CHECK_RESULT(vkCreateImageView(device_, &colorImageView, nullptr, &offscreenPass_.color.view));
 
 		// Create sampler to sample from the attachment in the fragment shader
 		VkSamplerCreateInfo samplerInfo = vks::initializers::samplerCreateInfo();
@@ -190,18 +190,18 @@ public:
 		samplerInfo.minLod = 0.0f;
 		samplerInfo.maxLod = 1.0f;
 		samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		VK_CHECK_RESULT(vkCreateSampler(device, &samplerInfo, nullptr, &offscreenPass.sampler));
+		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerInfo, nullptr, &offscreenPass_.sampler));
 
 		// Depth stencil attachment
 		image.format = fbDepthFormat;
 		image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
-		VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &offscreenPass.depth.image));
-		vkGetImageMemoryRequirements(device, offscreenPass.depth.image, &memReqs);
+		VK_CHECK_RESULT(vkCreateImage(device_, &image, nullptr, &offscreenPass_.depth.image));
+		vkGetImageMemoryRequirements(device_, offscreenPass_.depth.image, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
 		memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &offscreenPass.depth.mem));
-		VK_CHECK_RESULT(vkBindImageMemory(device, offscreenPass.depth.image, offscreenPass.depth.mem, 0));
+		VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr, &offscreenPass_.depth.mem));
+		VK_CHECK_RESULT(vkBindImageMemory(device_, offscreenPass_.depth.image, offscreenPass_.depth.mem, 0));
 
 		VkImageViewCreateInfo depthStencilView = vks::initializers::imageViewCreateInfo();
 		depthStencilView.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -213,8 +213,8 @@ public:
 		depthStencilView.subresourceRange.levelCount = 1;
 		depthStencilView.subresourceRange.baseArrayLayer = 0;
 		depthStencilView.subresourceRange.layerCount = 1;
-		depthStencilView.image = offscreenPass.depth.image;
-		VK_CHECK_RESULT(vkCreateImageView(device, &depthStencilView, nullptr, &offscreenPass.depth.view));
+		depthStencilView.image = offscreenPass_.depth.image;
+		VK_CHECK_RESULT(vkCreateImageView(device_, &depthStencilView, nullptr, &offscreenPass_.depth.view));
 
 		// Create a separate render pass for the offscreen rendering as it may differ from the one used for scene rendering
 
@@ -284,26 +284,26 @@ public:
 		renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
 		renderPassInfo.pDependencies = dependencies.data();
 
-		VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr, &offscreenPass.renderPass));
+		VK_CHECK_RESULT(vkCreateRenderPass(device_, &renderPassInfo, nullptr, &offscreenPass_.renderPass));
 
 		VkImageView attachments[2];
-		attachments[0] = offscreenPass.color.view;
-		attachments[1] = offscreenPass.depth.view;
+		attachments[0] = offscreenPass_.color.view;
+		attachments[1] = offscreenPass_.depth.view;
 
 		VkFramebufferCreateInfo fbufCreateInfo = vks::initializers::framebufferCreateInfo();
-		fbufCreateInfo.renderPass = offscreenPass.renderPass;
+		fbufCreateInfo.renderPass = offscreenPass_.renderPass;
 		fbufCreateInfo.attachmentCount = 2;
 		fbufCreateInfo.pAttachments = attachments;
-		fbufCreateInfo.width = offscreenPass.width;
-		fbufCreateInfo.height = offscreenPass.height;
+		fbufCreateInfo.width = offscreenPass_.width;
+		fbufCreateInfo.height = offscreenPass_.height;
 		fbufCreateInfo.layers = 1;
 
-		VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbufCreateInfo, nullptr, &offscreenPass.frameBuffer));
+		VK_CHECK_RESULT(vkCreateFramebuffer(device_, &fbufCreateInfo, nullptr, &offscreenPass_.frameBuffer));
 
 		// Fill a descriptor for later use in a descriptor set
-		offscreenPass.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		offscreenPass.descriptor.imageView = offscreenPass.color.view;
-		offscreenPass.descriptor.sampler = offscreenPass.sampler;
+		offscreenPass_.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		offscreenPass_.descriptor.imageView = offscreenPass_.color.view;
+		offscreenPass_.descriptor.sampler = offscreenPass_.sampler;
 	}
 		
 	void loadAssets()
@@ -356,8 +356,8 @@ public:
 			indexBufferSize));
 
 		// Copy from host do device
-		vulkanDevice->copyBuffer(&stagingBuffers.vertices, &triangle.vertices, queue);
-		vulkanDevice->copyBuffer(&stagingBuffers.indices, &triangle.indices, queue);
+		vulkanDevice->copyBuffer(&stagingBuffers.vertices, &triangle.vertices, queue_);
+		vulkanDevice->copyBuffer(&stagingBuffers.indices, &triangle.indices, queue_);
 
 		// Clean up
 		stagingBuffers.vertices.destroy();
@@ -368,11 +368,11 @@ public:
 	{
 		// Pool
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames * 2),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, maxConcurrentFrames * 2)
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES * 2),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_CONCURRENT_FRAMES * 2)
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxConcurrentFrames * 2);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
+		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, MAX_CONCURRENT_FRAMES * 2);
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
 
 		// Layouts
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
@@ -383,33 +383,33 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0),			// Binding 0: Vertex shader uniform buffer
 		};
 		descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), static_cast<uint32_t>(setLayoutBindings.size()));
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayouts.scene));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr, &descriptorSetLayouts_.scene));
 
 		// Fullscreen pass
 		setLayoutBindings = {
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0)	// Binding 0: Fragment shader image sampler
 		};
 		descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), static_cast<uint32_t>(setLayoutBindings.size()));
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayouts.fullscreen));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr, &descriptorSetLayouts_.fullscreen));
 
 		// Sets per frame, just like the buffers themselves
 		// Images do not need to be duplicated per frame, we reuse the same one for each frame
-		for (auto i = 0; i < uniformBuffers.size(); i++) {
+		for (auto i = 0; i < uniformBuffers_.size(); i++) {
 			// Scene rendering
-			VkDescriptorSetAllocateInfo descriptorSetAllocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.scene, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &descriptorSetAllocInfo, &descriptorSets[i].scene));
+			VkDescriptorSetAllocateInfo descriptorSetAllocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayouts_.scene, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &descriptorSetAllocInfo, &descriptorSets_[i].scene));
 			std::vector<VkWriteDescriptorSet> offScreenWriteDescriptorSets = {
-				vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers[i].descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].descriptor),
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(offScreenWriteDescriptorSets.size()), offScreenWriteDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(offScreenWriteDescriptorSets.size()), offScreenWriteDescriptorSets.data(), 0, nullptr);
 
 			// Fullscreen pass
-			descriptorSetAllocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.fullscreen, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &descriptorSetAllocInfo, &descriptorSets[i].fullscreen));
+			descriptorSetAllocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayouts_.fullscreen, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &descriptorSetAllocInfo, &descriptorSets_[i].fullscreen));
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-				vks::initializers::writeDescriptorSet(descriptorSets[i].fullscreen, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &offscreenPass.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].fullscreen, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &offscreenPass_.descriptor),
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}
 	}
 
@@ -417,11 +417,11 @@ public:
 	{
 		// Layouts
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo;
-		pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts.scene, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayouts.scene));
+		pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts_.scene, 1);
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayouts_.scene));
 
-		pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts.fullscreen, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayouts.fullscreen));
+		pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts_.fullscreen, 1);
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayouts_.fullscreen));
 
 		// Pipelines
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCI = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -444,7 +444,7 @@ public:
 			Get device properties for conservative rasterization
 			Requires VK_KHR_get_physical_device_properties2 and manual function pointer creation
 		*/
-		PFN_vkGetPhysicalDeviceProperties2KHR vkGetPhysicalDeviceProperties2KHR = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2KHR>(vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2KHR"));
+		PFN_vkGetPhysicalDeviceProperties2KHR vkGetPhysicalDeviceProperties2KHR = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2KHR>(vkGetInstanceProcAddr(instance_, "vkGetPhysicalDeviceProperties2KHR"));
 		assert(vkGetPhysicalDeviceProperties2KHR);
 		VkPhysicalDeviceProperties2KHR deviceProps2{};
 		conservativeRasterProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CONSERVATIVE_RASTERIZATION_PROPERTIES_EXT;
@@ -466,7 +466,7 @@ public:
 		vertexInputState.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributes.size());
 		vertexInputState.pVertexAttributeDescriptions = vertexInputAttributes.data();
 
-		VkGraphicsPipelineCreateInfo pipelineCreateInfo = vks::initializers::pipelineCreateInfo(pipelineLayouts.fullscreen, renderPass, 0);
+		VkGraphicsPipelineCreateInfo pipelineCreateInfo = vks::initializers::pipelineCreateInfo(pipelineLayouts_.fullscreen, renderPass_, 0);
 		pipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCI;
 		pipelineCreateInfo.pRasterizationState = &rasterizationStateCI;
 		pipelineCreateInfo.pColorBlendState = &colorBlendStateCI;
@@ -483,11 +483,11 @@ public:
 		// Empty vertex input state (full screen triangle generated in vertex shader)
 		VkPipelineVertexInputStateCreateInfo emptyInputState = vks::initializers::pipelineVertexInputStateCreateInfo();
 		pipelineCreateInfo.pVertexInputState = &emptyInputState;
-		pipelineCreateInfo.layout = pipelineLayouts.fullscreen;
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.fullscreen));
+		pipelineCreateInfo.layout = pipelineLayouts_.fullscreen;
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines_.fullscreen));
 
 		pipelineCreateInfo.pVertexInputState = &vertexInputState;
-		pipelineCreateInfo.layout = pipelineLayouts.scene;
+		pipelineCreateInfo.layout = pipelineLayouts_.scene;
 
 		// Original triangle outline
 		// TODO: Check support for lines
@@ -495,9 +495,9 @@ public:
 		rasterizationStateCI.polygonMode = VK_POLYGON_MODE_LINE;
 		shaderStages[0] = loadShader(getShadersPath() + "conservativeraster/triangle.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "conservativeraster/triangleoverlay.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.triangleOverlay));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines_.triangleOverlay));
 
-		pipelineCreateInfo.renderPass = offscreenPass.renderPass;
+		pipelineCreateInfo.renderPass = offscreenPass_.renderPass;
 
 		/*
 			Triangle rendering
@@ -509,7 +509,7 @@ public:
 		/*
 			Basic pipeline
 		*/
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.triangle));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines_.triangle));
 
 		/*
 			Pipeline with conservative rasterization enabled
@@ -522,13 +522,13 @@ public:
 		// Conservative rasterization state has to be chained into the pipeline rasterization state create info structure
 		rasterizationStateCI.pNext = &conservativeRasterStateCI;
 
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.triangleConservativeRaster));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines_.triangleConservativeRaster));
 	}
 
 	// Prepare and initialize uniform buffer containing shader uniforms
 	void prepareUniformBuffers()
 	{
-		for (auto& buffer : uniformBuffers) {
+		for (auto& buffer : uniformBuffers_) {
 			// Scene matrices uniform buffer
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData)));
 			VK_CHECK_RESULT(buffer.map());
@@ -537,9 +537,9 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera.matrices.perspective;
-		uniformData.model = camera.matrices.view;
-		memcpy(uniformBuffers[currentBuffer].mapped, &uniformData, sizeof(UniformData));
+		uniformData.projection = camera_.matrices.perspective;
+		uniformData.model = camera_.matrices.view;
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
 	}
 
 	void prepare()
@@ -550,12 +550,12 @@ public:
 		prepareUniformBuffers();
 		setupDescriptors();
 		preparePipelines();
-		prepared = true;
+		prepared_ = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -570,23 +570,23 @@ public:
 			clearValues[1].depthStencil = { 1.0f, 0 };
 
 			VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-			renderPassBeginInfo.renderPass = offscreenPass.renderPass;
-			renderPassBeginInfo.framebuffer = offscreenPass.frameBuffer;
-			renderPassBeginInfo.renderArea.extent.width = offscreenPass.width;
-			renderPassBeginInfo.renderArea.extent.height = offscreenPass.height;
+			renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
+			renderPassBeginInfo.framebuffer = offscreenPass_.frameBuffer;
+			renderPassBeginInfo.renderArea.extent.width = offscreenPass_.width;
+			renderPassBeginInfo.renderArea.extent.height = offscreenPass_.height;
 			renderPassBeginInfo.clearValueCount = 2;
 			renderPassBeginInfo.pClearValues = clearValues;
 
-			VkViewport viewport = vks::initializers::viewport((float)offscreenPass.width, (float)offscreenPass.height, 0.0f, 1.0f);
+			VkViewport viewport = vks::initializers::viewport((float)offscreenPass_.width, (float)offscreenPass_.height, 0.0f, 1.0f);
 			vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-			VkRect2D scissor = vks::initializers::rect2D(offscreenPass.width, offscreenPass.height, 0, 0);
+			VkRect2D scissor = vks::initializers::rect2D(offscreenPass_.width, offscreenPass_.height, 0, 0);
 			vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 			vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts.scene, 0, 1, &descriptorSets[currentBuffer].scene, 0, nullptr);
-			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, conservativeRasterEnabled ? pipelines.triangleConservativeRaster : pipelines.triangle);
+			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.scene, 0, 1, &descriptorSets_[currentBuffer_].scene, 0, nullptr);
+			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, conservativeRasterEnabled ? pipelines_.triangleConservativeRaster : pipelines_.triangle);
 
 			VkDeviceSize offsets[1] = { 0 };
 			vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &triangle.vertices.buffer, offsets);
@@ -610,32 +610,32 @@ public:
 			clearValues[1].depthStencil = { 1.0f, 0 };
 
 			VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-			renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
-			renderPassBeginInfo.renderPass = renderPass;
+			renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+			renderPassBeginInfo.renderPass = renderPass_;
 			renderPassBeginInfo.renderArea.offset.x = 0;
 			renderPassBeginInfo.renderArea.offset.y = 0;
-			renderPassBeginInfo.renderArea.extent.width = width;
-			renderPassBeginInfo.renderArea.extent.height = height;
+			renderPassBeginInfo.renderArea.extent.width = width_;
+			renderPassBeginInfo.renderArea.extent.height = height_;
 			renderPassBeginInfo.clearValueCount = 2;
 			renderPassBeginInfo.pClearValues = clearValues;
 
 			vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+			VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
 			vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
-			VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+			VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
 			vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 			// Low-res triangle from offscreen framebuffer
-			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.fullscreen);
-			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts.fullscreen, 0, 1, &descriptorSets[currentBuffer].fullscreen, 0, nullptr);
+			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.fullscreen);
+			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.fullscreen, 0, 1, &descriptorSets_[currentBuffer_].fullscreen, 0, nullptr);
 			vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
 
 			// Overlay actual triangle
 			VkDeviceSize offsets[1] = { 0 };
 			vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &triangle.vertices.buffer, offsets);
 			vkCmdBindIndexBuffer(cmdBuffer, triangle.indices.buffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.triangleOverlay);
-			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts.scene, 0, 1, &descriptorSets[currentBuffer].scene, 0, nullptr);
+			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.triangleOverlay);
+			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.scene, 0, 1, &descriptorSets_[currentBuffer_].scene, 0, nullptr);
 			vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
 
 			drawUI(cmdBuffer);
@@ -648,7 +648,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared)
+		if (!prepared_)
 			return;
 		VulkanExampleBase::prepareFrame();
 		updateUniformBuffers();

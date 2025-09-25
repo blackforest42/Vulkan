@@ -17,7 +17,7 @@ public:
 		std::vector<vkglTF::Model> objects;
 		int32_t objectIndex{ 3 };
 		std::vector<std::string> names;
-	} models;
+	} models_;
 	// Size for the two-dimensional grid of objects (e.g. 3 = draws 3x3 objects)
 	int32_t gridSize{ 3 };
 
@@ -26,7 +26,7 @@ public:
 		glm::mat4 modelview;
 		glm::vec4 lightPos{ -10.0f, -10.0f, 10.0f, 1.0f };
 	} uniformData;
-	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers;
+	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	int32_t cullMode{ VK_CULL_MODE_BACK_BIT };
 	bool blending{ false };
@@ -37,7 +37,7 @@ public:
 	VkPipeline pipeline{ VK_NULL_HANDLE };
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
-	std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets{};
+	std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
 	VkQueryPool queryPool{ VK_NULL_HANDLE };
 
@@ -48,23 +48,23 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Pipeline statistics";
-		camera.type = Camera::CameraType::firstperson;
-		camera.setPosition(glm::vec3(-3.0f, 1.0f, -2.75f));
-		camera.setRotation(glm::vec3(-15.25f, -46.5f, 0.0f));
-		camera.movementSpeed = 4.0f;
-		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
-		camera.rotationSpeed = 0.25f;
+		camera_.type = Camera::CameraType::firstperson;
+		camera_.setPosition(glm::vec3(-3.0f, 1.0f, -2.75f));
+		camera_.setRotation(glm::vec3(-15.25f, -46.5f, 0.0f));
+		camera_.movementSpeed = 4.0f;
+		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
+		camera_.rotationSpeed = 0.25f;
 
 	}
 
 	~VulkanExample()
 	{
-		if (device) {
-			vkDestroyPipeline(device, pipeline, nullptr);
-			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-			vkDestroyQueryPool(device, queryPool, nullptr);
-			for (auto& buffer : uniformBuffers) {
+		if (device_) {
+			vkDestroyPipeline(device_, pipeline, nullptr);
+			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
+			vkDestroyQueryPool(device_, queryPool, nullptr);
+			for (auto& buffer : uniformBuffers_) {
 				buffer.destroy();
 			}
 		}
@@ -122,7 +122,7 @@ public:
 				VK_QUERY_PIPELINE_STATISTIC_TESSELLATION_EVALUATION_SHADER_INVOCATIONS_BIT;
 		}
 		queryPoolInfo.queryCount = 1;
-		VK_CHECK_RESULT(vkCreateQueryPool(device, &queryPoolInfo, NULL, &queryPool));
+		VK_CHECK_RESULT(vkCreateQueryPool(device_, &queryPoolInfo, NULL, &queryPool));
 	}
 
 	// Retrieves the results of the pipeline statistics query submitted to the command buffer
@@ -134,7 +134,7 @@ public:
 		uint32_t stride = static_cast<uint32_t>(pipelineStatNames.size()) * sizeof(uint64_t);
 		// Note: for one query both values have the same size, but to make it easier to expand this sample these are properly calculated
 		vkGetQueryPoolResults(
-			device,
+			device_,
 			queryPool,
 			0,
 			1,
@@ -148,10 +148,10 @@ public:
 	{
 		// Objects
 		std::vector<std::string> filenames = { "sphere.gltf", "teapot.gltf", "torusknot.gltf", "venus.gltf" };
-		models.names = { "Sphere", "Teapot", "Torusknot", "Venus" };
-		models.objects.resize(filenames.size());
+		models_.names = { "Sphere", "Teapot", "Torusknot", "Venus" };
+		models_.objects.resize(filenames.size());
 		for (size_t i = 0; i < filenames.size(); i++) {
-			models.objects[i].loadFromFile(getAssetPath() + "models/" + filenames[i], vulkanDevice, queue, vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::FlipY);
+			models_.objects[i].loadFromFile(getAssetPath() + "models/" + filenames[i], vulkanDevice, queue_, vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::FlipY);
 		}
 	}
 
@@ -159,26 +159,26 @@ public:
 	{
 		// Pool
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames)
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES)
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxConcurrentFrames);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
+		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, MAX_CONCURRENT_FRAMES);
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
 
 		// Layout
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0)
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr, &descriptorSetLayout));
 
 		// Sets per frame, just like the buffers themselves
-		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-		for (auto i = 0; i < uniformBuffers.size(); i++) {
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i]));
+		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayout, 1);
+		for (auto i = 0; i < uniformBuffers_.size(); i++) {
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-				vks::initializers::writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers[i].descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].descriptor),
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}
 	}
 
@@ -190,13 +190,13 @@ public:
 			VkPushConstantRange pushConstantRange = vks::initializers::pushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, sizeof(glm::vec3), 0);
 			pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
 			pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
-			VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+			VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 		}
 
 		// Pipeline
 		if (pipeline != VK_NULL_HANDLE) {
 			// Destroy old pipeline if we're going to recreate it
-			vkDestroyPipeline(device, pipeline, nullptr);
+			vkDestroyPipeline(device_, pipeline, nullptr);
 		}
 
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -210,7 +210,7 @@ public:
 		VkPipelineDynamicStateCreateInfo dynamicState = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), static_cast<uint32_t>(dynamicStateEnables.size()), 0);
 		VkPipelineTessellationStateCreateInfo tessellationState = vks::initializers::pipelineTessellationStateCreateInfo(3);
 
-		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
+		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_, 0);
 		pipelineCI.pInputAssemblyState = &inputAssemblyState;
 		pipelineCI.pRasterizationState = &rasterizationState;
 		pipelineCI.pColorBlendState = &colorBlendState;
@@ -256,13 +256,13 @@ public:
 
 		pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
 		pipelineCI.pStages = shaderStages.data();
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
 	}
 
 	// Prepare and initialize uniform buffer containing shader uniforms
 	void prepareUniformBuffers()
 	{
-		for (auto& buffer : uniformBuffers) {
+		for (auto& buffer : uniformBuffers_) {
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
 			VK_CHECK_RESULT(buffer.map());
 		}
@@ -270,9 +270,9 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera.matrices.perspective;
-		uniformData.modelview = camera.matrices.view;
-		memcpy(uniformBuffers[currentBuffer].mapped, &uniformData, sizeof(UniformData));
+		uniformData.projection = camera_.matrices.perspective;
+		uniformData.modelview = camera_.matrices.view;
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
 	}
 
 	void prepare()
@@ -283,12 +283,12 @@ public:
 		prepareUniformBuffers();
 		setupDescriptors();
 		preparePipelines();
-		prepared = true;
+		prepared_ = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -297,14 +297,14 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass;
+		renderPassBeginInfo.renderPass = renderPass_;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.renderArea.extent.width = width_;
+		renderPassBeginInfo.renderArea.extent.height = height_;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
@@ -313,10 +313,10 @@ public:
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 		VkDeviceSize offsets[1] = { 0 };
@@ -325,15 +325,15 @@ public:
 		vkCmdBeginQuery(cmdBuffer, queryPool, 0, 0);
 
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentBuffer], 0, nullptr);
-		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &models.objects[models.objectIndex].vertices.buffer, offsets);
-		vkCmdBindIndexBuffer(cmdBuffer, models.objects[models.objectIndex].indices.buffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_], 0, nullptr);
+		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &models_.objects[models_.objectIndex].vertices.buffer, offsets);
+		vkCmdBindIndexBuffer(cmdBuffer, models_.objects[models_.objectIndex].indices.buffer, 0, VK_INDEX_TYPE_UINT32);
 
 		for (int32_t y = 0; y < gridSize; y++) {
 			for (int32_t x = 0; x < gridSize; x++) {
 				glm::vec3 pos = glm::vec3(float(x - (gridSize / 2.0f)) * 2.5f, 0.0f, float(y - (gridSize / 2.0f)) * 2.5f);
 				vkCmdPushConstants(cmdBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::vec3), &pos);
-				models.objects[models.objectIndex].draw(cmdBuffer);
+				models_.objects[models_.objectIndex].draw(cmdBuffer);
 			}
 		}
 
@@ -349,7 +349,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared)
+		if (!prepared_)
 			return;
 		VulkanExampleBase::prepareFrame();
 		updateUniformBuffers();
@@ -363,7 +363,7 @@ public:
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay)
 	{
 		if (overlay->header("Settings")) {
-			if (overlay->comboBox("Object type", &models.objectIndex, models.names)) {
+			if (overlay->comboBox("Object type", &models_.objectIndex, models_.names)) {
 				updateUniformBuffers();
 			}
 			overlay->sliderInt("Grid size", &gridSize, 1, 10);

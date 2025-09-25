@@ -66,43 +66,43 @@ public:
 		float outlineWidth{ 0.6f };
 		float outline{ true };
 	} uniformData;
-	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers;
+	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	struct Pipelines {
 		VkPipeline sdf{ VK_NULL_HANDLE };
 		VkPipeline bitmap{ VK_NULL_HANDLE };
-	} pipelines;
+	} pipelines_;
 
 	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
 	struct DescriptorSets {
 		VkDescriptorSet sdf{ VK_NULL_HANDLE };
 		VkDescriptorSet bitmap{ VK_NULL_HANDLE };
 	};
-	std::array<DescriptorSets, maxConcurrentFrames> descriptorSets;
+	std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_;
 
 
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Distance field font rendering";
-		camera.type = Camera::CameraType::lookat;
-		camera.setPosition(glm::vec3(0.0f, 0.0f, -2.0f));
-		camera.setRotation(glm::vec3(0.0f));
-		camera.setPerspective(splitScreen ? 30.0f : 45.0f, (float)width / (float)(height * ((splitScreen) ? 0.5f : 1.0f)), 1.0f, 256.0f);
+		camera_.type = Camera::CameraType::lookat;
+		camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.0f));
+		camera_.setRotation(glm::vec3(0.0f));
+		camera_.setPerspective(splitScreen ? 30.0f : 45.0f, (float)width_ / (float)(height_ * ((splitScreen) ? 0.5f : 1.0f)), 1.0f, 256.0f);
 	}
 
 	~VulkanExample()
 	{
-		if (device) {
+		if (device_) {
 			textures.fontSDF.destroy();
 			textures.fontBitmap.destroy();
-			vkDestroyPipeline(device, pipelines.sdf, nullptr);
-			vkDestroyPipeline(device, pipelines.bitmap, nullptr);
-			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+			vkDestroyPipeline(device_, pipelines_.sdf, nullptr);
+			vkDestroyPipeline(device_, pipelines_.bitmap, nullptr);
+			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
 			vertexBuffer.destroy();
 			indexBuffer.destroy();
-			for (auto& buffer : uniformBuffers) {
+			for (auto& buffer : uniformBuffers_) {
 				buffer.destroy();
 			}
 		}
@@ -167,8 +167,8 @@ public:
 
 	void loadAssets()
 	{
-		textures.fontSDF.loadFromFile(getAssetPath() + "textures/font_sdf_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
-		textures.fontBitmap.loadFromFile(getAssetPath() + "textures/font_bitmap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
+		textures.fontSDF.loadFromFile(getAssetPath() + "textures/font_sdf_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue_);
+		textures.fontBitmap.loadFromFile(getAssetPath() + "textures/font_bitmap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue_);
 	}
 
 	// Creates a vertex and index buffer with triangle data containing the chars of the given text
@@ -238,11 +238,11 @@ public:
 	{
 		// Pool
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames * 2),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, maxConcurrentFrames * 2)
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES * 2),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_CONCURRENT_FRAMES * 2)
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxConcurrentFrames * 2);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
+		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, MAX_CONCURRENT_FRAMES * 2);
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
 
 		// Layout
 
@@ -255,27 +255,27 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1),
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr, &descriptorSetLayout));
 
 		// Sets per frame, just like the buffers themselves
 		// Images do not need to be duplicated per frame, we reuse the same one for each frame
-		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-		for (auto i = 0; i < uniformBuffers.size(); i++) {
+		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayout, 1);
+		for (auto i = 0; i < uniformBuffers_.size(); i++) {
 			// Signed distance font descriptor set
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i].sdf));
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i].sdf));
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-				vks::initializers::writeDescriptorSet(descriptorSets[i].sdf, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers[i].descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].sdf, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.fontSDF.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].sdf, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].sdf, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.fontSDF.descriptor),
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
 			// Bitmap font descriptor set
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i].bitmap));
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i].bitmap));
 			writeDescriptorSets = {
-				vks::initializers::writeDescriptorSet(descriptorSets[i].bitmap, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers[i].descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].bitmap, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.fontBitmap.descriptor)
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].bitmap, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].bitmap, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.fontBitmap.descriptor)
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}
 	}
 
@@ -283,7 +283,7 @@ public:
 	{
 		// Layout
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 
 		// Pipelines
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -321,7 +321,7 @@ public:
 		vertexInputState.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributes.size());
 		vertexInputState.pVertexAttributeDescriptions = vertexInputAttributes.data();
 
-		VkGraphicsPipelineCreateInfo pipelineCreateInfo = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
+		VkGraphicsPipelineCreateInfo pipelineCreateInfo = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_, 0);
 		pipelineCreateInfo.pVertexInputState = &vertexInputState;
 		pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
 		pipelineCreateInfo.pRasterizationState = &rasterizationState;
@@ -336,18 +336,18 @@ public:
 		// Signed distance font rendering pipeline
 		shaderStages[0] = loadShader(getShadersPath() + "distancefieldfonts/sdf.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "distancefieldfonts/sdf.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.sdf));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines_.sdf));
 
 		// Bitmap font rendering pipeline
 		shaderStages[0] = loadShader(getShadersPath() + "distancefieldfonts/bitmap.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "distancefieldfonts/bitmap.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.bitmap));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines_.bitmap));
 	}
 
 	// Prepare and initialize uniform buffer containing shader uniforms
 	void prepareUniformBuffers()
 	{
-		for (auto& buffer : uniformBuffers) {
+		for (auto& buffer : uniformBuffers_) {
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
 			VK_CHECK_RESULT(buffer.map());
 		}
@@ -356,10 +356,10 @@ public:
 	void updateUniformBuffers()
 	{
 		// Adjust camera perspective as we render two viewports
-		camera.setPerspective(splitScreen ? 30.0f : 45.0f, (float)width / (float)(height * ((splitScreen) ? 0.5f : 1.0f)), 1.0f, 256.0f);
-		uniformData.projection = camera.matrices.perspective;
-		uniformData.modelView = camera.matrices.view;
-		memcpy(uniformBuffers[currentBuffer].mapped, &uniformData, sizeof(UniformData));
+		camera_.setPerspective(splitScreen ? 30.0f : 45.0f, (float)width_ / (float)(height_ * ((splitScreen) ? 0.5f : 1.0f)), 1.0f, 256.0f);
+		uniformData.projection = camera_.matrices.perspective;
+		uniformData.modelView = camera_.matrices.view;
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
 	}
 
 	void prepare()
@@ -371,12 +371,12 @@ public:
 		prepareUniformBuffers();
 		setupDescriptors();
 		preparePipelines();
-		prepared = true;
+		prepared_ = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -385,30 +385,30 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass;
+		renderPassBeginInfo.renderPass = renderPass_;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.renderArea.extent.width = width_;
+		renderPassBeginInfo.renderArea.extent.height = height_;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		VkViewport viewport = vks::initializers::viewport((float)width, (splitScreen) ? (float)height / 2.0f : (float)height, 0.0f, 1.0f);
+		VkViewport viewport = vks::initializers::viewport((float)width_, (splitScreen) ? (float)height_ / 2.0f : (float)height_, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 		VkDeviceSize offsets[1] = { 0 };
 
 		// Signed distance field font
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentBuffer].sdf, 0, nullptr);
-		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.sdf);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_].sdf, 0, nullptr);
+		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.sdf);
 		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer.buffer, offsets);
 		vkCmdBindIndexBuffer(cmdBuffer, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdDrawIndexed(cmdBuffer, indexCount, 1, 0, 0, 0);
@@ -416,10 +416,10 @@ public:
 		// Linear filtered bitmap font
 		if (splitScreen)
 		{
-			viewport.y = (float)height / 2.0f;
+			viewport.y = (float)height_ / 2.0f;
 			vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
-			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentBuffer].bitmap, 0, nullptr);
-			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.bitmap);
+			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_].bitmap, 0, nullptr);
+			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.bitmap);
 			vkCmdDrawIndexed(cmdBuffer, indexCount, 1, 0, 0, 0);
 		}
 
@@ -432,7 +432,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared)
+		if (!prepared_)
 			return;
 		VulkanExampleBase::prepareFrame();
 		updateUniformBuffers();
@@ -448,7 +448,7 @@ public:
 				uniformData.outline = outline ? 1.0f : 0.0f;
 			}
 			if (overlay->checkBox("Splitscreen", &splitScreen)) {
-				camera.setPerspective(splitScreen ? 30.0f : 45.0f, (float)width / (float)(height * ((splitScreen) ? 0.5f : 1.0f)), 1.0f, 256.0f);
+				camera_.setPerspective(splitScreen ? 30.0f : 45.0f, (float)width_ / (float)(height_ * ((splitScreen) ? 0.5f : 1.0f)), 1.0f, 256.0f);
 			}
 		}
 	}

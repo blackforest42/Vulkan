@@ -32,8 +32,8 @@ public:
 	struct Compute {
 		VkQueue queue{ VK_NULL_HANDLE };									// Separate queue for compute commands (queue family may differ from the one used for graphics)
 		VkCommandPool commandPool{ VK_NULL_HANDLE };						// Use a separate command pool (queue family may differ from the one used for graphics)
-		std::array<VkCommandBuffer, maxConcurrentFrames> commandBuffers;	// Command buffers storing the dispatch commands and barriers
-		std::array<VkFence, maxConcurrentFrames> fences;					// Synchronization fence to avoid rewriting compute CB if still in use
+		std::array<VkCommandBuffer, MAX_CONCURRENT_FRAMES> commandBuffers;	// Command buffers storing the dispatch commands and barriers
+		std::array<VkFence, MAX_CONCURRENT_FRAMES> fences;					// Synchronization fence to avoid rewriting compute CB if still in use
 		VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };		// Compute shader binding layout
 		VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };					// Layout of the compute pipeline
 		VkPipeline pipeline{ VK_NULL_HANDLE };								// Compute raytracing pipeline
@@ -53,8 +53,8 @@ public:
 		vks::Buffer objectStorageBuffer;
 		// Uniform buffer object containing scene parameters
 		// These need to be per frames in flight, as CPU writes to while GPU reads from
-		std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers;
-		std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets{};
+		std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers;
+		std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets{};
 	} compute;
 
 	// Definitions for scene objects
@@ -80,28 +80,28 @@ public:
 	{
 		title = "Compute shader ray tracing";
 		timerSpeed *= 0.25f;
-		camera.type = Camera::CameraType::lookat;
-		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
-		camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
-		camera.setTranslation(glm::vec3(0.0f, 0.0f, -4.0f));
-		camera.rotationSpeed = 0.0f;
-		camera.movementSpeed = 2.5f;
+		camera_.type = Camera::CameraType::lookat;
+		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
+		camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+		camera_.setTranslation(glm::vec3(0.0f, 0.0f, -4.0f));
+		camera_.rotationSpeed = 0.0f;
+		camera_.movementSpeed = 2.5f;
 	}
 
 	~VulkanExample()
 	{
-		if (device) {
+		if (device_) {
 			// Graphics
-			vkDestroyPipeline(device, graphics.pipeline, nullptr);
-			vkDestroyPipelineLayout(device, graphics.pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device, graphics.descriptorSetLayout, nullptr);
+			vkDestroyPipeline(device_, graphics.pipeline, nullptr);
+			vkDestroyPipelineLayout(device_, graphics.pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device_, graphics.descriptorSetLayout, nullptr);
 			// Compute
-			vkDestroyPipeline(device, compute.pipeline, nullptr);
-			vkDestroyPipelineLayout(device, compute.pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device, compute.descriptorSetLayout, nullptr);
-			vkDestroyCommandPool(device, compute.commandPool, nullptr);
+			vkDestroyPipeline(device_, compute.pipeline, nullptr);
+			vkDestroyPipelineLayout(device_, compute.pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device_, compute.descriptorSetLayout, nullptr);
+			vkDestroyCommandPool(device_, compute.commandPool, nullptr);
 			for (auto& fence : compute.fences) {
-				vkDestroyFence(device, fence, nullptr);
+				vkDestroyFence(device_, fence, nullptr);
 			}
 			for (auto& buffer : compute.uniformBuffers) {
 				buffer.destroy();
@@ -149,12 +149,12 @@ public:
 		VkMemoryAllocateInfo memAllocInfo = vks::initializers::memoryAllocateInfo();
 		VkMemoryRequirements memReqs;
 
-		VK_CHECK_RESULT(vkCreateImage(device, &imageCreateInfo, nullptr, &storageImage.image));
-		vkGetImageMemoryRequirements(device, storageImage.image, &memReqs);
+		VK_CHECK_RESULT(vkCreateImage(device_, &imageCreateInfo, nullptr, &storageImage.image));
+		vkGetImageMemoryRequirements(device_, storageImage.image, &memReqs);
 		memAllocInfo.allocationSize = memReqs.size;
 		memAllocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VK_CHECK_RESULT(vkAllocateMemory(device, &memAllocInfo, nullptr, &storageImage.deviceMemory));
-		VK_CHECK_RESULT(vkBindImageMemory(device, storageImage.image, storageImage.deviceMemory, 0));
+		VK_CHECK_RESULT(vkAllocateMemory(device_, &memAllocInfo, nullptr, &storageImage.deviceMemory));
+		VK_CHECK_RESULT(vkBindImageMemory(device_, storageImage.image, storageImage.deviceMemory, 0));
 
 		VkCommandBuffer layoutCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 		storageImage.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -183,7 +183,7 @@ public:
 				0, nullptr,
 				1, &imageMemoryBarrier);
 		}
-		vulkanDevice->flushCommandBuffer(layoutCmd, queue, true);
+		vulkanDevice->flushCommandBuffer(layoutCmd, queue_, true);
 
 		// Create sampler
 		VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
@@ -199,7 +199,7 @@ public:
 		sampler.minLod = 0.0f;
 		sampler.maxLod = 0.0f;
 		sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		VK_CHECK_RESULT(vkCreateSampler(device, &sampler, nullptr, &storageImage.sampler));
+		VK_CHECK_RESULT(vkCreateSampler(device_, &sampler, nullptr, &storageImage.sampler));
 
 		// Create image view
 		VkImageViewCreateInfo view = vks::initializers::imageViewCreateInfo();
@@ -207,7 +207,7 @@ public:
 		view.format = format;
 		view.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 		view.image = storageImage.image;
-		VK_CHECK_RESULT(vkCreateImageView(device, &view, nullptr, &storageImage.view));
+		VK_CHECK_RESULT(vkCreateImageView(device_, &view, nullptr, &storageImage.view));
 
 		// Initialize a descriptor for later use
 		storageImage.descriptor.imageLayout = storageImage.imageLayout;
@@ -268,7 +268,7 @@ public:
 		VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 		VkBufferCopy copyRegion = { 0, 0, storageBufferSize};
 		vkCmdCopyBuffer(copyCmd, stagingBuffer.buffer, compute.objectStorageBuffer.buffer, 1, &copyRegion);
-		vulkanDevice->flushCommandBuffer(copyCmd, queue, true);
+		vulkanDevice->flushCommandBuffer(copyCmd, queue_, true);
 
 		stagingBuffer.destroy();
 	}
@@ -277,13 +277,13 @@ public:
 	void setupDescriptorPool()
 	{
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames * 2),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, maxConcurrentFrames * 4),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, maxConcurrentFrames * 1),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, maxConcurrentFrames * 2),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES * 2),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_CONCURRENT_FRAMES * 4),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, MAX_CONCURRENT_FRAMES * 1),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, MAX_CONCURRENT_FRAMES * 2),
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxConcurrentFrames * 3);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
+		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, MAX_CONCURRENT_FRAMES * 3);
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
 	}
 
 	// Prepare the graphics resources used to display the ray traced output of the compute shader
@@ -298,18 +298,18 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0)
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &graphics.descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr, &graphics.descriptorSetLayout));
 
-		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &graphics.descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &graphics.descriptorSet));
+		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &graphics.descriptorSetLayout, 1);
+		VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &graphics.descriptorSet));
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 			vks::initializers::writeDescriptorSet(graphics.descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &storageImage.descriptor)
 		};
-		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+		vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
 		// Layout
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&graphics.descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &graphics.pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &graphics.pipelineLayout));
 
 		// Pipeline 
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -329,7 +329,7 @@ public:
 		VkPipelineVertexInputStateCreateInfo emptyInputState{};
 		emptyInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-		VkGraphicsPipelineCreateInfo pipelineCreateInfo = vks::initializers::pipelineCreateInfo(graphics.pipelineLayout, renderPass, 0);
+		VkGraphicsPipelineCreateInfo pipelineCreateInfo = vks::initializers::pipelineCreateInfo(graphics.pipelineLayout, renderPass_, 0);
 		pipelineCreateInfo.pVertexInputState = &emptyInputState;
 		pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
 		pipelineCreateInfo.pRasterizationState = &rasterizationState;
@@ -340,8 +340,8 @@ public:
 		pipelineCreateInfo.pDynamicState = &dynamicState;
 		pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
 		pipelineCreateInfo.pStages = shaderStages.data();
-		pipelineCreateInfo.renderPass = renderPass;
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &graphics.pipeline));
+		pipelineCreateInfo.renderPass = renderPass_;
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCreateInfo, nullptr, &graphics.pipeline));
 	}
 
 	// Prepare the compute resources that generates the ray traced image
@@ -356,27 +356,27 @@ public:
 		queueCreateInfo.pNext = NULL;
 		queueCreateInfo.queueFamilyIndex = vulkanDevice->queueFamilyIndices.compute;
 		queueCreateInfo.queueCount = 1;
-		vkGetDeviceQueue(device, vulkanDevice->queueFamilyIndices.compute, 0, &compute.queue);
+		vkGetDeviceQueue(device_, vulkanDevice->queueFamilyIndices.compute, 0, &compute.queue);
 
 		// Separate command pool as queue family for compute may be different from the graphics one
 		VkCommandPoolCreateInfo cmdPoolInfo = {};
 		cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		cmdPoolInfo.queueFamilyIndex = vulkanDevice->queueFamilyIndices.compute;
 		cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-		VK_CHECK_RESULT(vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &compute.commandPool));
+		VK_CHECK_RESULT(vkCreateCommandPool(device_, &cmdPoolInfo, nullptr, &compute.commandPool));
 
 		// Some objects need to be duplicated per frames in flight
 
 		// Create command buffers for compute operations
 		VkCommandBufferAllocateInfo cmdBufAllocateInfo = vks::initializers::commandBufferAllocateInfo(compute.commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
 		for (auto& commandBuffer : compute.commandBuffers) {
-			VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &commandBuffer));
+			VK_CHECK_RESULT(vkAllocateCommandBuffers(device_, &cmdBufAllocateInfo, &commandBuffer));
 		}
 
 		// Fences for compute CB sync
 		for (auto& fence : compute.fences) {
 			VkFenceCreateInfo fenceCreateInfo = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
-			VK_CHECK_RESULT(vkCreateFence(device, &fenceCreateInfo, nullptr, &fence));
+			VK_CHECK_RESULT(vkCreateFence(device_, &fenceCreateInfo, nullptr, &fence));
 		}
 
 		// Dynamic parameters are passed to compute via uniform buffers
@@ -398,38 +398,38 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2),
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr,	&compute.descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr,	&compute.descriptorSetLayout));
 
 		// Sets per frame in flight as the uniform buffer is written by the CPU and read by the GPU
 		// Images and static SSBO with scene data do not need to be duplicated per frame, we reuse the same one for each frame
 		for (auto i = 0; i < compute.uniformBuffers.size(); i++) {
-			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &compute.descriptorSetLayout, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &compute.descriptorSets[i]));
+			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &compute.descriptorSetLayout, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &compute.descriptorSets[i]));
 			std::vector<VkWriteDescriptorSet> computeWriteDescriptorSets = {
 				vks::initializers::writeDescriptorSet(compute.descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0, &storageImage.descriptor),
 				vks::initializers::writeDescriptorSet(compute.descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, &compute.uniformBuffers[i].descriptor),
 				vks::initializers::writeDescriptorSet(compute.descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, &compute.objectStorageBuffer.descriptor),
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(computeWriteDescriptorSets.size()), computeWriteDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()), computeWriteDescriptorSets.data(), 0, nullptr);
 		}
 
 		// Create the compute shader pipeline
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&compute.descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &compute.pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &compute.pipelineLayout));
 
 		VkComputePipelineCreateInfo computePipelineCreateInfo = vks::initializers::computePipelineCreateInfo(compute.pipelineLayout, 0);
 		computePipelineCreateInfo.stage = loadShader(getShadersPath() + "computeraytracing/raytracing.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
-		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &computePipelineCreateInfo, nullptr, &compute.pipeline));
+		VK_CHECK_RESULT(vkCreateComputePipelines(device_, pipelineCache, 1, &computePipelineCreateInfo, nullptr, &compute.pipeline));
 	}
 
 	void updateUniformBuffers()
 	{
-		compute.uniformData.aspectRatio = (float)width / (float)height;
+		compute.uniformData.aspectRatio = (float)width_ / (float)height_;
 		compute.uniformData.lightPos.x = 0.0f + sin(glm::radians(timer * 360.0f)) * cos(glm::radians(timer * 360.0f)) * 2.0f;
 		compute.uniformData.lightPos.y = 0.0f + sin(glm::radians(timer * 360.0f)) * 2.0f;
 		compute.uniformData.lightPos.z = 0.0f + cos(glm::radians(timer * 360.0f)) * 2.0f;
-		compute.uniformData.camera.pos = camera.position * -1.0f;
-		memcpy(compute.uniformBuffers[currentBuffer].mapped, &compute.uniformData, sizeof(Compute::UniformDataCompute));
+		compute.uniformData.camera.pos = camera_.position * -1.0f;
+		memcpy(compute.uniformBuffers[currentBuffer_].mapped, &compute.uniformData, sizeof(Compute::UniformDataCompute));
 	}
 
 	void prepare()
@@ -440,12 +440,12 @@ public:
 		setupDescriptorPool();
 		prepareGraphics();
 		prepareCompute();
-		prepared = true;
+		prepared_ = true;
 	}
 
 	void buildGraphicsCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -454,14 +454,14 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass;
+		renderPassBeginInfo.renderPass = renderPass_;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.renderArea.extent.width = width_;
+		renderPassBeginInfo.renderArea.extent.height = height_;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
@@ -507,10 +507,10 @@ public:
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 		// Display ray traced image generated by compute shader as a full screen quad
@@ -545,7 +545,7 @@ public:
 
 	void buildComputeCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = compute.commandBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = compute.commandBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -575,7 +575,7 @@ public:
 		}
 
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipeline);
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipelineLayout, 0, 1, &compute.descriptorSets[currentBuffer], 0, nullptr);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipelineLayout, 0, 1, &compute.descriptorSets[currentBuffer_], 0, nullptr);
 
 		vkCmdDispatch(cmdBuffer, storageImage.width / 16, storageImage.height / 16, 1);
 
@@ -601,18 +601,18 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared)
+		if (!prepared_)
 			return;
 
 		// Use a fence to ensure that compute command buffer has finished executing before using it again
-		vkWaitForFences(device, 1, &compute.fences[currentBuffer], VK_TRUE, UINT64_MAX);
-		vkResetFences(device, 1, &compute.fences[currentBuffer]);
+		vkWaitForFences(device_, 1, &compute.fences[currentBuffer_], VK_TRUE, UINT64_MAX);
+		vkResetFences(device_, 1, &compute.fences[currentBuffer_]);
 		buildComputeCommandBuffer();
 
 		VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
 		computeSubmitInfo.commandBufferCount = 1;
-		computeSubmitInfo.pCommandBuffers = &compute.commandBuffers[currentBuffer];
-		VK_CHECK_RESULT(vkQueueSubmit(compute.queue, 1, &computeSubmitInfo, compute.fences[currentBuffer]));
+		computeSubmitInfo.pCommandBuffers = &compute.commandBuffers[currentBuffer_];
+		VK_CHECK_RESULT(vkQueueSubmit(compute.queue, 1, &computeSubmitInfo, compute.fences[currentBuffer_]));
 
 		VulkanExampleBase::prepareFrame();
 		updateUniformBuffers();

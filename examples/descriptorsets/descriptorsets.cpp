@@ -24,8 +24,8 @@ public:
 			glm::mat4 model;
 		} matrices;
 		vks::Texture2D texture;
-		std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers{};
-		std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets{};
+		std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers{};
+		std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets{};
 		glm::vec3 rotation{ 0.0f };
 	};
 	std::array<Cube, 2> cubes;
@@ -39,17 +39,17 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Using descriptor Sets";
-		camera.type = Camera::CameraType::lookat;
-		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
-		camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
-		camera.setTranslation(glm::vec3(0.0f, 0.0f, -5.0f));
+		camera_.type = Camera::CameraType::lookat;
+		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
+		camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+		camera_.setTranslation(glm::vec3(0.0f, 0.0f, -5.0f));
 	}
 
 	~VulkanExample()
 	{
-		vkDestroyPipeline(device, pipeline, nullptr);
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		vkDestroyPipeline(device_, pipeline, nullptr);
+		vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
 		for (auto& cube : cubes) {
 			cube.texture.destroy();
 			for (auto& buffer : cube.uniformBuffers) {
@@ -68,9 +68,9 @@ public:
 	void loadAssets()
 	{
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
-		model.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice, queue, glTFLoadingFlags);
-		cubes[0].texture.loadFromFile(getAssetPath() + "textures/crate01_color_height_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
-		cubes[1].texture.loadFromFile(getAssetPath() + "textures/crate02_color_height_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
+		model.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice, queue_, glTFLoadingFlags);
+		cubes[0].texture.loadFromFile(getAssetPath() + "textures/crate01_color_height_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue_);
+		cubes[1].texture.loadFromFile(getAssetPath() + "textures/crate02_color_height_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue_);
 	}
 
 	/*
@@ -97,12 +97,12 @@ public:
 		// Uniform buffers : 1 per object and max. frame in flight
 		descriptorPoolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		// Uniform buffers are duplicated, so we can update buffer n+1 on the CPU while the GPU still reads from buffer n
-		descriptorPoolSizes[0].descriptorCount = static_cast<uint32_t>(cubes.size()) * maxConcurrentFrames;
+		descriptorPoolSizes[0].descriptorCount = static_cast<uint32_t>(cubes.size()) * MAX_CONCURRENT_FRAMES;
 
 		// Combined image samples : 1 per object texture
 		descriptorPoolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		// Images are static, and never update after initial upload, but as they use the same descriptor set as buffers, we need to duplicate the descriptor count here too
-		descriptorPoolSizes[1].descriptorCount = static_cast<uint32_t>(cubes.size()) * maxConcurrentFrames;
+		descriptorPoolSizes[1].descriptorCount = static_cast<uint32_t>(cubes.size()) * MAX_CONCURRENT_FRAMES;
 
 		// Create the global descriptor pool
 		VkDescriptorPoolCreateInfo descriptorPoolCI = {};
@@ -110,9 +110,9 @@ public:
 		descriptorPoolCI.poolSizeCount = static_cast<uint32_t>(descriptorPoolSizes.size());
 		descriptorPoolCI.pPoolSizes = descriptorPoolSizes.data();
 		// Max. number of descriptor sets that can be allocated from this pool (one per object and per max. frame in flight)
-		descriptorPoolCI.maxSets = static_cast<uint32_t>(cubes.size() * maxConcurrentFrames);
+		descriptorPoolCI.maxSets = static_cast<uint32_t>(cubes.size() * MAX_CONCURRENT_FRAMES);
 
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolCI, nullptr, &descriptorPool));
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolCI, nullptr, &descriptorPool_));
 
 		/*
 
@@ -158,7 +158,7 @@ public:
 		descriptorLayoutCI.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
 		descriptorLayoutCI.pBindings = setLayoutBindings.data();
 
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayoutCI, nullptr, &descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr, &descriptorSetLayout));
 
 		/*
 
@@ -177,10 +177,10 @@ public:
 				// Allocates an empty descriptor set without actual descriptors from the pool using the set layout
 				VkDescriptorSetAllocateInfo allocateInfo{};
 				allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-				allocateInfo.descriptorPool = descriptorPool;
+				allocateInfo.descriptorPool = descriptorPool_;
 				allocateInfo.descriptorSetCount = 1;
 				allocateInfo.pSetLayouts = &descriptorSetLayout;
-				VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocateInfo, &cube.descriptorSets[i]));
+				VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocateInfo, &cube.descriptorSets[i]));
 
 				// Update the descriptor set with the actual descriptors matching shader bindings set in the layout
 
@@ -216,7 +216,7 @@ public:
 				// This is possible because each VkWriteDescriptorSet also contains the destination set to be updated
 				// For simplicity we will update once per set instead
 
-				vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+				vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 			}
 		}
 
@@ -232,7 +232,7 @@ public:
 		// The pipeline layout is based on the descriptor set layout we created above
 		pipelineLayoutCI.setLayoutCount = 1;
 		pipelineLayoutCI.pSetLayouts = &descriptorSetLayout;
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr, &pipelineLayout));
 
 		const std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
@@ -246,7 +246,7 @@ public:
 		VkPipelineDynamicStateCreateInfo dynamicStateCI = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), static_cast<uint32_t>(dynamicStateEnables.size()),0);
 		std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{};
 
-		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
+		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_, 0);
 		pipelineCI.pInputAssemblyState = &inputAssemblyStateCI;
 		pipelineCI.pRasterizationState = &rasterizationStateCI;
 		pipelineCI.pColorBlendState = &colorBlendStateCI;
@@ -260,7 +260,7 @@ public:
 
 	    shaderStages[0] = loadShader(getShadersPath() + "descriptorsets/cube.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "descriptorsets/cube.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
 	}
 
 	void prepareUniformBuffers()
@@ -283,8 +283,8 @@ public:
 		cubes[1].matrices.model = glm::translate(glm::mat4(1.0f), glm::vec3( 1.5f, 0.5f, 0.0f));
 
 		for (auto& cube : cubes) {
-			cube.matrices.projection = camera.matrices.perspective;
-			cube.matrices.view = camera.matrices.view;
+			cube.matrices.projection = camera_.matrices.perspective;
+			cube.matrices.view = camera_.matrices.view;
 			cube.matrices.model = glm::rotate(cube.matrices.model, glm::radians(cube.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
 			cube.matrices.model = glm::rotate(cube.matrices.model, glm::radians(cube.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
 			cube.matrices.model = glm::rotate(cube.matrices.model, glm::radians(cube.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -292,7 +292,7 @@ public:
 			/*
 				[POI] Update the uniform values seen by the GPU for the current frame
 			*/
-			memcpy(cube.uniformBuffers[currentBuffer].mapped, &cube.matrices, sizeof(cube.matrices));
+			memcpy(cube.uniformBuffers[currentBuffer_].mapped, &cube.matrices, sizeof(cube.matrices));
 		}
 	}
 
@@ -303,12 +303,12 @@ public:
 		prepareUniformBuffers();
 		setupDescriptors();
 		preparePipelines();
-		prepared = true;
+		prepared_ = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -317,14 +317,14 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass;
+		renderPassBeginInfo.renderPass = renderPass_;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.renderArea.extent.width = width_;
+		renderPassBeginInfo.renderArea.extent.height = height_;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
@@ -332,10 +332,10 @@ public:
 
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 		model.bindBuffers(cmdBuffer);
@@ -345,7 +345,7 @@ public:
 		*/
 		for (auto cube : cubes) {
 			// Bind the cube's descriptor set. This tells the command buffer to use the uniform buffer for the current frame and image set for this cube
-			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &cube.descriptorSets[currentBuffer], 0, nullptr);
+			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &cube.descriptorSets[currentBuffer_], 0, nullptr);
 			model.draw(cmdBuffer);
 		}
 
@@ -358,7 +358,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared)
+		if (!prepared_)
 			return;
 		if (animate && !paused) {
 			cubes[0].rotation.x += 2.5f * frameTimer;

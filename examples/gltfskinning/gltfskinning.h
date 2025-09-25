@@ -130,8 +130,8 @@ class VulkanglTFModel
 		std::vector<glm::mat4> inverseBindMatrices;
 		std::vector<Node *> joints;
 		// Animation data changes between frames, it needs to be duplicated (per frame in flight)
-		std::array<vks::Buffer, maxConcurrentFrames> storageBuffers;
-		std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets{};
+		std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> storageBuffers;
+		std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets{};
 	};
 
 	/*
@@ -199,22 +199,22 @@ class VulkanExample : public VulkanExampleBase
 		glm::mat4 model;
 		glm::vec4 lightPos = glm::vec4(5.0f, 5.0f, 5.0f, 1.0f);
 	} uniformData;
-	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers;
+	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	struct Pipelines
 	{
 		VkPipeline solid{ VK_NULL_HANDLE };
 		VkPipeline wireframe{ VK_NULL_HANDLE };
-	} pipelines;
+	} pipelines_;
 
 	struct DescriptorSetLayouts
 	{
 		VkDescriptorSetLayout matrices{ VK_NULL_HANDLE };
 		VkDescriptorSetLayout textures{ VK_NULL_HANDLE };
 		VkDescriptorSetLayout jointMatrices{ VK_NULL_HANDLE };
-	} descriptorSetLayouts;
-	std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets{};
+	} descriptorSetLayouts_;
+	std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
 	VulkanglTFModel glTFModel;
 

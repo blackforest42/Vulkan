@@ -26,7 +26,7 @@ public:
 	struct DescriptorSets {
 		VkDescriptorSet CW;
 		VkDescriptorSet CCW;
-	} descriptorSets;
+	} descriptorSets_;
 
 	struct Textures {
 		vks::Texture2D CW;
@@ -57,9 +57,9 @@ public:
 
 	~VulkanExample()
 	{
-		vkDestroyPipeline(device, pipeline, nullptr);
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		vkDestroyPipeline(device_, pipeline, nullptr);
+		vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
 		textures.CW.destroy();
 		textures.CCW.destroy();
 		quad.destroy();
@@ -67,8 +67,8 @@ public:
 
 	void loadAssets()
 	{
-		textures.CW.loadFromFile(getAssetPath() + "textures/texture_orientation_cw_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
-		textures.CCW.loadFromFile(getAssetPath() + "textures/texture_orientation_ccw_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
+		textures.CW.loadFromFile(getAssetPath() + "textures/texture_orientation_cw_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue_);
+		textures.CCW.loadFromFile(getAssetPath() + "textures/texture_orientation_ccw_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue_);
 
 		// [POI] Create two quads with different Y orientations
 
@@ -77,7 +77,7 @@ public:
 			float uv[2];
 		};
 
-		const float ar = (float)height / (float)width;
+		const float ar = (float)height_ / (float)width_;
 
 		// OpenGL style (y points upwards)
 		std::vector<Vertex> verticesYPos = {
@@ -113,30 +113,30 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0)
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayoutCI, nullptr, &descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr, &descriptorSetLayout));
 		VkPipelineLayoutCreateInfo pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr, &pipelineLayout));
 
 		VkDescriptorPoolSize poolSize = vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2);
 		VkDescriptorPoolCreateInfo descriptorPoolCI = vks::initializers::descriptorPoolCreateInfo(1, &poolSize, 2);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolCI, nullptr, &descriptorPool));
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolCI, nullptr, &descriptorPool_));
 
-		VkDescriptorSetAllocateInfo descriptorSetAI = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
+		VkDescriptorSetAllocateInfo descriptorSetAI = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayout, 1);
 
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &descriptorSetAI, &descriptorSets.CW));
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &descriptorSetAI, &descriptorSets.CCW));
+		VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &descriptorSetAI, &descriptorSets_.CW));
+		VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &descriptorSetAI, &descriptorSets_.CCW));
 
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-			vks::initializers::writeDescriptorSet(descriptorSets.CW, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &textures.CW.descriptor),
-			vks::initializers::writeDescriptorSet(descriptorSets.CCW, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &textures.CCW.descriptor)
+			vks::initializers::writeDescriptorSet(descriptorSets_.CW, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &textures.CW.descriptor),
+			vks::initializers::writeDescriptorSet(descriptorSets_.CCW, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &textures.CCW.descriptor)
 		};
-		vkUpdateDescriptorSets(device, 2, &writeDescriptorSets[0], 0, nullptr);
+		vkUpdateDescriptorSets(device_, 2, &writeDescriptorSets[0], 0, nullptr);
 	}
 
 	void preparePipelines()
 	{
 		if (pipeline != VK_NULL_HANDLE) {
-			vkDestroyPipeline(device, pipeline, nullptr);
+			vkDestroyPipeline(device_, pipeline, nullptr);
 		}
 
 		const std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
@@ -170,7 +170,7 @@ public:
 		vertexInputState.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributes.size());
 		vertexInputState.pVertexAttributeDescriptions = vertexInputAttributes.data();
 
-		VkGraphicsPipelineCreateInfo pipelineCreateInfoCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
+		VkGraphicsPipelineCreateInfo pipelineCreateInfoCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_, 0);
 		//pipelineCreateInfoCI.pVertexInputState = &emptyInputState;
 		pipelineCreateInfoCI.pVertexInputState = &vertexInputState;
 		pipelineCreateInfoCI.pInputAssemblyState = &inputAssemblyStateCI;
@@ -189,7 +189,7 @@ public:
 		pipelineCreateInfoCI.stageCount = static_cast<uint32_t>(shaderStages.size());
 		pipelineCreateInfoCI.pStages = shaderStages.data();
 
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfoCI, nullptr, &pipeline));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCreateInfoCI, nullptr, &pipeline));
 	}
 
 	void prepare()
@@ -198,12 +198,12 @@ public:
 		loadAssets();
 		setupDescriptors();
 		preparePipelines();
-		prepared = true;
+		prepared_ = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -212,14 +212,14 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass;
+		renderPassBeginInfo.renderPass = renderPass_;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.renderArea.extent.width = width_;
+		renderPassBeginInfo.renderArea.extent.height = height_;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
@@ -232,34 +232,34 @@ public:
 		if (negativeViewport) {
 			viewport.x = offsetx;
 			// [POI] When using a negative viewport height, the origin needs to be adjusted too
-			viewport.y = (float)height - offsety;
-			viewport.width = (float)width;
+			viewport.y = (float)height_ - offsety;
+			viewport.width = (float)width_;
 			// [POI] Flip the sign of the viewport's height
-			viewport.height = -(float)height;
+			viewport.height = -(float)height_;
 		}
 		else {
 			viewport.x = offsetx;
 			viewport.y = offsety;
-			viewport.width = (float)width;
-			viewport.height = (float)height;
+			viewport.width = (float)width_;
+			viewport.height = (float)height_;
 		}
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 		VkDeviceSize offsets[1] = { 0 };
 
 		// Render the quad with clock wise and counter clock wise indices, visibility is determined by pipeline settings
 
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets.CW, 0, nullptr);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_.CW, 0, nullptr);
 		vkCmdBindIndexBuffer(cmdBuffer, quad.indicesCW.buffer, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, quadType == 0 ? &quad.verticesYDown.buffer : &quad.verticesYUp.buffer, offsets);
 		vkCmdDrawIndexed(cmdBuffer, 6, 1, 0, 0, 0);
 
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets.CCW, 0, nullptr);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_.CCW, 0, nullptr);
 		vkCmdBindIndexBuffer(cmdBuffer, quad.indicesCCW.buffer, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdDrawIndexed(cmdBuffer, 6, 1, 0, 0, 0);
 
@@ -273,7 +273,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared)
+		if (!prepared_)
 			return;
 		VulkanExampleBase::prepareFrame();
 		buildCommandBuffer();
@@ -289,8 +289,8 @@ public:
 
 		if (overlay->header("Viewport")) {
 			overlay->checkBox("Negative viewport height", &negativeViewport);
-			overlay->sliderFloat("offset x", &offsetx, -(float)width, (float)width);
-			overlay->sliderFloat("offset y", &offsety, -(float)height, (float)height);
+			overlay->sliderFloat("offset x", &offsetx, -(float)width_, (float)width_);
+			overlay->sliderFloat("offset y", &offsety, -(float)height_, (float)height_);
 		}
 		if (overlay->header("Pipeline")) {
 			overlay->text("Winding order");

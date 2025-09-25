@@ -27,24 +27,24 @@ public:
 		glm::mat4 view;
 		glm::mat4 model;
 	} uniformData;
-	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers;
+	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	std::vector<int32_t> conditionalVisibility{};
-	std::array<vks::Buffer, maxConcurrentFrames> conditionalBuffers;
+	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> conditionalBuffers;
 
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	VkPipeline pipeline{ VK_NULL_HANDLE };
 	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
-	std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets{};
+	std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Conditional rendering";
-		camera.type = Camera::CameraType::lookat;
-		camera.setPerspective(45.0f, (float)width / (float)height, 0.1f, 512.0f);
-		camera.setRotation(glm::vec3(-2.25f, -52.0f, 0.0f));
-		camera.setTranslation(glm::vec3(1.9f, -2.05f, -18.0f));
-		camera.rotationSpeed *= 0.25f;
+		camera_.type = Camera::CameraType::lookat;
+		camera_.setPerspective(45.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
+		camera_.setRotation(glm::vec3(-2.25f, -52.0f, 0.0f));
+		camera_.setTranslation(glm::vec3(1.9f, -2.05f, -18.0f));
+		camera_.rotationSpeed *= 0.25f;
 
 		/*
 			[POI] Enable extension required for conditional rendering
@@ -55,11 +55,11 @@ public:
 
 	~VulkanExample()
 	{
-		if (device) {
-			vkDestroyPipeline(device, pipeline, nullptr);
-			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-			for (auto& buffer : uniformBuffers) {
+		if (device_) {
+			vkDestroyPipeline(device_, pipeline, nullptr);
+			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
+			for (auto& buffer : uniformBuffers_) {
 				buffer.destroy();
 			}
 			for (auto& buffer : conditionalBuffers) {
@@ -72,7 +72,7 @@ public:
 		if (node->mesh) {
 			for (vkglTF::Primitive * primitive : node->mesh->primitives) {
 				const std::vector<VkDescriptorSet> descriptorsets = {
-					descriptorSets[currentBuffer],
+					descriptorSets_[currentBuffer_],
 					node->mesh->uniformBuffer.descriptorSet
 				};
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, static_cast<uint32_t>(descriptorsets.size()), descriptorsets.data(), 0, NULL);
@@ -84,7 +84,7 @@ public:
 				*/
 				VkConditionalRenderingBeginInfoEXT conditionalRenderingBeginInfo{};
 				conditionalRenderingBeginInfo.sType = VK_STRUCTURE_TYPE_CONDITIONAL_RENDERING_BEGIN_INFO_EXT;
-				conditionalRenderingBeginInfo.buffer = conditionalBuffers[currentBuffer].buffer;
+				conditionalRenderingBeginInfo.buffer = conditionalBuffers[currentBuffer_].buffer;
 				conditionalRenderingBeginInfo.offset = sizeof(int32_t) * node->index;
 
 				/*
@@ -107,17 +107,17 @@ public:
 
 		void loadAssets()
 	{
-		scene.loadFromFile(getAssetPath() + "models/gltf/glTF-Embedded/Buggy.gltf", vulkanDevice, queue);
+		scene.loadFromFile(getAssetPath() + "models/gltf/glTF-Embedded/Buggy.gltf", vulkanDevice, queue_);
 	}
 
 	void setupDescriptors()
 	{
 		// Pool
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES),
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolCI = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxConcurrentFrames);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolCI, nullptr, &descriptorPool));
+		VkDescriptorPoolCreateInfo descriptorPoolCI = vks::initializers::descriptorPoolCreateInfo(poolSizes, MAX_CONCURRENT_FRAMES);
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolCI, nullptr, &descriptorPool_));
 
 		// Layouts
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -127,16 +127,16 @@ public:
 		descriptorLayoutCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 		descriptorLayoutCI.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
 		descriptorLayoutCI.pBindings = setLayoutBindings.data();
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayoutCI, nullptr, &descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr, &descriptorSetLayout));
 
 		// Sets per frame, just like the buffers themselves
-		for (auto i = 0; i < uniformBuffers.size(); i++) {
-			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &descriptorSets[i]));
+		for (auto i = 0; i < uniformBuffers_.size(); i++) {
+			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayout, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &descriptorSetAllocateInfo, &descriptorSets_[i]));
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-				vks::initializers::writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers[i].descriptor)
+				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].descriptor)
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}
 	}
 
@@ -150,7 +150,7 @@ public:
 		VkPushConstantRange pushConstantRange = vks::initializers::pushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, sizeof(glm::vec4), 0);
 		pipelineLayoutCI.pushConstantRangeCount = 1;
 		pipelineLayoutCI.pPushConstantRanges = &pushConstantRange;
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr, &pipelineLayout));
 
 		// Pipeline
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCI = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -163,7 +163,7 @@ public:
 		const std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 		VkPipelineDynamicStateCreateInfo dynamicStateCI = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables, 0);
 
-		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
+		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_, 0);
 		pipelineCI.pInputAssemblyState = &inputAssemblyStateCI;
 		pipelineCI.pRasterizationState = &rasterizationStateCI;
 		pipelineCI.pColorBlendState = &colorBlendStateCI;
@@ -181,12 +181,12 @@ public:
 		pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
 		pipelineCI.pStages = shaderStages.data();
 
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
 	}
 
 	void prepareUniformBuffers()
 	{
-		for (auto& buffer : uniformBuffers) {
+		for (auto& buffer : uniformBuffers_) {
 			// Scene matrices uniform buffer
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData)));
 			VK_CHECK_RESULT(buffer.map());
@@ -195,15 +195,15 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera.matrices.perspective;
-		uniformData.view = glm::scale(camera.matrices.view, glm::vec3(0.1f , -0.1f, 0.1f));
+		uniformData.projection = camera_.matrices.perspective;
+		uniformData.view = glm::scale(camera_.matrices.view, glm::vec3(0.1f , -0.1f, 0.1f));
 		uniformData.model = glm::translate(glm::mat4(1.0f), scene.dimensions.min);
-		memcpy(uniformBuffers[currentBuffer].mapped, &uniformData, sizeof(UniformData));
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
 	}
 
 	void updateConditionalBuffer()
 	{
-		memcpy(conditionalBuffers[currentBuffer].mapped, conditionalVisibility.data(), sizeof(int32_t) * conditionalVisibility.size());
+		memcpy(conditionalBuffers[currentBuffer_].mapped, conditionalVisibility.data(), sizeof(int32_t) * conditionalVisibility.size());
 	}
 
 	/*
@@ -217,12 +217,12 @@ public:
 		/*
 			The conditional rendering functions are part of an extension so they have to be loaded manually
 		*/
-		vkCmdBeginConditionalRenderingEXT = (PFN_vkCmdBeginConditionalRenderingEXT)vkGetDeviceProcAddr(device, "vkCmdBeginConditionalRenderingEXT");
+		vkCmdBeginConditionalRenderingEXT = (PFN_vkCmdBeginConditionalRenderingEXT)vkGetDeviceProcAddr(device_, "vkCmdBeginConditionalRenderingEXT");
 		if (!vkCmdBeginConditionalRenderingEXT) {
 			vks::tools::exitFatal("Could not get a valid function pointer for vkCmdBeginConditionalRenderingEXT", -1);
 		}
 
-		vkCmdEndConditionalRenderingEXT = (PFN_vkCmdEndConditionalRenderingEXT)vkGetDeviceProcAddr(device, "vkCmdEndConditionalRenderingEXT");
+		vkCmdEndConditionalRenderingEXT = (PFN_vkCmdEndConditionalRenderingEXT)vkGetDeviceProcAddr(device_, "vkCmdEndConditionalRenderingEXT");
 		if (!vkCmdEndConditionalRenderingEXT) {
 			vks::tools::exitFatal("Could not get a valid function pointer for vkCmdEndConditionalRenderingEXT", -1);
 		}
@@ -262,12 +262,12 @@ public:
 		prepareUniformBuffers();
 		setupDescriptors();
 		preparePipelines();
-		prepared = true;
+		prepared_ = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -276,22 +276,22 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass;
+		renderPassBeginInfo.renderPass = renderPass_;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.renderArea.extent.width = width_;
+		renderPassBeginInfo.renderArea.extent.height = height_;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
-		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentBuffer], 0, nullptr);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_], 0, nullptr);
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 		const VkDeviceSize offsets[1] = { 0 };
 		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &scene.vertices.buffer, offsets);
@@ -306,7 +306,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared)
+		if (!prepared_)
 			return;
 		VulkanExampleBase::prepareFrame();
 		updateUniformBuffers();

@@ -80,20 +80,20 @@ class VulkanExample : public VulkanExampleBase {
     glm::mat4 viewInverse;
     glm::mat4 projInverse;
   } uniformData;
-  std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers;
+  std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
   VkPipeline pipeline{VK_NULL_HANDLE};
   VkPipelineLayout pipelineLayout{VK_NULL_HANDLE};
   VkDescriptorSetLayout descriptorSetLayout{VK_NULL_HANDLE};
-  std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets{};
+  std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
   VulkanExample() : VulkanExampleBase() {
     title = "Ray tracing basic";
     settings.overlay = false;
-    camera.type = Camera::CameraType::lookat;
-    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
-    camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
-    camera.setTranslation(glm::vec3(0.0f, 0.0f, -2.5f));
+    camera_.type = Camera::CameraType::lookat;
+    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
+    camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+    camera_.setTranslation(glm::vec3(0.0f, 0.0f, -2.5f));
 
     // Require Vulkan 1.1
     apiVersion = VK_API_VERSION_1_1;
@@ -121,25 +121,25 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   ~VulkanExample() {
-    vkDestroyPipeline(device, pipeline, nullptr);
-    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-    vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-    vkDestroyImageView(device, storageImage.view, nullptr);
-    vkDestroyImage(device, storageImage.image, nullptr);
-    vkFreeMemory(device, storageImage.memory, nullptr);
-    vkFreeMemory(device, bottomLevelAS.memory, nullptr);
-    vkDestroyBuffer(device, bottomLevelAS.buffer, nullptr);
-    vkDestroyAccelerationStructureKHR(device, bottomLevelAS.handle, nullptr);
-    vkFreeMemory(device, topLevelAS.memory, nullptr);
-    vkDestroyBuffer(device, topLevelAS.buffer, nullptr);
-    vkDestroyAccelerationStructureKHR(device, topLevelAS.handle, nullptr);
+    vkDestroyPipeline(device_, pipeline, nullptr);
+    vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
+    vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
+    vkDestroyImageView(device_, storageImage.view, nullptr);
+    vkDestroyImage(device_, storageImage.image, nullptr);
+    vkFreeMemory(device_, storageImage.memory, nullptr);
+    vkFreeMemory(device_, bottomLevelAS.memory, nullptr);
+    vkDestroyBuffer(device_, bottomLevelAS.buffer, nullptr);
+    vkDestroyAccelerationStructureKHR(device_, bottomLevelAS.handle, nullptr);
+    vkFreeMemory(device_, topLevelAS.memory, nullptr);
+    vkDestroyBuffer(device_, topLevelAS.buffer, nullptr);
+    vkDestroyAccelerationStructureKHR(device_, topLevelAS.handle, nullptr);
     vertexBuffer.destroy();
     indexBuffer.destroy();
     transformBuffer.destroy();
     raygenShaderBindingTable.destroy();
     missShaderBindingTable.destroy();
     hitShaderBindingTable.destroy();
-    for (auto& buffer : uniformBuffers) {
+    for (auto& buffer : uniformBuffers_) {
       buffer.destroy();
     }
   }
@@ -156,11 +156,11 @@ class VulkanExample : public VulkanExampleBase {
     bufferCreateInfo.size = size;
     bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                              VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-    VK_CHECK_RESULT(vkCreateBuffer(device, &bufferCreateInfo, nullptr,
+    VK_CHECK_RESULT(vkCreateBuffer(device_, &bufferCreateInfo, nullptr,
                                    &scratchBuffer.handle));
 
     VkMemoryRequirements memoryRequirements{};
-    vkGetBufferMemoryRequirements(device, scratchBuffer.handle,
+    vkGetBufferMemoryRequirements(device_, scratchBuffer.handle,
                                   &memoryRequirements);
 
     VkMemoryAllocateFlagsInfo memoryAllocateFlagsInfo{};
@@ -174,9 +174,9 @@ class VulkanExample : public VulkanExampleBase {
     memoryAllocateInfo.allocationSize = memoryRequirements.size;
     memoryAllocateInfo.memoryTypeIndex = vulkanDevice->getMemoryType(
         memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VK_CHECK_RESULT(vkAllocateMemory(device, &memoryAllocateInfo, nullptr,
+    VK_CHECK_RESULT(vkAllocateMemory(device_, &memoryAllocateInfo, nullptr,
                                      &scratchBuffer.memory));
-    VK_CHECK_RESULT(vkBindBufferMemory(device, scratchBuffer.handle,
+    VK_CHECK_RESULT(vkBindBufferMemory(device_, scratchBuffer.handle,
                                        scratchBuffer.memory, 0));
 
     VkBufferDeviceAddressInfoKHR bufferDeviceAddressInfo{};
@@ -184,17 +184,17 @@ class VulkanExample : public VulkanExampleBase {
         VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
     bufferDeviceAddressInfo.buffer = scratchBuffer.handle;
     scratchBuffer.deviceAddress =
-        vkGetBufferDeviceAddressKHR(device, &bufferDeviceAddressInfo);
+        vkGetBufferDeviceAddressKHR(device_, &bufferDeviceAddressInfo);
 
     return scratchBuffer;
   }
 
   void deleteScratchBuffer(RayTracingScratchBuffer& scratchBuffer) {
     if (scratchBuffer.memory != VK_NULL_HANDLE) {
-      vkFreeMemory(device, scratchBuffer.memory, nullptr);
+      vkFreeMemory(device_, scratchBuffer.memory, nullptr);
     }
     if (scratchBuffer.handle != VK_NULL_HANDLE) {
-      vkDestroyBuffer(device, scratchBuffer.handle, nullptr);
+      vkDestroyBuffer(device_, scratchBuffer.handle, nullptr);
     }
   }
 
@@ -207,10 +207,10 @@ class VulkanExample : public VulkanExampleBase {
     bufferCreateInfo.usage =
         VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
         VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-    VK_CHECK_RESULT(vkCreateBuffer(device, &bufferCreateInfo, nullptr,
+    VK_CHECK_RESULT(vkCreateBuffer(device_, &bufferCreateInfo, nullptr,
                                    &accelerationStructure.buffer));
     VkMemoryRequirements memoryRequirements{};
-    vkGetBufferMemoryRequirements(device, accelerationStructure.buffer,
+    vkGetBufferMemoryRequirements(device_, accelerationStructure.buffer,
                                   &memoryRequirements);
     VkMemoryAllocateFlagsInfo memoryAllocateFlagsInfo{};
     memoryAllocateFlagsInfo.sType =
@@ -222,9 +222,9 @@ class VulkanExample : public VulkanExampleBase {
     memoryAllocateInfo.allocationSize = memoryRequirements.size;
     memoryAllocateInfo.memoryTypeIndex = vulkanDevice->getMemoryType(
         memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VK_CHECK_RESULT(vkAllocateMemory(device, &memoryAllocateInfo, nullptr,
+    VK_CHECK_RESULT(vkAllocateMemory(device_, &memoryAllocateInfo, nullptr,
                                      &accelerationStructure.memory));
-    VK_CHECK_RESULT(vkBindBufferMemory(device, accelerationStructure.buffer,
+    VK_CHECK_RESULT(vkBindBufferMemory(device_, accelerationStructure.buffer,
                                        accelerationStructure.memory, 0));
   }
 
@@ -236,7 +236,7 @@ class VulkanExample : public VulkanExampleBase {
     VkBufferDeviceAddressInfoKHR bufferDeviceAI{};
     bufferDeviceAI.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
     bufferDeviceAI.buffer = buffer;
-    return vkGetBufferDeviceAddressKHR(device, &bufferDeviceAI);
+    return vkGetBufferDeviceAddressKHR(device_, &bufferDeviceAI);
   }
 
   /*
@@ -246,9 +246,9 @@ class VulkanExample : public VulkanExampleBase {
   void createStorageImage() {
     VkImageCreateInfo image = vks::initializers::imageCreateInfo();
     image.imageType = VK_IMAGE_TYPE_2D;
-    image.format = swapChain.colorFormat;
-    image.extent.width = width;
-    image.extent.height = height;
+    image.format = swapChain_.colorFormat;
+    image.extent.width = width_;
+    image.extent.height = height_;
     image.extent.depth = 1;
     image.mipLevels = 1;
     image.arrayLayers = 1;
@@ -257,24 +257,24 @@ class VulkanExample : public VulkanExampleBase {
     image.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
     image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     VK_CHECK_RESULT(
-        vkCreateImage(device, &image, nullptr, &storageImage.image));
+        vkCreateImage(device_, &image, nullptr, &storageImage.image));
 
     VkMemoryRequirements memReqs;
-    vkGetImageMemoryRequirements(device, storageImage.image, &memReqs);
+    vkGetImageMemoryRequirements(device_, storageImage.image, &memReqs);
     VkMemoryAllocateInfo memoryAllocateInfo =
         vks::initializers::memoryAllocateInfo();
     memoryAllocateInfo.allocationSize = memReqs.size;
     memoryAllocateInfo.memoryTypeIndex = vulkanDevice->getMemoryType(
         memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VK_CHECK_RESULT(vkAllocateMemory(device, &memoryAllocateInfo, nullptr,
+    VK_CHECK_RESULT(vkAllocateMemory(device_, &memoryAllocateInfo, nullptr,
                                      &storageImage.memory));
     VK_CHECK_RESULT(
-        vkBindImageMemory(device, storageImage.image, storageImage.memory, 0));
+        vkBindImageMemory(device_, storageImage.image, storageImage.memory, 0));
 
     VkImageViewCreateInfo colorImageView =
         vks::initializers::imageViewCreateInfo();
     colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    colorImageView.format = swapChain.colorFormat;
+    colorImageView.format = swapChain_.colorFormat;
     colorImageView.subresourceRange = {};
     colorImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     colorImageView.subresourceRange.baseMipLevel = 0;
@@ -282,7 +282,7 @@ class VulkanExample : public VulkanExampleBase {
     colorImageView.subresourceRange.baseArrayLayer = 0;
     colorImageView.subresourceRange.layerCount = 1;
     colorImageView.image = storageImage.image;
-    VK_CHECK_RESULT(vkCreateImageView(device, &colorImageView, nullptr,
+    VK_CHECK_RESULT(vkCreateImageView(device_, &colorImageView, nullptr,
                                       &storageImage.view));
 
     VkCommandBuffer cmdBuffer = vulkanDevice->createCommandBuffer(
@@ -290,7 +290,7 @@ class VulkanExample : public VulkanExampleBase {
     vks::tools::setImageLayout(
         cmdBuffer, storageImage.image, VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_GENERAL, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
-    vulkanDevice->flushCommandBuffer(cmdBuffer, queue);
+    vulkanDevice->flushCommandBuffer(cmdBuffer, queue_);
   }
 
   /*
@@ -393,7 +393,7 @@ class VulkanExample : public VulkanExampleBase {
     accelerationStructureBuildSizesInfo.sType =
         VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
     vkGetAccelerationStructureBuildSizesKHR(
-        device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+        device_, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
         &accelerationStructureBuildGeometryInfo, &numTriangles,
         &accelerationStructureBuildSizesInfo);
 
@@ -408,7 +408,7 @@ class VulkanExample : public VulkanExampleBase {
         accelerationStructureBuildSizesInfo.accelerationStructureSize;
     accelerationStructureCreateInfo.type =
         VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-    vkCreateAccelerationStructureKHR(device, &accelerationStructureCreateInfo,
+    vkCreateAccelerationStructureKHR(device_, &accelerationStructureCreateInfo,
                                      nullptr, &bottomLevelAS.handle);
 
     // Create a small scratch buffer used during build of the bottom level
@@ -452,14 +452,14 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdBuildAccelerationStructuresKHR(
         commandBuffer, 1, &accelerationBuildGeometryInfo,
         accelerationBuildStructureRangeInfos.data());
-    vulkanDevice->flushCommandBuffer(commandBuffer, queue);
+    vulkanDevice->flushCommandBuffer(commandBuffer, queue_);
 
     VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
     accelerationDeviceAddressInfo.sType =
         VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
     accelerationDeviceAddressInfo.accelerationStructure = bottomLevelAS.handle;
     bottomLevelAS.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(
-        device, &accelerationDeviceAddressInfo);
+        device_, &accelerationDeviceAddressInfo);
 
     deleteScratchBuffer(scratchBuffer);
   }
@@ -532,7 +532,7 @@ class VulkanExample : public VulkanExampleBase {
     accelerationStructureBuildSizesInfo.sType =
         VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
     vkGetAccelerationStructureBuildSizesKHR(
-        device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+        device_, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
         &accelerationStructureBuildGeometryInfo, &primitive_count,
         &accelerationStructureBuildSizesInfo);
 
@@ -547,7 +547,7 @@ class VulkanExample : public VulkanExampleBase {
         accelerationStructureBuildSizesInfo.accelerationStructureSize;
     accelerationStructureCreateInfo.type =
         VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-    vkCreateAccelerationStructureKHR(device, &accelerationStructureCreateInfo,
+    vkCreateAccelerationStructureKHR(device_, &accelerationStructureCreateInfo,
                                      nullptr, &topLevelAS.handle);
 
     // Create a small scratch buffer used during build of the top level
@@ -590,14 +590,14 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdBuildAccelerationStructuresKHR(
         commandBuffer, 1, &accelerationBuildGeometryInfo,
         accelerationBuildStructureRangeInfos.data());
-    vulkanDevice->flushCommandBuffer(commandBuffer, queue);
+    vulkanDevice->flushCommandBuffer(commandBuffer, queue_);
 
     VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
     accelerationDeviceAddressInfo.sType =
         VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
     accelerationDeviceAddressInfo.accelerationStructure = topLevelAS.handle;
     topLevelAS.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(
-        device, &accelerationDeviceAddressInfo);
+        device_, &accelerationDeviceAddressInfo);
 
     deleteScratchBuffer(scratchBuffer);
     instancesBuffer.destroy();
@@ -629,7 +629,7 @@ class VulkanExample : public VulkanExampleBase {
 
     std::vector<uint8_t> shaderHandleStorage(sbtSize);
     VK_CHECK_RESULT(vkGetRayTracingShaderGroupHandlesKHR(
-        device, pipeline, 0, groupCount, sbtSize, shaderHandleStorage.data()));
+        device_, pipeline, 0, groupCount, sbtSize, shaderHandleStorage.data()));
 
     const VkBufferUsageFlags bufferUsageFlags =
         VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR |
@@ -665,24 +665,24 @@ class VulkanExample : public VulkanExampleBase {
   void createDescriptorSets() {
     // Pool
     std::vector<VkDescriptorPoolSize> poolSizes = {
-        {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, maxConcurrentFrames},
-        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, maxConcurrentFrames},
-        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames}};
+        {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, MAX_CONCURRENT_FRAMES},
+        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, MAX_CONCURRENT_FRAMES},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES}};
     VkDescriptorPoolCreateInfo descriptorPoolCreateInfo =
         vks::initializers::descriptorPoolCreateInfo(poolSizes,
-                                                    maxConcurrentFrames);
-    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolCreateInfo,
-                                           nullptr, &descriptorPool));
+                                                    MAX_CONCURRENT_FRAMES);
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolCreateInfo,
+                                           nullptr, &descriptorPool_));
 
     // Sets per frame, just like the buffers themselves
     // Acceleration structure and storage image does not need to be duplicated
     // per frame, we use the same for each descriptor to keep things simple
     VkDescriptorSetAllocateInfo allocInfo =
-        vks::initializers::descriptorSetAllocateInfo(descriptorPool,
+        vks::initializers::descriptorSetAllocateInfo(descriptorPool_,
                                                      &descriptorSetLayout, 1);
-    for (auto i = 0; i < maxConcurrentFrames; i++) {
+    for (auto i = 0; i < MAX_CONCURRENT_FRAMES; i++) {
       VK_CHECK_RESULT(
-          vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i]));
+          vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
 
       // The fragment shader needs access to the ray tracing acceleration
       // structure, so we pass it as a descriptor
@@ -699,7 +699,7 @@ class VulkanExample : public VulkanExampleBase {
       accelerationStructureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
       // The specialized acceleration structure descriptor has to be chained
       accelerationStructureWrite.pNext = &descriptorAccelerationStructureInfo;
-      accelerationStructureWrite.dstSet = descriptorSets[i];
+      accelerationStructureWrite.dstSet = descriptorSets_[i];
       accelerationStructureWrite.dstBinding = 0;
       accelerationStructureWrite.descriptorCount = 1;
       accelerationStructureWrite.descriptorType =
@@ -711,16 +711,16 @@ class VulkanExample : public VulkanExampleBase {
 
       VkWriteDescriptorSet resultImageWrite =
           vks::initializers::writeDescriptorSet(
-              descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
+              descriptorSets_[i], VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
               &storageImageDescriptor);
       VkWriteDescriptorSet uniformBufferWrite =
           vks::initializers::writeDescriptorSet(
-              descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2,
-              &uniformBuffers[i].descriptor);
+              descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2,
+              &uniformBuffers_[i].descriptor);
 
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
           accelerationStructureWrite, resultImageWrite, uniformBufferWrite};
-      vkUpdateDescriptorSets(device,
+      vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
     }
@@ -759,14 +759,14 @@ class VulkanExample : public VulkanExampleBase {
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     descriptorSetlayoutCI.bindingCount = static_cast<uint32_t>(bindings.size());
     descriptorSetlayoutCI.pBindings = bindings.data();
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetlayoutCI,
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorSetlayoutCI,
                                                 nullptr, &descriptorSetLayout));
 
     VkPipelineLayoutCreateInfo pipelineLayoutCI{};
     pipelineLayoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutCI.setLayoutCount = 1;
     pipelineLayoutCI.pSetLayouts = &descriptorSetLayout;
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr,
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr,
                                            &pipelineLayout));
 
     /*
@@ -841,7 +841,7 @@ class VulkanExample : public VulkanExampleBase {
     rayTracingPipelineCI.maxPipelineRayRecursionDepth = 1;
     rayTracingPipelineCI.layout = pipelineLayout;
     VK_CHECK_RESULT(vkCreateRayTracingPipelinesKHR(
-        device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayTracingPipelineCI,
+        device_, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayTracingPipelineCI,
         nullptr, &pipeline));
   }
 
@@ -850,7 +850,7 @@ class VulkanExample : public VulkanExampleBase {
      generation shader
   */
   void createUniformBuffer() {
-    for (auto& buffer : uniformBuffers) {
+    for (auto& buffer : uniformBuffers_) {
       VK_CHECK_RESULT(vulkanDevice->createBuffer(
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
@@ -866,28 +866,28 @@ class VulkanExample : public VulkanExampleBase {
   */
   void handleResize() {
     // Delete allocated resources
-    vkDestroyImageView(device, storageImage.view, nullptr);
-    vkDestroyImage(device, storageImage.image, nullptr);
-    vkFreeMemory(device, storageImage.memory, nullptr);
+    vkDestroyImageView(device_, storageImage.view, nullptr);
+    vkDestroyImage(device_, storageImage.image, nullptr);
+    vkFreeMemory(device_, storageImage.memory, nullptr);
     // Recreate image
     createStorageImage();
     // Update descriptors
     VkDescriptorImageInfo storageImageDescriptor{
         VK_NULL_HANDLE, storageImage.view, VK_IMAGE_LAYOUT_GENERAL};
-    for (auto i = 0; i < maxConcurrentFrames; i++) {
+    for (auto i = 0; i < MAX_CONCURRENT_FRAMES; i++) {
       VkWriteDescriptorSet resultImageWrite =
           vks::initializers::writeDescriptorSet(
-              descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
+              descriptorSets_[i], VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
               &storageImageDescriptor);
-      vkUpdateDescriptorSets(device, 1, &resultImageWrite, 0, VK_NULL_HANDLE);
+      vkUpdateDescriptorSets(device_, 1, &resultImageWrite, 0, VK_NULL_HANDLE);
     }
     resized = false;
   }
 
   void updateUniformBuffers() {
-    uniformData.projInverse = glm::inverse(camera.matrices.perspective);
-    uniformData.viewInverse = glm::inverse(camera.matrices.view);
-    memcpy(uniformBuffers[currentBuffer].mapped, &uniformData,
+    uniformData.projInverse = glm::inverse(camera_.matrices.perspective);
+    uniformData.viewInverse = glm::inverse(camera_.matrices.view);
+    memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData,
            sizeof(uniformData));
   }
 
@@ -941,36 +941,36 @@ class VulkanExample : public VulkanExampleBase {
     // required by this sample
     vkGetBufferDeviceAddressKHR =
         reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(
-            vkGetDeviceProcAddr(device, "vkGetBufferDeviceAddressKHR"));
+            vkGetDeviceProcAddr(device_, "vkGetBufferDeviceAddressKHR"));
     vkCmdBuildAccelerationStructuresKHR =
         reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(
-            vkGetDeviceProcAddr(device, "vkCmdBuildAccelerationStructuresKHR"));
+            vkGetDeviceProcAddr(device_, "vkCmdBuildAccelerationStructuresKHR"));
     vkBuildAccelerationStructuresKHR =
         reinterpret_cast<PFN_vkBuildAccelerationStructuresKHR>(
-            vkGetDeviceProcAddr(device, "vkBuildAccelerationStructuresKHR"));
+            vkGetDeviceProcAddr(device_, "vkBuildAccelerationStructuresKHR"));
     vkCreateAccelerationStructureKHR =
         reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(
-            vkGetDeviceProcAddr(device, "vkCreateAccelerationStructureKHR"));
+            vkGetDeviceProcAddr(device_, "vkCreateAccelerationStructureKHR"));
     vkDestroyAccelerationStructureKHR =
         reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(
-            vkGetDeviceProcAddr(device, "vkDestroyAccelerationStructureKHR"));
+            vkGetDeviceProcAddr(device_, "vkDestroyAccelerationStructureKHR"));
     vkGetAccelerationStructureBuildSizesKHR =
         reinterpret_cast<PFN_vkGetAccelerationStructureBuildSizesKHR>(
-            vkGetDeviceProcAddr(device,
+            vkGetDeviceProcAddr(device_,
                                 "vkGetAccelerationStructureBuildSizesKHR"));
     vkGetAccelerationStructureDeviceAddressKHR =
         reinterpret_cast<PFN_vkGetAccelerationStructureDeviceAddressKHR>(
-            vkGetDeviceProcAddr(device,
+            vkGetDeviceProcAddr(device_,
                                 "vkGetAccelerationStructureDeviceAddressKHR"));
     vkCmdTraceRaysKHR = reinterpret_cast<PFN_vkCmdTraceRaysKHR>(
-        vkGetDeviceProcAddr(device, "vkCmdTraceRaysKHR"));
+        vkGetDeviceProcAddr(device_, "vkCmdTraceRaysKHR"));
     vkGetRayTracingShaderGroupHandlesKHR =
         reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(
-            vkGetDeviceProcAddr(device,
+            vkGetDeviceProcAddr(device_,
                                 "vkGetRayTracingShaderGroupHandlesKHR"));
     vkCreateRayTracingPipelinesKHR =
         reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(
-            vkGetDeviceProcAddr(device, "vkCreateRayTracingPipelinesKHR"));
+            vkGetDeviceProcAddr(device_, "vkCreateRayTracingPipelinesKHR"));
 
     // Create the acceleration structures used to render the ray traced scene
     createBottomLevelAccelerationStructure();
@@ -981,7 +981,7 @@ class VulkanExample : public VulkanExampleBase {
     createRayTracingPipeline();
     createShaderBindingTable();
     createDescriptorSets();
-    prepared = true;
+    prepared_ = true;
   }
 
   void buildCommandBuffer() {
@@ -989,7 +989,7 @@ class VulkanExample : public VulkanExampleBase {
       handleResize();
     }
 
-    VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+    VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 
     VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
@@ -1035,18 +1035,18 @@ class VulkanExample : public VulkanExampleBase {
                       pipeline);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
                             pipelineLayout, 0, 1,
-                            &descriptorSets[currentBuffer], 0, 0);
+                            &descriptorSets_[currentBuffer_], 0, 0);
 
     vkCmdTraceRaysKHR(cmdBuffer, &raygenShaderSbtEntry, &missShaderSbtEntry,
-                      &hitShaderSbtEntry, &callableShaderSbtEntry, width,
-                      height, 1);
+                      &hitShaderSbtEntry, &callableShaderSbtEntry, width_,
+                      height_, 1);
 
     /*
             Copy ray tracing output to swap chain image
     */
 
     // Prepare current swap chain image as transfer destination
-    vks::tools::setImageLayout(cmdBuffer, swapChain.images[currentImageIndex],
+    vks::tools::setImageLayout(cmdBuffer, swapChain_.images[currentImageIndex_],
                                VK_IMAGE_LAYOUT_UNDEFINED,
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                subresourceRange);
@@ -1061,14 +1061,14 @@ class VulkanExample : public VulkanExampleBase {
     copyRegion.srcOffset = {0, 0, 0};
     copyRegion.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
     copyRegion.dstOffset = {0, 0, 0};
-    copyRegion.extent = {width, height, 1};
+    copyRegion.extent = {width_, height_, 1};
     vkCmdCopyImage(cmdBuffer, storageImage.image,
                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                   swapChain.images[currentImageIndex],
+                   swapChain_.images[currentImageIndex_],
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
     // Transition swap chain image back for presentation
-    vks::tools::setImageLayout(cmdBuffer, swapChain.images[currentImageIndex],
+    vks::tools::setImageLayout(cmdBuffer, swapChain_.images[currentImageIndex_],
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                                subresourceRange);
@@ -1082,7 +1082,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   virtual void render() {
-    if (!prepared)
+    if (!prepared_)
       return;
     VulkanExampleBase::prepareFrame();
     updateUniformBuffers();

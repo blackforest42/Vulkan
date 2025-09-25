@@ -50,7 +50,7 @@ namespace vks
 			int32_t indexCount{ 0 };
 		};
 		std::vector<Buffers> buffers;
-		uint32_t maxConcurrentFrames{ 0 };
+		uint32_t MAX_CONCURRENT_FRAMES{ 0 };
 		uint32_t currentBuffer{ 0 };
 
 		std::vector<VkPipelineShaderStageCreateInfo> shaders;

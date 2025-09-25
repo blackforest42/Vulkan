@@ -640,25 +640,25 @@ void VulkanglTFModel::draw(VkCommandBuffer commandBuffer, VkPipelineLayout pipel
 VulkanExample::VulkanExample() : VulkanExampleBase()
 {
 	title = "glTF vertex skinning";
-	camera.type  = Camera::CameraType::lookat;
-	camera.flipY = true;
-	camera.setPosition(glm::vec3(0.0f, 0.75f, -2.0f));
-	camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
-	camera.setPerspective(60.0f, (float) width / (float) height, 0.1f, 256.0f);
+	camera_.type  = Camera::CameraType::lookat;
+	camera_.flipY = true;
+	camera_.setPosition(glm::vec3(0.0f, 0.75f, -2.0f));
+	camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+	camera_.setPerspective(60.0f, (float) width_ / (float) height_, 0.1f, 256.0f);
 }
 
 VulkanExample::~VulkanExample()
 {
-	if (device) {
-		vkDestroyPipeline(device, pipelines.solid, nullptr);
-		if (pipelines.wireframe != VK_NULL_HANDLE) {
-			vkDestroyPipeline(device, pipelines.wireframe, nullptr);
+	if (device_) {
+		vkDestroyPipeline(device_, pipelines_.solid, nullptr);
+		if (pipelines_.wireframe != VK_NULL_HANDLE) {
+			vkDestroyPipeline(device_, pipelines_.wireframe, nullptr);
 		}
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayouts.matrices, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayouts.textures, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayouts.jointMatrices, nullptr);
-		for (auto& buffer : uniformBuffers) {
+		vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.matrices, nullptr);
+		vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.textures, nullptr);
+		vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.jointMatrices, nullptr);
+		for (auto& buffer : uniformBuffers_) {
 			buffer.destroy();
 		}
 	}
@@ -679,7 +679,7 @@ void VulkanExample::loadglTFFile(std::string filename)
 	tinygltf::TinyGLTF gltfContext;
 	std::string        error, warning;
 
-	this->device = device;
+	this->device_ = device_;
 
 #if defined(__ANDROID__)
 	// On Android all assets are packed with the apk in a compressed form, so we need to open them using the asset manager
@@ -690,7 +690,7 @@ void VulkanExample::loadglTFFile(std::string filename)
 
 	// Pass some Vulkan resources required for setup and rendering to the glTF model loading class
 	glTFModel.vulkanDevice = vulkanDevice;
-	glTFModel.copyQueue    = queue;
+	glTFModel.copyQueue    = queue_;
 
 	std::vector<uint32_t>                indexBuffer;
 	std::vector<VulkanglTFModel::Vertex> vertexBuffer;
@@ -763,7 +763,7 @@ void VulkanExample::loadglTFFile(std::string filename)
 	vkCmdCopyBuffer(copyCmd, vertexStaging.buffer, glTFModel.vertices.buffer, 1, &copyRegion);
 	copyRegion.size = indexBufferSize;
 	vkCmdCopyBuffer(copyCmd, indexStaging.buffer, glTFModel.indices.buffer, 1, &copyRegion);
-	vulkanDevice->flushCommandBuffer(copyCmd, queue, true);
+	vulkanDevice->flushCommandBuffer(copyCmd, queue_, true);
 
 	vertexStaging.destroy();
 	indexStaging.destroy();
@@ -776,16 +776,16 @@ void VulkanExample::setupDescriptors()
 	*/
 
 	std::vector<VkDescriptorPoolSize> poolSizes = {
-	    vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames),
+	    vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES),
 	    // One combined image sampler per material image/texture
-	    vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(glTFModel.images.size()) * maxConcurrentFrames),
+	    vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(glTFModel.images.size()) * MAX_CONCURRENT_FRAMES),
 	    // One ssbo per skin
-	    vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, static_cast<uint32_t>(glTFModel.skins.size()) * maxConcurrentFrames),
+	    vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, static_cast<uint32_t>(glTFModel.skins.size()) * MAX_CONCURRENT_FRAMES),
 	};
 	// Number of descriptor sets = One for the scene ubo + one per image + one per skin
 	const uint32_t             maxSetCount        = static_cast<uint32_t>(glTFModel.images.size()) + static_cast<uint32_t>(glTFModel.skins.size()) + 1;
-	VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxSetCount * maxConcurrentFrames);
-	VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
+	VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxSetCount * MAX_CONCURRENT_FRAMES);
+	VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
 
 	// Descriptor set layouts
 	VkDescriptorSetLayoutBinding    setLayoutBinding{};
@@ -793,39 +793,39 @@ void VulkanExample::setupDescriptors()
 
 	// Descriptor set layout for passing matrices
 	setLayoutBinding = vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
-	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts.matrices));
+	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts_.matrices));
 
 	// Descriptor set layout for passing material textures
 	setLayoutBinding = vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
-	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts.textures));
+	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts_.textures));
 
 	// Descriptor set layout for passing skin joint matrices
 	setLayoutBinding = vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
-	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts.jointMatrices));
+	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts_.jointMatrices));
 
 	// Descriptor set for scene matrices and skin storage buffers are per frame, just like the buffers themselves
-	for (auto i = 0; i < uniformBuffers.size(); i++) {
+	for (auto i = 0; i < uniformBuffers_.size(); i++) {
 		// Scene matrices
-		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.matrices, 1);
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i]));
-		VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers[i].descriptor);
-		vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
+		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayouts_.matrices, 1);
+		VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
+		VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].descriptor);
+		vkUpdateDescriptorSets(device_, 1, &writeDescriptorSet, 0, nullptr);
 		// glTF model skin joint matrices
 		for (auto& skin : glTFModel.skins) {
-			const VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.jointMatrices, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &skin.descriptorSets[i]));
+			const VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayouts_.jointMatrices, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &skin.descriptorSets[i]));
 			VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(skin.descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 0, &skin.storageBuffers[i].descriptor);
-			vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
+			vkUpdateDescriptorSets(device_, 1, &writeDescriptorSet, 0, nullptr);
 		}
 	}
 
 	// Descriptor sets for glTF materials, since they only use static images, no need to duplicate them per frame		
 	for (auto &image : glTFModel.images)
 	{
-		const VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.textures, 1);
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &image.descriptorSet));
+		const VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayouts_.textures, 1);
+		VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &image.descriptorSet));
 		VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(image.descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &image.texture.descriptor);
-		vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
+		vkUpdateDescriptorSets(device_, 1, &writeDescriptorSet, 0, nullptr);
 	}
 }
 
@@ -837,9 +837,9 @@ void VulkanExample::preparePipelines()
 	// Set 1 = Joint matrices (VS)
 	// Set 2 = Material texture (FS)
 	std::array<VkDescriptorSetLayout, 3> setLayouts = {
-		descriptorSetLayouts.matrices,
-		descriptorSetLayouts.jointMatrices,
-		descriptorSetLayouts.textures };
+		descriptorSetLayouts_.matrices,
+		descriptorSetLayouts_.jointMatrices,
+		descriptorSetLayouts_.textures };
 	VkPipelineLayoutCreateInfo pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(setLayouts.data(), static_cast<uint32_t>(setLayouts.size()));
 
 	// We will use push constants to push the local matrices of a primitive to the vertex shader
@@ -847,7 +847,7 @@ void VulkanExample::preparePipelines()
 	// Push constant ranges are part of the pipeline layout
 	pipelineLayoutCI.pushConstantRangeCount = 1;
 	pipelineLayoutCI.pPushConstantRanges = &pushConstantRange;
-	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));
+	VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr, &pipelineLayout));
 
 	// Pipeline
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCI   = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -883,7 +883,7 @@ void VulkanExample::preparePipelines()
 	    loadShader(getShadersPath() + "gltfskinning/skinnedmodel.vert.spv", VK_SHADER_STAGE_VERTEX_BIT),
 	    loadShader(getShadersPath() + "gltfskinning/skinnedmodel.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT)};
 
-	VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
+	VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_, 0);
 	pipelineCI.pVertexInputState            = &vertexInputStateCI;
 	pipelineCI.pInputAssemblyState          = &inputAssemblyStateCI;
 	pipelineCI.pRasterizationState          = &rasterizationStateCI;
@@ -896,20 +896,20 @@ void VulkanExample::preparePipelines()
 	pipelineCI.pStages                      = shaderStages.data();
 
 	// Solid rendering pipeline
-	VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.solid));
+	VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.solid));
 
 	// Wire frame rendering pipeline
 	if (deviceFeatures.fillModeNonSolid)
 	{
 		rasterizationStateCI.polygonMode = VK_POLYGON_MODE_LINE;
 		rasterizationStateCI.lineWidth   = 1.0f;
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.wireframe));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.wireframe));
 	}
 }
 
 void VulkanExample::prepareUniformBuffers()
 {
-	for (auto& buffer : uniformBuffers) {
+	for (auto& buffer : uniformBuffers_) {
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
 		VK_CHECK_RESULT(buffer.map());
 	}
@@ -917,9 +917,9 @@ void VulkanExample::prepareUniformBuffers()
 
 void VulkanExample::updateUniformBuffers()
 {
-	uniformData.projection = camera.matrices.perspective;
-	uniformData.model      = camera.matrices.view;
-	memcpy(uniformBuffers[currentBuffer].mapped, &uniformData, sizeof(UniformData));
+	uniformData.projection = camera_.matrices.perspective;
+	uniformData.model      = camera_.matrices.view;
+	memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
 }
 
 void VulkanExample::loadAssets()
@@ -934,12 +934,12 @@ void VulkanExample::prepare()
 	prepareUniformBuffers();
 	setupDescriptors();
 	preparePipelines();
-	prepared = true;
+	prepared_ = true;
 }
 
 void VulkanExample::buildCommandBuffer()
 {
-	VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+	VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 	
 	VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -948,24 +948,24 @@ void VulkanExample::buildCommandBuffer()
 	clearValues[1].depthStencil = { 1.0f, 0 };
 
 	VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-	renderPassBeginInfo.renderPass = renderPass;
+	renderPassBeginInfo.renderPass = renderPass_;
 	renderPassBeginInfo.renderArea.offset.x = 0;
 	renderPassBeginInfo.renderArea.offset.y = 0;
-	renderPassBeginInfo.renderArea.extent.width = width;
-	renderPassBeginInfo.renderArea.extent.height = height;
+	renderPassBeginInfo.renderArea.extent.width = width_;
+	renderPassBeginInfo.renderArea.extent.height = height_;
 	renderPassBeginInfo.clearValueCount = 2;
 	renderPassBeginInfo.pClearValues = clearValues;
-	renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+	renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
 
 	VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 	vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-	const VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+	const VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
 	vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
-	const VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+	const VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
 	vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 	// Bind scene matrices descriptor to set 0
-	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentBuffer], 0, nullptr);
-	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, wireframe ? pipelines.wireframe : pipelines.solid);
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_], 0, nullptr);
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, wireframe ? pipelines_.wireframe : pipelines_.solid);
 	glTFModel.draw(cmdBuffer, pipelineLayout);
 	drawUI(cmdBuffer);
 	vkCmdEndRenderPass(cmdBuffer);
@@ -974,13 +974,13 @@ void VulkanExample::buildCommandBuffer()
 
 void VulkanExample::render()
 {
-	if (!prepared)
+	if (!prepared_)
 		return;
 	VulkanExampleBase::prepareFrame();
 	updateUniformBuffers();
 	// POI: Advance animation
 	if (!paused) {
-		glTFModel.updateAnimation(frameTimer, currentBuffer);
+		glTFModel.updateAnimation(frameTimer, currentBuffer_);
 	}
 	buildCommandBuffer();
 	VulkanExampleBase::submitFrame();

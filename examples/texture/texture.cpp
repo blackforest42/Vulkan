@@ -46,32 +46,32 @@ public:
 		// This is used to change the bias for the level-of-detail (mips) in the fragment shader
 		float lodBias = 0.0f;
 	} uniformData;
-	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers;
+	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipeline pipeline{ VK_NULL_HANDLE };
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
-	std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets{};
+	std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Texture loading";
-		camera.type = Camera::CameraType::lookat;
-		camera.setPosition(glm::vec3(0.0f, 0.0f, -2.5f));
-		camera.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
-		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
+		camera_.type = Camera::CameraType::lookat;
+		camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.5f));
+		camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
+		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 	}
 
 	~VulkanExample()
 	{
-		if (device) {
+		if (device_) {
 			destroyTextureImage(texture);
-			vkDestroyPipeline(device, pipeline, nullptr);
-			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+			vkDestroyPipeline(device_, pipeline, nullptr);
+			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
 			vertexBuffer.destroy();
 			indexBuffer.destroy();
-			for (auto& buffer : uniformBuffers) {
+			for (auto& buffer : uniformBuffers_) {
 				buffer.destroy();
 			}
 		}
@@ -173,21 +173,21 @@ public:
 			// This buffer is used as a transfer source for the buffer copy
 			bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 			bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-			VK_CHECK_RESULT(vkCreateBuffer(device, &bufferCreateInfo, nullptr, &stagingBuffer));
+			VK_CHECK_RESULT(vkCreateBuffer(device_, &bufferCreateInfo, nullptr, &stagingBuffer));
 
 			// Get memory requirements for the staging buffer (alignment, memory type bits)
-			vkGetBufferMemoryRequirements(device, stagingBuffer, &memReqs);
+			vkGetBufferMemoryRequirements(device_, stagingBuffer, &memReqs);
 			memAllocInfo.allocationSize = memReqs.size;
 			// Get memory type index for a host visible buffer
 			memAllocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-			VK_CHECK_RESULT(vkAllocateMemory(device, &memAllocInfo, nullptr, &stagingMemory));
-			VK_CHECK_RESULT(vkBindBufferMemory(device, stagingBuffer, stagingMemory, 0));
+			VK_CHECK_RESULT(vkAllocateMemory(device_, &memAllocInfo, nullptr, &stagingMemory));
+			VK_CHECK_RESULT(vkBindBufferMemory(device_, stagingBuffer, stagingMemory, 0));
 
 			// Copy texture data into host local staging buffer
 			uint8_t *data;
-			VK_CHECK_RESULT(vkMapMemory(device, stagingMemory, 0, memReqs.size, 0, (void **)&data));
+			VK_CHECK_RESULT(vkMapMemory(device_, stagingMemory, 0, memReqs.size, 0, (void **)&data));
 			memcpy(data, ktxTextureData, ktxTextureSize);
-			vkUnmapMemory(device, stagingMemory);
+			vkUnmapMemory(device_, stagingMemory);
 
 			// Setup buffer copy regions for each mip level
 			std::vector<VkBufferImageCopy> bufferCopyRegions;
@@ -224,13 +224,13 @@ public:
 			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 			imageCreateInfo.extent = { texture.width, texture.height, 1 };
 			imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-			VK_CHECK_RESULT(vkCreateImage(device, &imageCreateInfo, nullptr, &texture.image));
+			VK_CHECK_RESULT(vkCreateImage(device_, &imageCreateInfo, nullptr, &texture.image));
 
-			vkGetImageMemoryRequirements(device, texture.image, &memReqs);
+			vkGetImageMemoryRequirements(device_, texture.image, &memReqs);
 			memAllocInfo.allocationSize = memReqs.size;
 			memAllocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-			VK_CHECK_RESULT(vkAllocateMemory(device, &memAllocInfo, nullptr, &texture.deviceMemory));
-			VK_CHECK_RESULT(vkBindImageMemory(device, texture.image, texture.deviceMemory, 0));
+			VK_CHECK_RESULT(vkAllocateMemory(device_, &memAllocInfo, nullptr, &texture.deviceMemory));
+			VK_CHECK_RESULT(vkBindImageMemory(device_, texture.image, texture.deviceMemory, 0));
 
 			VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 
@@ -298,11 +298,11 @@ public:
 			// Store current layout for later reuse
 			texture.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-			vulkanDevice->flushCommandBuffer(copyCmd, queue, true);
+			vulkanDevice->flushCommandBuffer(copyCmd, queue_, true);
 
 			// Clean up staging resources
-			vkFreeMemory(device, stagingMemory, nullptr);
-			vkDestroyBuffer(device, stagingBuffer, nullptr);
+			vkFreeMemory(device_, stagingMemory, nullptr);
+			vkDestroyBuffer(device_, stagingBuffer, nullptr);
 		} else {
 			// Copy data to a linear tiled image
 
@@ -321,23 +321,23 @@ public:
 			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
 			imageCreateInfo.extent = { texture.width, texture.height, 1 };
-			VK_CHECK_RESULT(vkCreateImage(device, &imageCreateInfo, nullptr, &mappableImage));
+			VK_CHECK_RESULT(vkCreateImage(device_, &imageCreateInfo, nullptr, &mappableImage));
 
 			// Get memory requirements for this image like size and alignment
-			vkGetImageMemoryRequirements(device, mappableImage, &memReqs);
+			vkGetImageMemoryRequirements(device_, mappableImage, &memReqs);
 			// Set memory allocation size to required memory size
 			memAllocInfo.allocationSize = memReqs.size;
 			// Get memory type that can be mapped to host memory
 			memAllocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-			VK_CHECK_RESULT(vkAllocateMemory(device, &memAllocInfo, nullptr, &mappableMemory));
-			VK_CHECK_RESULT(vkBindImageMemory(device, mappableImage, mappableMemory, 0));
+			VK_CHECK_RESULT(vkAllocateMemory(device_, &memAllocInfo, nullptr, &mappableMemory));
+			VK_CHECK_RESULT(vkBindImageMemory(device_, mappableImage, mappableMemory, 0));
 
 			// Map image memory
 			void *data;
-			VK_CHECK_RESULT(vkMapMemory(device, mappableMemory, 0, memReqs.size, 0, &data));
+			VK_CHECK_RESULT(vkMapMemory(device_, mappableMemory, 0, memReqs.size, 0, &data));
 			// Copy image data of the first mip level into memory
 			memcpy(data, ktxTextureData, memReqs.size);
-			vkUnmapMemory(device, mappableMemory);
+			vkUnmapMemory(device_, mappableMemory);
 
 			// Linear tiled images don't need to be staged and can be directly used as textures
 			texture.image = mappableImage;
@@ -375,7 +375,7 @@ public:
 				0, nullptr,
 				1, &imageMemoryBarrier);
 
-			vulkanDevice->flushCommandBuffer(copyCmd, queue, true);
+			vulkanDevice->flushCommandBuffer(copyCmd, queue_, true);
 		}
 
 		ktxTexture_Destroy(ktxTexture);
@@ -408,7 +408,7 @@ public:
 			sampler.anisotropyEnable = VK_FALSE;
 		}
 		sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		VK_CHECK_RESULT(vkCreateSampler(device, &sampler, nullptr, &texture.sampler));
+		VK_CHECK_RESULT(vkCreateSampler(device_, &sampler, nullptr, &texture.sampler));
 
 		// Create image view
 		// Textures are not directly accessed by the shaders and
@@ -428,16 +428,16 @@ public:
 		view.subresourceRange.levelCount = (useStaging) ? texture.mipLevels : 1;
 		// The view will be based on the texture's image
 		view.image = texture.image;
-		VK_CHECK_RESULT(vkCreateImageView(device, &view, nullptr, &texture.view));
+		VK_CHECK_RESULT(vkCreateImageView(device_, &view, nullptr, &texture.view));
 	}
 
 	// Free all Vulkan resources used by a texture object
 	void destroyTextureImage(Texture texture)
 	{
-		vkDestroyImageView(device, texture.view, nullptr);
-		vkDestroyImage(device, texture.image, nullptr);
-		vkDestroySampler(device, texture.sampler, nullptr);
-		vkFreeMemory(device, texture.deviceMemory, nullptr);
+		vkDestroyImageView(device_, texture.view, nullptr);
+		vkDestroyImage(device_, texture.image, nullptr);
+		vkDestroySampler(device_, texture.sampler, nullptr);
+		vkFreeMemory(device_, texture.deviceMemory, nullptr);
 	}
 	
 	// Creates a vertex and index buffer for a quad made of two triangles
@@ -472,8 +472,8 @@ public:
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &indexBuffer, indices.size() * sizeof(uint32_t)));
 
 		// Copy from host do device
-		vulkanDevice->copyBuffer(&stagingBuffers.vertices, &vertexBuffer, queue);
-		vulkanDevice->copyBuffer(&stagingBuffers.indices, &indexBuffer, queue);
+		vulkanDevice->copyBuffer(&stagingBuffers.vertices, &vertexBuffer, queue_);
+		vulkanDevice->copyBuffer(&stagingBuffers.indices, &indexBuffer, queue_);
 
 		// Clean up
 		stagingBuffers.vertices.destroy();
@@ -484,13 +484,13 @@ public:
 	{
 		// Pool
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES),
 			// The sample uses a combined image + sampler descriptor to sample the texture in the fragment shader
 			// We need multiple descriptors (NOT images) due to how we set up the descriptor bindings in this sample
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, maxConcurrentFrames)
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_CONCURRENT_FRAMES)
 		};
 		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, 2);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
 
 		// Layout
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -500,7 +500,7 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1)
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr, &descriptorSetLayout));
 
 		// Setup a descriptor image info for the current texture to be used as a descriptor for a combined image sampler
 		VkDescriptorImageInfo textureDescriptor{};
@@ -512,24 +512,24 @@ public:
 		textureDescriptor.imageLayout = texture.imageLayout;
 
 		// Sets per frame, just like the buffers themselves
-		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-		for (auto i = 0; i < uniformBuffers.size(); i++) {
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i]));
+		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayout, 1);
+		for (auto i = 0; i < uniformBuffers_.size(); i++) {
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
 
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 				// Binding 0 : Vertex shader uniform buffer
-				vks::initializers::writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers[i].descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].descriptor),
 				// Binding 1 : Fragment shader texture sampler
 				//  Note that unlike the uniform buffer, which is written by the CPU and the GPU, the image (texture) is a static resource
 				//  As such we can use the same image for every frame in flight
 				//	Fragment shader: layout (binding = 1) uniform sampler2D samplerColor;
-				vks::initializers::writeDescriptorSet(descriptorSets[i],
+				vks::initializers::writeDescriptorSet(descriptorSets_[i],
 					VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,		// The descriptor set will use a combined image sampler (as opposed to splitting image and sampler)
 					1,												// Shader binding point 1
 					&textureDescriptor)								// Pointer to the descriptor image for our texture
 			};
 
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}
 	}
 
@@ -537,7 +537,7 @@ public:
 	{
 		// Layout
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 
 		// Pipeline
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -570,7 +570,7 @@ public:
 		vertexInputState.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributes.size());
 		vertexInputState.pVertexAttributeDescriptions = vertexInputAttributes.data();
 
-		VkGraphicsPipelineCreateInfo pipelineCreateInfo = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
+		VkGraphicsPipelineCreateInfo pipelineCreateInfo = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_, 0);
 		pipelineCreateInfo.pVertexInputState = &vertexInputState;
 		pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
 		pipelineCreateInfo.pRasterizationState = &rasterizationState;
@@ -581,13 +581,13 @@ public:
 		pipelineCreateInfo.pDynamicState = &dynamicState;
 		pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
 		pipelineCreateInfo.pStages = shaderStages.data();
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipeline));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipeline));
 	}
 
 	// Prepare and initialize uniform buffer containing shader uniforms
 	void prepareUniformBuffers()
 	{
-		for (auto& buffer : uniformBuffers) {
+		for (auto& buffer : uniformBuffers_) {
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
 			VK_CHECK_RESULT(buffer.map());
 		}
@@ -595,10 +595,10 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera.matrices.perspective;
-		uniformData.modelView = camera.matrices.view;
-		uniformData.viewPos = camera.viewPos;
-		memcpy(uniformBuffers[currentBuffer].mapped, &uniformData, sizeof(uniformData));
+		uniformData.projection = camera_.matrices.perspective;
+		uniformData.modelView = camera_.matrices.view;
+		uniformData.viewPos = camera_.viewPos;
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(uniformData));
 	}
 
 	void prepare()
@@ -609,12 +609,12 @@ public:
 		prepareUniformBuffers();
 		setupDescriptors();
 		preparePipelines();
-		prepared = true;
+		prepared_ = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -623,27 +623,27 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass;
+		renderPassBeginInfo.renderPass = renderPass_;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.renderArea.extent.width = width_;
+		renderPassBeginInfo.renderArea.extent.height = height_;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 		// This will bind the descriptor set that contains our image (texture), so it can be accessed in the fragment shader
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentBuffer], 0, nullptr);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_], 0, nullptr);
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
 		VkDeviceSize offsets[1] = { 0 };
@@ -661,7 +661,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared)
+		if (!prepared_)
 			return;
 		VulkanExampleBase::prepareFrame();
 		updateUniformBuffers();

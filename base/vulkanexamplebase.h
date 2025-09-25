@@ -76,7 +76,7 @@
 #include "benchmark.hpp"
 #include "camera.hpp"
 
-constexpr uint32_t maxConcurrentFrames{2};
+constexpr uint32_t MAX_CONCURRENT_FRAMES{2};
 
 class VulkanExampleBase {
  private:
@@ -106,7 +106,7 @@ class VulkanExampleBase {
   std::chrono::time_point<std::chrono::high_resolution_clock> lastTimestamp,
       tPrevEnd;
   // Vulkan instance, stores all per-application states
-  VkInstance instance{VK_NULL_HANDLE};
+  VkInstance instance_{VK_NULL_HANDLE};
   std::vector<std::string> supportedInstanceExtensions;
   // Physical device (GPU) that Vulkan will use
   VkPhysicalDevice physicalDevice{VK_NULL_HANDLE};
@@ -133,45 +133,45 @@ class VulkanExampleBase {
    * creation */
   void* deviceCreatepNextChain = nullptr;
   /** @brief Logical device, application's view of the physical device (GPU) */
-  VkDevice device{VK_NULL_HANDLE};
+  VkDevice device_{VK_NULL_HANDLE};
   // Handle to the device graphics queue that command buffers are submitted to
-  VkQueue queue{VK_NULL_HANDLE};
+  VkQueue queue_{VK_NULL_HANDLE};
   // Depth buffer format (selected during Vulkan initialization)
   VkFormat depthFormat{VK_FORMAT_UNDEFINED};
   // Command buffer pool
   VkCommandPool cmdPool{VK_NULL_HANDLE};
   // Command buffers used for rendering
-  std::array<VkCommandBuffer, maxConcurrentFrames> drawCmdBuffers;
+  std::array<VkCommandBuffer, MAX_CONCURRENT_FRAMES> drawCmdBuffers;
   // Global render pass for frame buffer writes
-  VkRenderPass renderPass{VK_NULL_HANDLE};
+  VkRenderPass renderPass_{VK_NULL_HANDLE};
   // List of available frame buffers (same as number of swap chain images)
-  std::vector<VkFramebuffer> frameBuffers;
+  std::vector<VkFramebuffer> frameBuffers_;
   // Descriptor set pool
-  VkDescriptorPool descriptorPool{VK_NULL_HANDLE};
+  VkDescriptorPool descriptorPool_{VK_NULL_HANDLE};
   // List of shader modules created (stored for cleanup)
-  std::vector<VkShaderModule> shaderModules;
+  std::vector<VkShaderModule> shaderModules_;
   // Pipeline cache object
   VkPipelineCache pipelineCache{VK_NULL_HANDLE};
   // Wraps the swap chain to present images (framebuffers) to the windowing
   // system
-  VulkanSwapChain swapChain;
+  VulkanSwapChain swapChain_;
 
   // Synchronization related objects and variables
   // These are used to have multiple frame buffers "in flight" to get some
   // CPU/GPU parallelism
-  uint32_t currentImageIndex{0};
-  uint32_t currentBuffer{0};
-  std::array<VkSemaphore, maxConcurrentFrames> presentCompleteSemaphores{};
+  uint32_t currentImageIndex_{0};
+  uint32_t currentBuffer_{0};
+  std::array<VkSemaphore, MAX_CONCURRENT_FRAMES> presentCompleteSemaphores{};
   std::vector<VkSemaphore> renderCompleteSemaphores{};
-  std::array<VkFence, maxConcurrentFrames> waitFences;
+  std::array<VkFence, MAX_CONCURRENT_FRAMES> waitFences;
 
   bool requiresStencil{false};
 
  public:
-  bool prepared = false;
+  bool prepared_ = false;
   bool resized = false;
-  uint32_t width = 1920;
-  uint32_t height = 1080;
+  uint32_t width_ = 1920;
+  uint32_t height_ = 1080;
 
   vks::UIOverlay ui;
   CommandLineParser commandLineParser;
@@ -227,7 +227,7 @@ class VulkanExampleBase {
   float timerSpeed = 0.25f;
   bool paused = false;
 
-  Camera camera;
+  Camera camera_;
 
   std::string title = "Vulkan Example";
   std::string name = "vulkanExample";

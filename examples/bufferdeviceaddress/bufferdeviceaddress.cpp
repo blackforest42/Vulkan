@@ -21,8 +21,8 @@ public:
 	struct Cube {
 		glm::mat4 modelMatrix;
 		glm::vec3 rotation;
-		std::array<vks::Buffer, maxConcurrentFrames> buffers{};
-		std::array<VkDeviceAddress, maxConcurrentFrames> bufferDeviceAddresses{};
+		std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> buffers{};
+		std::array<VkDeviceAddress, MAX_CONCURRENT_FRAMES> bufferDeviceAddresses{};
 	};
 	std::array<Cube, 2> cubes{};
 
@@ -32,8 +32,8 @@ public:
 	// Global matrices
 	struct Scene {
 		glm::mat4 mvp;
-		std::array<vks::Buffer, maxConcurrentFrames> buffers;
-		std::array<VkDeviceAddress, maxConcurrentFrames> bufferDeviceAddresses{};
+		std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> buffers;
+		std::array<VkDeviceAddress, MAX_CONCURRENT_FRAMES> bufferDeviceAddresses{};
 	} scene;
 
 	VkPipeline pipeline{ VK_NULL_HANDLE };
@@ -55,10 +55,10 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Buffer device address";
-		camera.type = Camera::CameraType::lookat;
-		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
-		camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
-		camera.setTranslation(glm::vec3(0.0f, 0.0f, -5.0f));
+		camera_.type = Camera::CameraType::lookat;
+		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
+		camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+		camera_.setTranslation(glm::vec3(0.0f, 0.0f, -5.0f));
 
 		enabledInstanceExtensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 		enabledInstanceExtensions.push_back(VK_KHR_DEVICE_GROUP_CREATION_EXTENSION_NAME);
@@ -73,10 +73,10 @@ public:
 
 	~VulkanExample()
 	{
-		if (device) {
-			vkDestroyPipeline(device, pipeline, nullptr);
-			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		if (device_) {
+			vkDestroyPipeline(device_, pipeline, nullptr);
+			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
 			texture.destroy();
 			for (auto& cube : cubes) {
 				for (auto& buffer : cube.buffers) {
@@ -99,8 +99,8 @@ public:
 	void loadAssets()
 	{
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
-		model.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice, queue, glTFLoadingFlags);
-		texture.loadFromFile(getAssetPath() + "textures/crate01_color_height_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
+		model.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice, queue_, glTFLoadingFlags);
+		texture.loadFromFile(getAssetPath() + "textures/crate01_color_height_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue_);
 	}
 
 	// We pass all data via buffer device addresses, so we only allocate descriptors for the images
@@ -111,23 +111,23 @@ public:
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)
 		};
 		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(descriptorPoolSizes, 2);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
 
 		// Layout
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0)
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr, &descriptorSetLayout));
 
 		// Set
-		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
+		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayout, 1);
+		VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSet));
 
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &texture.descriptor)
 		};
-		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+		vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
 
 	void preparePipelines()
@@ -144,7 +144,7 @@ public:
 		pipelineLayoutCI.pPushConstantRanges = &pushConstantRange;
 		pipelineLayoutCI.setLayoutCount = 1;
 		pipelineLayoutCI.pSetLayouts = &descriptorSetLayout;
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr, &pipelineLayout));
 
 		const std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
@@ -161,7 +161,7 @@ public:
 			loadShader(getShadersPath() + "bufferdeviceaddress/cube.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT)
 		};
 
-		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
+		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_, 0);
 		pipelineCI.pInputAssemblyState = &inputAssemblyStateCI;
 		pipelineCI.pRasterizationState = &rasterizationStateCI;
 		pipelineCI.pColorBlendState = &colorBlendStateCI;
@@ -172,12 +172,12 @@ public:
 		pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
 		pipelineCI.pStages = shaderStages.data();
 		pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState({ vkglTF::VertexComponent::Position, vkglTF::VertexComponent::Normal, vkglTF::VertexComponent::UV, vkglTF::VertexComponent::Color });
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
 	}
 
 	void prepareUniformBuffers()
 	{
-		for (uint32_t i = 0; i < maxConcurrentFrames; i++) {
+		for (uint32_t i = 0; i < MAX_CONCURRENT_FRAMES; i++) {
 			// Note that we don't use this buffer for uniforms but rather pass it's address as a reference to the shader, so isntead of the uniform buffer usage we use a different flag
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &scene.buffers[i], sizeof(glm::mat4)));
 			VK_CHECK_RESULT(scene.buffers[i].map());
@@ -186,7 +186,7 @@ public:
 			VkBufferDeviceAddressInfo bufferDeviceAdressInfo{};
 			bufferDeviceAdressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
 			bufferDeviceAdressInfo.buffer = scene.buffers[i].buffer;
-			scene.bufferDeviceAddresses[i] = vkGetBufferDeviceAddressKHR(device, &bufferDeviceAdressInfo);
+			scene.bufferDeviceAddresses[i] = vkGetBufferDeviceAddressKHR(device_, &bufferDeviceAdressInfo);
 
 			for (auto& cube : cubes) {
 				// Note that we don't use this buffer for uniforms but rather pass it's address as a reference to the shader, so isntead of the uniform buffer usage we use a different flag
@@ -195,15 +195,15 @@ public:
 
 				// Get the device of this buffer that is later on passed to the shader (aka "reference")
 				bufferDeviceAdressInfo.buffer = cube.buffers[i].buffer;
-				cube.bufferDeviceAddresses[i] = vkGetBufferDeviceAddressKHR(device, &bufferDeviceAdressInfo);
+				cube.bufferDeviceAddresses[i] = vkGetBufferDeviceAddressKHR(device_, &bufferDeviceAdressInfo);
 			}
 		}
 	}
 
 	void updateUniformBuffers()
 	{
-		scene.mvp = camera.matrices.perspective * camera.matrices.view;
-		memcpy(scene.buffers[currentBuffer].mapped, &scene, sizeof(glm::mat4));
+		scene.mvp = camera_.matrices.perspective * camera_.matrices.view;
+		memcpy(scene.buffers[currentBuffer_].mapped, &scene, sizeof(glm::mat4));
 
 		cubes[0].modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(-2.0f, 0.0f, 0.0f));
 		cubes[1].modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(1.5f, 0.5f, 0.0f));
@@ -213,7 +213,7 @@ public:
 			cube.modelMatrix = glm::rotate(cube.modelMatrix, glm::radians(cube.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
 			cube.modelMatrix = glm::rotate(cube.modelMatrix, glm::radians(cube.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
 			cube.modelMatrix = glm::scale(cube.modelMatrix, glm::vec3(0.25f));
-			memcpy(cube.buffers[currentBuffer].mapped, &cube.modelMatrix, sizeof(glm::mat4));
+			memcpy(cube.buffers[currentBuffer_].mapped, &cube.modelMatrix, sizeof(glm::mat4));
 		}
 	}
 
@@ -222,18 +222,18 @@ public:
 		VulkanExampleBase::prepare();
 
 		// We need this extension function to get the address of a buffer so we can pass it to the shader
-		vkGetBufferDeviceAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(vkGetDeviceProcAddr(device, "vkGetBufferDeviceAddressKHR"));
+		vkGetBufferDeviceAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(vkGetDeviceProcAddr(device_, "vkGetBufferDeviceAddressKHR"));
 
 		loadAssets();
 		prepareUniformBuffers();
 		setupDescriptors();
 		preparePipelines();
-		prepared = true;
+		prepared_ = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -242,14 +242,14 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass;
+		renderPassBeginInfo.renderPass = renderPass_;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.renderArea.extent.width = width_;
+		renderPassBeginInfo.renderArea.extent.height = height_;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
@@ -257,10 +257,10 @@ public:
 
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
@@ -271,13 +271,13 @@ public:
 		// The shader then simply reads data from the address of that reference
 		PushConstantBlock references{};
 		// Pass pointer to the global matrix via a buffer device address
-		references.sceneReference = scene.bufferDeviceAddresses[currentBuffer];
+		references.sceneReference = scene.bufferDeviceAddresses[currentBuffer_];
 
 		for (auto& cube : cubes) {
 			// Pass pointer to this cube's data buffer via a buffer device address
 			// So instead of having to bind different descriptors, we only pass a different device address
 			// This doesn't have to be an address from a different buffer, but could very well be just another address in the same buffer
-			references.modelReference = cube.bufferDeviceAddresses[currentBuffer];
+			references.modelReference = cube.bufferDeviceAddresses[currentBuffer_];
 			vkCmdPushConstants(cmdBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantBlock), &references);
 
 			model.draw(cmdBuffer);
@@ -292,7 +292,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared)
+		if (!prepared_)
 			return;
 		VulkanExampleBase::prepareFrame();
 		if (animate && !paused) {

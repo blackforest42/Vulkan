@@ -17,7 +17,7 @@
 class VulkanExample : public VulkanExampleBase
 {
 public:
-	bool bloom = true;
+	bool bloom_ = true;
 	bool displaySkybox = true;
 
 	struct {
@@ -28,7 +28,7 @@ public:
 		vkglTF::Model skybox;
 		std::vector<vkglTF::Model> objects;
 		int32_t index{ 1 };
-	} models;
+	} models_;
 	std::vector<std::string> modelNames{};
 
 	struct UniformData {
@@ -37,13 +37,13 @@ public:
 		glm::mat4 inverseModelview;
 		float exposure{ 1.0f };
 	} uniformData;
-	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers;
+	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	struct {
 		VkPipelineLayout models{ VK_NULL_HANDLE };
 		VkPipelineLayout composition{ VK_NULL_HANDLE };
 		VkPipelineLayout bloomFilter{ VK_NULL_HANDLE };
-	} pipelineLayouts;
+	} pipelineLayouts_;
 
 	struct {
 		VkPipeline skybox{ VK_NULL_HANDLE };
@@ -51,13 +51,13 @@ public:
 		VkPipeline composition{ VK_NULL_HANDLE };
 		// Bloom is a two pass filter (one pass for vertical and horizontal blur)
 		VkPipeline bloom[2]{ VK_NULL_HANDLE };
-	} pipelines;
+	} pipelines_;
 
 	struct {
 		VkDescriptorSetLayout models{ VK_NULL_HANDLE };
 		VkDescriptorSetLayout composition{ VK_NULL_HANDLE };
 		VkDescriptorSetLayout bloomFilter{ VK_NULL_HANDLE };
-	} descriptorSetLayouts;
+	} descriptorSetLayouts_;
 
 	struct DescriptorSets {
 		VkDescriptorSet object{ VK_NULL_HANDLE };
@@ -65,7 +65,7 @@ public:
 		VkDescriptorSet composition{ VK_NULL_HANDLE };
 		VkDescriptorSet bloomFilter{ VK_NULL_HANDLE };
 	};
-	std::array<DescriptorSets, maxConcurrentFrames> descriptorSets{};
+	std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
 	// Framebuffer for offscreen rendering
 	struct FrameBufferAttachment {
@@ -100,38 +100,38 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "High dynamic range rendering";
-		camera.type = Camera::CameraType::lookat;
-		camera.setPosition(glm::vec3(0.0f, 0.0f, -6.0f));
-		camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
-		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
+		camera_.type = Camera::CameraType::lookat;
+		camera_.setPosition(glm::vec3(0.0f, 0.0f, -6.0f));
+		camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 	}
 
 	~VulkanExample()
 	{
-		if (device) {
-			vkDestroyPipeline(device, pipelines.skybox, nullptr);
-			vkDestroyPipeline(device, pipelines.reflect, nullptr);
-			vkDestroyPipeline(device, pipelines.composition, nullptr);
-			vkDestroyPipeline(device, pipelines.bloom[0], nullptr);
-			vkDestroyPipeline(device, pipelines.bloom[1], nullptr);
-			vkDestroyPipelineLayout(device, pipelineLayouts.models, nullptr);
-			vkDestroyPipelineLayout(device, pipelineLayouts.composition, nullptr);
-			vkDestroyPipelineLayout(device, pipelineLayouts.bloomFilter, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayouts.models, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayouts.composition, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayouts.bloomFilter, nullptr);
-			vkDestroyRenderPass(device, offscreen.renderPass, nullptr);
-			vkDestroyRenderPass(device, filterPass.renderPass, nullptr);
-			vkDestroyFramebuffer(device, offscreen.frameBuffer, nullptr);
-			vkDestroyFramebuffer(device, filterPass.frameBuffer, nullptr);
-			vkDestroySampler(device, offscreen.sampler, nullptr);
-			vkDestroySampler(device, filterPass.sampler, nullptr);
-			offscreen.depth.destroy(device);
-			offscreen.color[0].destroy(device);
-			offscreen.color[1].destroy(device);
-			filterPass.color[0].destroy(device);
+		if (device_) {
+			vkDestroyPipeline(device_, pipelines_.skybox, nullptr);
+			vkDestroyPipeline(device_, pipelines_.reflect, nullptr);
+			vkDestroyPipeline(device_, pipelines_.composition, nullptr);
+			vkDestroyPipeline(device_, pipelines_.bloom[0], nullptr);
+			vkDestroyPipeline(device_, pipelines_.bloom[1], nullptr);
+			vkDestroyPipelineLayout(device_, pipelineLayouts_.models, nullptr);
+			vkDestroyPipelineLayout(device_, pipelineLayouts_.composition, nullptr);
+			vkDestroyPipelineLayout(device_, pipelineLayouts_.bloomFilter, nullptr);
+			vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.models, nullptr);
+			vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.composition, nullptr);
+			vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.bloomFilter, nullptr);
+			vkDestroyRenderPass(device_, offscreen.renderPass, nullptr);
+			vkDestroyRenderPass(device_, filterPass.renderPass, nullptr);
+			vkDestroyFramebuffer(device_, offscreen.frameBuffer, nullptr);
+			vkDestroyFramebuffer(device_, filterPass.frameBuffer, nullptr);
+			vkDestroySampler(device_, offscreen.sampler, nullptr);
+			vkDestroySampler(device_, filterPass.sampler, nullptr);
+			offscreen.depth.destroy(device_);
+			offscreen.color[0].destroy(device_);
+			offscreen.color[1].destroy(device_);
+			filterPass.color[0].destroy(device_);
 			textures.envmap.destroy();
-			for (auto& buffer : uniformBuffers) {
+			for (auto& buffer : uniformBuffers_) {
 				buffer.destroy();
 			}
 		}
@@ -174,12 +174,12 @@ public:
 		VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
 		VkMemoryRequirements memReqs;
 
-		VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &attachment->image));
-		vkGetImageMemoryRequirements(device, attachment->image, &memReqs);
+		VK_CHECK_RESULT(vkCreateImage(device_, &image, nullptr, &attachment->image));
+		vkGetImageMemoryRequirements(device_, attachment->image, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
 		memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &attachment->mem));
-		VK_CHECK_RESULT(vkBindImageMemory(device, attachment->image, attachment->mem, 0));
+		VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr, &attachment->mem));
+		VK_CHECK_RESULT(vkBindImageMemory(device_, attachment->image, attachment->mem, 0));
 
 		VkImageViewCreateInfo imageView = vks::initializers::imageViewCreateInfo();
 		imageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -191,15 +191,15 @@ public:
 		imageView.subresourceRange.baseArrayLayer = 0;
 		imageView.subresourceRange.layerCount = 1;
 		imageView.image = attachment->image;
-		VK_CHECK_RESULT(vkCreateImageView(device, &imageView, nullptr, &attachment->view));
+		VK_CHECK_RESULT(vkCreateImageView(device_, &imageView, nullptr, &attachment->view));
 	}
 
 	// Prepare a new framebuffer and attachments for offscreen rendering (G-Buffer)
 	void prepareoffscreenfer()
 	{
 		{
-			offscreen.width = width;
-			offscreen.height = height;
+			offscreen.width = width_;
+			offscreen.height = height_;
 
 			// Color attachments
 
@@ -287,7 +287,7 @@ public:
 			renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
 			renderPassInfo.pDependencies = dependencies.data();
 
-			VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr, &offscreen.renderPass));
+			VK_CHECK_RESULT(vkCreateRenderPass(device_, &renderPassInfo, nullptr, &offscreen.renderPass));
 
 			std::array<VkImageView, 3> attachments;
 			attachments[0] = offscreen.color[0].view;
@@ -303,7 +303,7 @@ public:
 			fbufCreateInfo.width = offscreen.width;
 			fbufCreateInfo.height = offscreen.height;
 			fbufCreateInfo.layers = 1;
-			VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbufCreateInfo, nullptr, &offscreen.frameBuffer));
+			VK_CHECK_RESULT(vkCreateFramebuffer(device_, &fbufCreateInfo, nullptr, &offscreen.frameBuffer));
 
 			// Create sampler to sample from the color attachments
 			VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
@@ -318,13 +318,13 @@ public:
 			sampler.minLod = 0.0f;
 			sampler.maxLod = 1.0f;
 			sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-			VK_CHECK_RESULT(vkCreateSampler(device, &sampler, nullptr, &offscreen.sampler));
+			VK_CHECK_RESULT(vkCreateSampler(device_, &sampler, nullptr, &offscreen.sampler));
 		}
 
 		// Bloom separable filter pass
 		{
-			filterPass.width = width;
-			filterPass.height = height;
+			filterPass.width = width_;
+			filterPass.height = height_;
 
 			// Color attachments
 
@@ -380,7 +380,7 @@ public:
 			renderPassInfo.dependencyCount = 2;
 			renderPassInfo.pDependencies = dependencies.data();
 
-			VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr, &filterPass.renderPass));
+			VK_CHECK_RESULT(vkCreateRenderPass(device_, &renderPassInfo, nullptr, &filterPass.renderPass));
 
 			std::array<VkImageView, 1> attachments;
 			attachments[0] = filterPass.color[0].view;
@@ -394,7 +394,7 @@ public:
 			fbufCreateInfo.width = filterPass.width;
 			fbufCreateInfo.height = filterPass.height;
 			fbufCreateInfo.layers = 1;
-			VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbufCreateInfo, nullptr, &filterPass.frameBuffer));
+			VK_CHECK_RESULT(vkCreateFramebuffer(device_, &fbufCreateInfo, nullptr, &filterPass.frameBuffer));
 
 			// Create sampler to sample from the color attachments
 			VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
@@ -409,7 +409,7 @@ public:
 			sampler.minLod = 0.0f;
 			sampler.maxLod = 1.0f;
 			sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-			VK_CHECK_RESULT(vkCreateSampler(device, &sampler, nullptr, &filterPass.sampler));
+			VK_CHECK_RESULT(vkCreateSampler(device_, &sampler, nullptr, &filterPass.sampler));
 		}
 	}
 
@@ -417,26 +417,26 @@ public:
 	{
 		// Load glTF models
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::FlipY;
-		models.skybox.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice, queue, glTFLoadingFlags);
+		models_.skybox.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice, queue_, glTFLoadingFlags);
 		std::vector<std::string> filenames = { "sphere.gltf", "teapot.gltf", "torusknot.gltf", "venus.gltf" };
 		modelNames = { "Sphere", "Teapot", "Torusknot", "Venus" };
-		models.objects.resize(filenames.size());
+		models_.objects.resize(filenames.size());
 		for (size_t i = 0; i < filenames.size(); i++) {
-			models.objects[i].loadFromFile(getAssetPath() + "models/" + filenames[i], vulkanDevice, queue, glTFLoadingFlags);
+			models_.objects[i].loadFromFile(getAssetPath() + "models/" + filenames[i], vulkanDevice, queue_, glTFLoadingFlags);
 		}
 		// Load HDR cube map
-		textures.envmap.loadFromFile(getAssetPath() + "textures/hdr/uffizi_cube.ktx", VK_FORMAT_R16G16B16A16_SFLOAT, vulkanDevice, queue);
+		textures.envmap.loadFromFile(getAssetPath() + "textures/hdr/uffizi_cube.ktx", VK_FORMAT_R16G16B16A16_SFLOAT, vulkanDevice, queue_);
 	}
 
 	void setupDescriptors()
 	{
 		// Pool
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames * 2),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, maxConcurrentFrames * 6)
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES * 2),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_CONCURRENT_FRAMES * 6)
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(static_cast<uint32_t>(poolSizes.size()), poolSizes.data(), maxConcurrentFrames * 4);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
+		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(static_cast<uint32_t>(poolSizes.size()), poolSizes.data(), MAX_CONCURRENT_FRAMES * 4);
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
 
 		// Layouts
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -444,7 +444,7 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1),
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayoutInfo = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), static_cast<uint32_t>(setLayoutBindings.size()));
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayoutInfo, nullptr, &descriptorSetLayouts.models));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayoutInfo, nullptr, &descriptorSetLayouts_.models));
 
 		// Bloom filter
 		setLayoutBindings = {
@@ -453,7 +453,7 @@ public:
 		};
 
 		descriptorLayoutInfo = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), static_cast<uint32_t>(setLayoutBindings.size()));
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayoutInfo, nullptr, &descriptorSetLayouts.bloomFilter));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayoutInfo, nullptr, &descriptorSetLayouts_.bloomFilter));
 
 		// G-Buffer composition
 		setLayoutBindings = {
@@ -462,67 +462,67 @@ public:
 		};
 
 		descriptorLayoutInfo = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), static_cast<uint32_t>(setLayoutBindings.size()));
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayoutInfo, nullptr, &descriptorSetLayouts.composition));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayoutInfo, nullptr, &descriptorSetLayouts_.composition));
 
 		// Sets per frame, just like the buffers themselves
 		// Images do not need to be duplicated per frame, we reuse the same one for each frame
-		for (auto i = 0; i < uniformBuffers.size(); i++) {
+		for (auto i = 0; i < uniformBuffers_.size(); i++) {
 			// 3D object descriptor set
-			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.models, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i].object));
+			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayouts_.models, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i].object));
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-				vks::initializers::writeDescriptorSet(descriptorSets[i].object, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers[i].descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].object, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.envmap.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].object, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].object, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.envmap.descriptor),
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
 			// Sky box descriptor set
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i].skybox));
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i].skybox));
 			writeDescriptorSets = {
-				vks::initializers::writeDescriptorSet(descriptorSets[i].skybox, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,&uniformBuffers[i].descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].skybox, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.envmap.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].skybox, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,&uniformBuffers_[i].descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].skybox, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.envmap.descriptor),
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
 			// Bloom filter
-			allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.bloomFilter, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i].bloomFilter));
+			allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayouts_.bloomFilter, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i].bloomFilter));
 			std::vector<VkDescriptorImageInfo> colorDescriptors = {
 				vks::initializers::descriptorImageInfo(offscreen.sampler, offscreen.color[0].view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL),
 				vks::initializers::descriptorImageInfo(offscreen.sampler, offscreen.color[1].view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL),
 			};
 			writeDescriptorSets = {
-				vks::initializers::writeDescriptorSet(descriptorSets[i].bloomFilter, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &colorDescriptors[0]),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].bloomFilter, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &colorDescriptors[1]),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].bloomFilter, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &colorDescriptors[0]),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].bloomFilter, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &colorDescriptors[1]),
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
 			// Composition descriptor set
-			allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.composition, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i].composition));
+			allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayouts_.composition, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i].composition));
 			colorDescriptors = {
 				vks::initializers::descriptorImageInfo(offscreen.sampler, offscreen.color[0].view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL),
 				vks::initializers::descriptorImageInfo(offscreen.sampler, filterPass.color[0].view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL),
 			};
 			writeDescriptorSets = {
-				vks::initializers::writeDescriptorSet(descriptorSets[i].composition, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &colorDescriptors[0]),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].composition, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &colorDescriptors[1]),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].composition, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &colorDescriptors[0]),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].composition, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &colorDescriptors[1]),
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}
 	}
 
 	void preparePipelines()
 	{
 		// Layouts
-		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts.models, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayouts.models));
+		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts_.models, 1);
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayouts_.models));
 
-		pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts.bloomFilter, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayouts.bloomFilter));
+		pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts_.bloomFilter, 1);
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayouts_.bloomFilter));
 
-		pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts.composition, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayouts.composition));
+		pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts_.composition, 1);
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayouts_.composition));
 
 		// Pipelines
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -536,7 +536,7 @@ public:
 		VkPipelineDynamicStateCreateInfo dynamicState = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
 		std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{};
 
-		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayouts.models, renderPass, 0);
+		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayouts_.models, renderPass_, 0);
 		pipelineCI.pInputAssemblyState = &inputAssemblyState;
 		pipelineCI.pRasterizationState = &rasterizationState;
 		pipelineCI.pColorBlendState = &colorBlendState;
@@ -561,14 +561,14 @@ public:
 			vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE),
 			vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE),
 		};
-		pipelineCI.layout = pipelineLayouts.composition;
-		pipelineCI.renderPass = renderPass;
+		pipelineCI.layout = pipelineLayouts_.composition;
+		pipelineCI.renderPass = renderPass_;
 		rasterizationState.cullMode = VK_CULL_MODE_NONE;
 		colorBlendState.attachmentCount = 1;
 		colorBlendState.pAttachments = blendAttachmentStates.data();
 		shaderStages[0] = loadShader(getShadersPath() + "hdr/composition.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "hdr/composition.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.composition));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.composition));
 
 		// Bloom pass
 		shaderStages[0] = loadShader(getShadersPath() + "hdr/bloom.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
@@ -588,19 +588,19 @@ public:
 		uint32_t dir = 1;
 		specializationInfo = vks::initializers::specializationInfo(1, specializationMapEntries.data(), sizeof(dir), &dir);
 		shaderStages[1].pSpecializationInfo = &specializationInfo;
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.bloom[0]));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.bloom[0]));
 
 		// Second blur pass (into separate framebuffer)
 		pipelineCI.renderPass = filterPass.renderPass;
 		dir = 0;
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.bloom[1]));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.bloom[1]));
 
 		// Object rendering pipelines
 		// Use vertex input state from glTF model setup
 		pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState({ vkglTF::VertexComponent::Position, vkglTF::VertexComponent::Normal });
 
 		blendAttachmentState.blendEnable = VK_FALSE;
-		pipelineCI.layout = pipelineLayouts.models;
+		pipelineCI.layout = pipelineLayouts_.models;
 		pipelineCI.renderPass = offscreen.renderPass;
 		colorBlendState.attachmentCount = 2;
 		colorBlendState.pAttachments = blendAttachmentStates.data();
@@ -614,7 +614,7 @@ public:
 		shaderStages[1].pSpecializationInfo = &specializationInfo;
 		// Skybox pipeline (background cube)
 		rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.skybox));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.skybox));
 
 		// Object rendering pipeline
 		shadertype = 1;
@@ -623,13 +623,13 @@ public:
 		depthStencilState.depthTestEnable = VK_TRUE;
 		// Flip cull mode
 		rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.reflect));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.reflect));
 	}
 
 	// Prepare and initialize uniform buffer containing shader uniforms
 	void prepareUniformBuffers()
 	{
-		for (auto& buffer : uniformBuffers) {
+		for (auto& buffer : uniformBuffers_) {
 			// Scene matrices uniform buffer
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData)));
 			VK_CHECK_RESULT(buffer.map());
@@ -638,10 +638,10 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera.matrices.perspective;
-		uniformData.modelview = camera.matrices.view;
-		uniformData.inverseModelview = glm::inverse(camera.matrices.view);
-		memcpy(uniformBuffers[currentBuffer].mapped, &uniformData, sizeof(uniformData));
+		uniformData.projection = camera_.matrices.perspective;
+		uniformData.modelview = camera_.matrices.view;
+		uniformData.inverseModelview = glm::inverse(camera_.matrices.view);
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(uniformData));
 	}
 
 	void prepare()
@@ -652,12 +652,12 @@ public:
 		prepareoffscreenfer();
 		setupDescriptors();
 		preparePipelines();
-		prepared = true;
+		prepared_ = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -694,19 +694,19 @@ public:
 			// Skybox
 			if (displaySkybox)
 			{
-				vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts.models, 0, 1, &descriptorSets[currentBuffer].skybox, 0, nullptr);
-				vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &models.skybox.vertices.buffer, offsets);
-				vkCmdBindIndexBuffer(cmdBuffer, models.skybox.indices.buffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.skybox);
-				models.skybox.draw(cmdBuffer);
+				vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.models, 0, 1, &descriptorSets_[currentBuffer_].skybox, 0, nullptr);
+				vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &models_.skybox.vertices.buffer, offsets);
+				vkCmdBindIndexBuffer(cmdBuffer, models_.skybox.indices.buffer, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.skybox);
+				models_.skybox.draw(cmdBuffer);
 			}
 
 			// 3D object
-			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts.models, 0, 1, &descriptorSets[currentBuffer].object, 0, nullptr);
-			vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &models.objects[models.index].vertices.buffer, offsets);
-			vkCmdBindIndexBuffer(cmdBuffer, models.objects[models.index].indices.buffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.reflect);
-			models.objects[models.index].draw(cmdBuffer);
+			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.models, 0, 1, &descriptorSets_[currentBuffer_].object, 0, nullptr);
+			vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &models_.objects[models_.index].vertices.buffer, offsets);
+			vkCmdBindIndexBuffer(cmdBuffer, models_.objects[models_.index].indices.buffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.reflect);
+			models_.objects[models_.index].draw(cmdBuffer);
 
 			vkCmdEndRenderPass(cmdBuffer);
 		}
@@ -714,7 +714,7 @@ public:
 		/*
 			Second render pass: First bloom pass
 		*/
-		if (bloom) {
+		if (bloom_) {
 			VkClearValue clearValues[2]{};
 			clearValues[0].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
 			clearValues[1].depthStencil = { 1.0f, 0 };
@@ -736,9 +736,9 @@ public:
 			VkRect2D scissor = vks::initializers::rect2D(filterPass.width, filterPass.height, 0, 0);
 			vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
-			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts.bloomFilter, 0, 1, &descriptorSets[currentBuffer].bloomFilter, 0, nullptr);
+			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.bloomFilter, 0, 1, &descriptorSets_[currentBuffer_].bloomFilter, 0, nullptr);
 
-			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.bloom[1]);
+			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.bloom[1]);
 			vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
 
 			vkCmdEndRenderPass(cmdBuffer);
@@ -758,30 +758,30 @@ public:
 
 			// Final composition
 			VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-			renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
-			renderPassBeginInfo.renderPass = renderPass;
+			renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+			renderPassBeginInfo.renderPass = renderPass_;
 			renderPassBeginInfo.clearValueCount = 2;
-			renderPassBeginInfo.renderArea.extent.width = width;
-			renderPassBeginInfo.renderArea.extent.height = height;
+			renderPassBeginInfo.renderArea.extent.width = width_;
+			renderPassBeginInfo.renderArea.extent.height = height_;
 			renderPassBeginInfo.pClearValues = clearValues;
 
 			vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-			VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+			VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
 			vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-			VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+			VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
 			vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
-			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts.composition, 0, 1, &descriptorSets[currentBuffer].composition, 0, nullptr);
+			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.composition, 0, 1, &descriptorSets_[currentBuffer_].composition, 0, nullptr);
 
 			// Scene
-			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.composition);
+			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.composition);
 			vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
 
 			// Bloom
-			if (bloom) {
-				vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.bloom[0]);
+			if (bloom_) {
+				vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.bloom[0]);
 				vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
 			}
 
@@ -796,7 +796,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared)
+		if (!prepared_)
 			return;
 		VulkanExampleBase::prepareFrame();
 		updateUniformBuffers();
@@ -807,9 +807,9 @@ public:
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay)
 	{
 		if (overlay->header("Settings")) {
-			overlay->comboBox("Object type", &models.index, modelNames);
+			overlay->comboBox("Object type", &models_.index, modelNames);
 			overlay->inputFloat("Exposure", &uniformData.exposure, 0.025f, 3);
-			overlay->checkBox("Bloom", &bloom);
+			overlay->checkBox("Bloom", &bloom_);
 			overlay->checkBox("Skybox", &displaySkybox);
 		}
 	}

@@ -58,7 +58,7 @@ namespace vks
 	/** Prepare all vulkan resources required to render the UI overlay */
 	void UIOverlay::prepareResources()
 	{
-		assert(maxConcurrentFrames > 0);
+		assert(MAX_CONCURRENT_FRAMES > 0);
 
 		ImGuiIO& io = ImGui::GetIO();
 
@@ -191,7 +191,7 @@ namespace vks
 		vkUpdateDescriptorSets(device->logicalDevice, 1, &writeDescriptorSets, 0, nullptr);
 
 		// Buffers per max. frames-in-flight
-		buffers.resize(maxConcurrentFrames);
+		buffers.resize(MAX_CONCURRENT_FRAMES);
 	}
 
 	/** Prepare a separate pipeline for the UI overlay rendering decoupled from the main application */

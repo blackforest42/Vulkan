@@ -33,14 +33,14 @@ public:
 	struct Meshes {
 		vkglTF::Model skybox;
 		vkglTF::Model object;
-	} models;
+	} models_;
 
 	struct UniformBuffers {
 		vks::Buffer scene;
 		vks::Buffer skybox;
 		vks::Buffer params;
 	};
-	std::array<UniformBuffers, maxConcurrentFrames> uniformBuffers;
+	std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	struct UniformDataMatrices {
 		glm::mat4 projection;
@@ -59,33 +59,33 @@ public:
 	struct {
 		VkPipeline skybox{ VK_NULL_HANDLE };
 		VkPipeline pbr{ VK_NULL_HANDLE };
-	} pipelines;
+	} pipelines_;
 
 	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
 	struct DescriptorSets {
 		VkDescriptorSet scene{ VK_NULL_HANDLE };
 		VkDescriptorSet skybox{ VK_NULL_HANDLE };
 	};
-	std::array<DescriptorSets, maxConcurrentFrames> descriptorSets{};
+	std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Textured PBR with IBL";
-		camera.type = Camera::CameraType::firstperson;
-		camera.movementSpeed = 4.0f;
-		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
-		camera.rotationSpeed = 0.25f;
-		camera.setRotation({ -7.75f, 150.25f, 0.0f });
-		camera.setPosition({ 0.7f, 0.1f, 1.7f });
+		camera_.type = Camera::CameraType::firstperson;
+		camera_.movementSpeed = 4.0f;
+		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
+		camera_.rotationSpeed = 0.25f;
+		camera_.setRotation({ -7.75f, 150.25f, 0.0f });
+		camera_.setPosition({ 0.7f, 0.1f, 1.7f });
 	}
 
 	~VulkanExample()
 	{
-		if (device) {
-			vkDestroyPipeline(device, pipelines.skybox, nullptr);
-			vkDestroyPipeline(device, pipelines.pbr, nullptr);
-			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		if (device_) {
+			vkDestroyPipeline(device_, pipelines_.skybox, nullptr);
+			vkDestroyPipeline(device_, pipelines_.pbr, nullptr);
+			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
 			textures.environmentCube.destroy();
 			textures.irradianceCube.destroy();
 			textures.prefilteredCube.destroy();
@@ -95,7 +95,7 @@ public:
 			textures.aoMap.destroy();
 			textures.metallicMap.destroy();
 			textures.roughnessMap.destroy();
-			for (auto& buffer : uniformBuffers) {
+			for (auto& buffer : uniformBuffers_) {
 				buffer.scene.destroy();
 				buffer.params.destroy();
 				buffer.skybox.destroy();
@@ -113,25 +113,25 @@ public:
 	void loadAssets()
 	{
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
-		models.skybox.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice, queue, glTFLoadingFlags);
-		models.object.loadFromFile(getAssetPath() + "models/cerberus/cerberus.gltf", vulkanDevice, queue, glTFLoadingFlags);
-		textures.environmentCube.loadFromFile(getAssetPath() + "textures/hdr/gcanyon_cube.ktx", VK_FORMAT_R16G16B16A16_SFLOAT, vulkanDevice, queue);
-		textures.albedoMap.loadFromFile(getAssetPath() + "models/cerberus/albedo.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
-		textures.normalMap.loadFromFile(getAssetPath() + "models/cerberus/normal.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
-		textures.aoMap.loadFromFile(getAssetPath() + "models/cerberus/ao.ktx", VK_FORMAT_R8_UNORM, vulkanDevice, queue);
-		textures.metallicMap.loadFromFile(getAssetPath() + "models/cerberus/metallic.ktx", VK_FORMAT_R8_UNORM, vulkanDevice, queue);
-		textures.roughnessMap.loadFromFile(getAssetPath() + "models/cerberus/roughness.ktx", VK_FORMAT_R8_UNORM, vulkanDevice, queue);
+		models_.skybox.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice, queue_, glTFLoadingFlags);
+		models_.object.loadFromFile(getAssetPath() + "models/cerberus/cerberus.gltf", vulkanDevice, queue_, glTFLoadingFlags);
+		textures.environmentCube.loadFromFile(getAssetPath() + "textures/hdr/gcanyon_cube.ktx", VK_FORMAT_R16G16B16A16_SFLOAT, vulkanDevice, queue_);
+		textures.albedoMap.loadFromFile(getAssetPath() + "models/cerberus/albedo.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue_);
+		textures.normalMap.loadFromFile(getAssetPath() + "models/cerberus/normal.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue_);
+		textures.aoMap.loadFromFile(getAssetPath() + "models/cerberus/ao.ktx", VK_FORMAT_R8_UNORM, vulkanDevice, queue_);
+		textures.metallicMap.loadFromFile(getAssetPath() + "models/cerberus/metallic.ktx", VK_FORMAT_R8_UNORM, vulkanDevice, queue_);
+		textures.roughnessMap.loadFromFile(getAssetPath() + "models/cerberus/roughness.ktx", VK_FORMAT_R8_UNORM, vulkanDevice, queue_);
 	}
 
 	void setupDescriptors()
 	{
 		// Descriptor Pool
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames * 4),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, maxConcurrentFrames * 16)
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES * 4),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_CONCURRENT_FRAMES * 16)
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolInfo =	vks::initializers::descriptorPoolCreateInfo(poolSizes, maxConcurrentFrames * 2);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
+		VkDescriptorPoolCreateInfo descriptorPoolInfo =	vks::initializers::descriptorPoolCreateInfo(poolSizes, MAX_CONCURRENT_FRAMES * 2);
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
 
 		// Descriptor set layout
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -147,36 +147,36 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 9),
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayout = 	vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr, &descriptorSetLayout));
 
 		// Sets per frame, just like the buffers themselves
 		// Images do not need to be duplicated per frame, we reuse the same one for each frame
-		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-		for (auto i = 0; i < uniformBuffers.size(); i++) {
+		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayout, 1);
+		for (auto i = 0; i < uniformBuffers_.size(); i++) {
 			// Scene
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i].scene));
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i].scene));
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-				vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers[i].scene.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, &uniformBuffers[i].params.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures.irradianceCube.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3, &textures.lutBrdf.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4, &textures.prefilteredCube.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 5, &textures.albedoMap.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 6, &textures.normalMap.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 7, &textures.aoMap.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 8, &textures.metallicMap.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 9, &textures.roughnessMap.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].scene.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, &uniformBuffers_[i].params.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures.irradianceCube.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3, &textures.lutBrdf.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4, &textures.prefilteredCube.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 5, &textures.albedoMap.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 6, &textures.normalMap.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 7, &textures.aoMap.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 8, &textures.metallicMap.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 9, &textures.roughnessMap.descriptor),
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
 			// Sky box
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i].skybox));
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i].skybox));
 			writeDescriptorSets = {
-				vks::initializers::writeDescriptorSet(descriptorSets[i].skybox, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers[i].skybox.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].skybox, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, &uniformBuffers[i].params.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i].skybox, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures.environmentCube.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].skybox, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].skybox.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].skybox, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, &uniformBuffers_[i].params.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].skybox, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures.environmentCube.descriptor),
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}
 	}
 
@@ -195,10 +195,10 @@ public:
 
 		// Pipeline layout
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 
 		// Pipelines
-		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass);
+		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_);
 		pipelineCI.pInputAssemblyState = &inputAssemblyState;
 		pipelineCI.pRasterizationState = &rasterizationState;
 		pipelineCI.pColorBlendState = &colorBlendState;
@@ -214,7 +214,7 @@ public:
 		rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
 		shaderStages[0] = loadShader(getShadersPath() + "pbrtexture/skybox.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "pbrtexture/skybox.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.skybox));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.skybox));
 
 		// PBR pipeline
 		rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
@@ -223,7 +223,7 @@ public:
 		// Enable depth test and write
 		depthStencilState.depthWriteEnable = VK_TRUE;
 		depthStencilState.depthTestEnable = VK_TRUE;
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.pbr));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.pbr));
 	}
 
 	// Generate a BRDF integration map used as a look-up-table (stores roughness / NdotV)
@@ -246,14 +246,14 @@ public:
 		imageCI.samples = VK_SAMPLE_COUNT_1_BIT;
 		imageCI.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCI.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-		VK_CHECK_RESULT(vkCreateImage(device, &imageCI, nullptr, &textures.lutBrdf.image));
+		VK_CHECK_RESULT(vkCreateImage(device_, &imageCI, nullptr, &textures.lutBrdf.image));
 		VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
 		VkMemoryRequirements memReqs;
-		vkGetImageMemoryRequirements(device, textures.lutBrdf.image, &memReqs);
+		vkGetImageMemoryRequirements(device_, textures.lutBrdf.image, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
 		memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &textures.lutBrdf.deviceMemory));
-		VK_CHECK_RESULT(vkBindImageMemory(device, textures.lutBrdf.image, textures.lutBrdf.deviceMemory, 0));
+		VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr, &textures.lutBrdf.deviceMemory));
+		VK_CHECK_RESULT(vkBindImageMemory(device_, textures.lutBrdf.image, textures.lutBrdf.deviceMemory, 0));
 		// Image view
 		VkImageViewCreateInfo viewCI = vks::initializers::imageViewCreateInfo();
 		viewCI.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -263,7 +263,7 @@ public:
 		viewCI.subresourceRange.levelCount = 1;
 		viewCI.subresourceRange.layerCount = 1;
 		viewCI.image = textures.lutBrdf.image;
-		VK_CHECK_RESULT(vkCreateImageView(device, &viewCI, nullptr, &textures.lutBrdf.view));
+		VK_CHECK_RESULT(vkCreateImageView(device_, &viewCI, nullptr, &textures.lutBrdf.view));
 		// Sampler
 		VkSamplerCreateInfo samplerCI = vks::initializers::samplerCreateInfo();
 		samplerCI.magFilter = VK_FILTER_LINEAR;
@@ -275,7 +275,7 @@ public:
 		samplerCI.minLod = 0.0f;
 		samplerCI.maxLod = 1.0f;
 		samplerCI.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		VK_CHECK_RESULT(vkCreateSampler(device, &samplerCI, nullptr, &textures.lutBrdf.sampler));
+		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerCI, nullptr, &textures.lutBrdf.sampler));
 
 		textures.lutBrdf.descriptor.imageView = textures.lutBrdf.view;
 		textures.lutBrdf.descriptor.sampler = textures.lutBrdf.sampler;
@@ -327,7 +327,7 @@ public:
 		renderPassCI.pDependencies = dependencies.data();
 
 		VkRenderPass renderpass;
-		VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassCI, nullptr, &renderpass));
+		VK_CHECK_RESULT(vkCreateRenderPass(device_, &renderPassCI, nullptr, &renderpass));
 
 		VkFramebufferCreateInfo framebufferCI = vks::initializers::framebufferCreateInfo();
 		framebufferCI.renderPass = renderpass;
@@ -338,29 +338,29 @@ public:
 		framebufferCI.layers = 1;
 
 		VkFramebuffer framebuffer;
-		VK_CHECK_RESULT(vkCreateFramebuffer(device, &framebufferCI, nullptr, &framebuffer));
+		VK_CHECK_RESULT(vkCreateFramebuffer(device_, &framebufferCI, nullptr, &framebuffer));
 
 		// Descriptors
 		VkDescriptorSetLayout descriptorsetlayout;
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {};
 		VkDescriptorSetLayoutCreateInfo descriptorsetlayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorsetlayoutCI, nullptr, &descriptorsetlayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorsetlayoutCI, nullptr, &descriptorsetlayout));
 
 		// Descriptor Pool
 		std::vector<VkDescriptorPoolSize> poolSizes = { vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1) };
 		VkDescriptorPoolCreateInfo descriptorPoolCI = vks::initializers::descriptorPoolCreateInfo(poolSizes, 2);
 		VkDescriptorPool descriptorpool;
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolCI, nullptr, &descriptorpool));
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolCI, nullptr, &descriptorpool));
 
 		// Descriptor sets
 		VkDescriptorSet descriptorset;
 		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorpool, &descriptorsetlayout, 1);
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorset));
+		VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorset));
 
 		// Pipeline layout
 		VkPipelineLayout pipelinelayout;
 		VkPipelineLayoutCreateInfo pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descriptorsetlayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelinelayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr, &pipelinelayout));
 
 		// Pipeline
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -391,7 +391,7 @@ public:
 		shaderStages[0] = loadShader(getShadersPath() + "pbrtexture/genbrdflut.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "pbrtexture/genbrdflut.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 		VkPipeline pipeline;
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
 
 		// Render
 		VkClearValue clearValues[1];
@@ -414,16 +414,16 @@ public:
 		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 		vkCmdDraw(cmdBuf, 3, 1, 0, 0);
 		vkCmdEndRenderPass(cmdBuf);
-		vulkanDevice->flushCommandBuffer(cmdBuf, queue);
+		vulkanDevice->flushCommandBuffer(cmdBuf, queue_);
 
-		vkQueueWaitIdle(queue);
+		vkQueueWaitIdle(queue_);
 
-		vkDestroyPipeline(device, pipeline, nullptr);
-		vkDestroyPipelineLayout(device, pipelinelayout, nullptr);
-		vkDestroyRenderPass(device, renderpass, nullptr);
-		vkDestroyFramebuffer(device, framebuffer, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorsetlayout, nullptr);
-		vkDestroyDescriptorPool(device, descriptorpool, nullptr);
+		vkDestroyPipeline(device_, pipeline, nullptr);
+		vkDestroyPipelineLayout(device_, pipelinelayout, nullptr);
+		vkDestroyRenderPass(device_, renderpass, nullptr);
+		vkDestroyFramebuffer(device_, framebuffer, nullptr);
+		vkDestroyDescriptorSetLayout(device_, descriptorsetlayout, nullptr);
+		vkDestroyDescriptorPool(device_, descriptorpool, nullptr);
 
 		auto tEnd = std::chrono::high_resolution_clock::now();
 		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
@@ -453,14 +453,14 @@ public:
 		imageCI.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCI.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		imageCI.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-		VK_CHECK_RESULT(vkCreateImage(device, &imageCI, nullptr, &textures.irradianceCube.image));
+		VK_CHECK_RESULT(vkCreateImage(device_, &imageCI, nullptr, &textures.irradianceCube.image));
 		VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
 		VkMemoryRequirements memReqs;
-		vkGetImageMemoryRequirements(device, textures.irradianceCube.image, &memReqs);
+		vkGetImageMemoryRequirements(device_, textures.irradianceCube.image, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
 		memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &textures.irradianceCube.deviceMemory));
-		VK_CHECK_RESULT(vkBindImageMemory(device, textures.irradianceCube.image, textures.irradianceCube.deviceMemory, 0));
+		VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr, &textures.irradianceCube.deviceMemory));
+		VK_CHECK_RESULT(vkBindImageMemory(device_, textures.irradianceCube.image, textures.irradianceCube.deviceMemory, 0));
 		// Image view
 		VkImageViewCreateInfo viewCI = vks::initializers::imageViewCreateInfo();
 		viewCI.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
@@ -470,7 +470,7 @@ public:
 		viewCI.subresourceRange.levelCount = numMips;
 		viewCI.subresourceRange.layerCount = 6;
 		viewCI.image = textures.irradianceCube.image;
-		VK_CHECK_RESULT(vkCreateImageView(device, &viewCI, nullptr, &textures.irradianceCube.view));
+		VK_CHECK_RESULT(vkCreateImageView(device_, &viewCI, nullptr, &textures.irradianceCube.view));
 		// Sampler
 		VkSamplerCreateInfo samplerCI = vks::initializers::samplerCreateInfo();
 		samplerCI.magFilter = VK_FILTER_LINEAR;
@@ -482,7 +482,7 @@ public:
 		samplerCI.minLod = 0.0f;
 		samplerCI.maxLod = static_cast<float>(numMips);
 		samplerCI.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		VK_CHECK_RESULT(vkCreateSampler(device, &samplerCI, nullptr, &textures.irradianceCube.sampler));
+		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerCI, nullptr, &textures.irradianceCube.sampler));
 
 		textures.irradianceCube.descriptor.imageView = textures.irradianceCube.view;
 		textures.irradianceCube.descriptor.sampler = textures.irradianceCube.sampler;
@@ -533,7 +533,7 @@ public:
 		renderPassCI.dependencyCount = 2;
 		renderPassCI.pDependencies = dependencies.data();
 		VkRenderPass renderpass;
-		VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassCI, nullptr, &renderpass));
+		VK_CHECK_RESULT(vkCreateRenderPass(device_, &renderPassCI, nullptr, &renderpass));
 
 		struct {
 			VkImage image;
@@ -558,15 +558,15 @@ public:
 			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 			imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-			VK_CHECK_RESULT(vkCreateImage(device, &imageCreateInfo, nullptr, &offscreen.image));
+			VK_CHECK_RESULT(vkCreateImage(device_, &imageCreateInfo, nullptr, &offscreen.image));
 
 			VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
 			VkMemoryRequirements memReqs;
-			vkGetImageMemoryRequirements(device, offscreen.image, &memReqs);
+			vkGetImageMemoryRequirements(device_, offscreen.image, &memReqs);
 			memAlloc.allocationSize = memReqs.size;
 			memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-			VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &offscreen.memory));
-			VK_CHECK_RESULT(vkBindImageMemory(device, offscreen.image, offscreen.memory, 0));
+			VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr, &offscreen.memory));
+			VK_CHECK_RESULT(vkBindImageMemory(device_, offscreen.image, offscreen.memory, 0));
 
 			VkImageViewCreateInfo colorImageView = vks::initializers::imageViewCreateInfo();
 			colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -579,7 +579,7 @@ public:
 			colorImageView.subresourceRange.baseArrayLayer = 0;
 			colorImageView.subresourceRange.layerCount = 1;
 			colorImageView.image = offscreen.image;
-			VK_CHECK_RESULT(vkCreateImageView(device, &colorImageView, nullptr, &offscreen.view));
+			VK_CHECK_RESULT(vkCreateImageView(device_, &colorImageView, nullptr, &offscreen.view));
 
 			VkFramebufferCreateInfo fbufCreateInfo = vks::initializers::framebufferCreateInfo();
 			fbufCreateInfo.renderPass = renderpass;
@@ -588,7 +588,7 @@ public:
 			fbufCreateInfo.width = dim;
 			fbufCreateInfo.height = dim;
 			fbufCreateInfo.layers = 1;
-			VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbufCreateInfo, nullptr, &offscreen.framebuffer));
+			VK_CHECK_RESULT(vkCreateFramebuffer(device_, &fbufCreateInfo, nullptr, &offscreen.framebuffer));
 
 			VkCommandBuffer layoutCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 			vks::tools::setImageLayout(
@@ -597,7 +597,7 @@ public:
 				VK_IMAGE_ASPECT_COLOR_BIT,
 				VK_IMAGE_LAYOUT_UNDEFINED,
 				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-			vulkanDevice->flushCommandBuffer(layoutCmd, queue, true);
+			vulkanDevice->flushCommandBuffer(layoutCmd, queue_, true);
 		}
 
 		// Descriptors
@@ -606,20 +606,20 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0),
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorsetlayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorsetlayoutCI, nullptr, &descriptorsetlayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorsetlayoutCI, nullptr, &descriptorsetlayout));
 
 		// Descriptor Pool
 		std::vector<VkDescriptorPoolSize> poolSizes = { vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1) };
 		VkDescriptorPoolCreateInfo descriptorPoolCI = vks::initializers::descriptorPoolCreateInfo(poolSizes, 2);
 		VkDescriptorPool descriptorpool;
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolCI, nullptr, &descriptorpool));
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolCI, nullptr, &descriptorpool));
 
 		// Descriptor sets
 		VkDescriptorSet descriptorset;
 		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorpool, &descriptorsetlayout, 1);
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorset));
+		VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorset));
 		VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptorset, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &textures.environmentCube.descriptor);
-		vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
+		vkUpdateDescriptorSets(device_, 1, &writeDescriptorSet, 0, nullptr);
 
 		// Pipeline layout
 		struct PushBlock {
@@ -636,7 +636,7 @@ public:
 		VkPipelineLayoutCreateInfo pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descriptorsetlayout, 1);
 		pipelineLayoutCI.pushConstantRangeCount = 1;
 		pipelineLayoutCI.pPushConstantRanges = pushConstantRanges.data();
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelinelayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr, &pipelinelayout));
 
 		// Pipeline
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -666,7 +666,7 @@ public:
 		shaderStages[0] = loadShader(getShadersPath() + "pbrtexture/filtercube.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "pbrtexture/irradiancecube.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 		VkPipeline pipeline;
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
 
 		// Render
 
@@ -736,7 +736,7 @@ public:
 				vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 				vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelinelayout, 0, 1, &descriptorset, 0, NULL);
 
-				models.skybox.draw(cmdBuf);
+				models_.skybox.draw(cmdBuf);
 
 				vkCmdEndRenderPass(cmdBuf);
 
@@ -792,17 +792,17 @@ public:
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			subresourceRange);
 
-		vulkanDevice->flushCommandBuffer(cmdBuf, queue);
+		vulkanDevice->flushCommandBuffer(cmdBuf, queue_);
 
-		vkDestroyRenderPass(device, renderpass, nullptr);
-		vkDestroyFramebuffer(device, offscreen.framebuffer, nullptr);
-		vkFreeMemory(device, offscreen.memory, nullptr);
-		vkDestroyImageView(device, offscreen.view, nullptr);
-		vkDestroyImage(device, offscreen.image, nullptr);
-		vkDestroyDescriptorPool(device, descriptorpool, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorsetlayout, nullptr);
-		vkDestroyPipeline(device, pipeline, nullptr);
-		vkDestroyPipelineLayout(device, pipelinelayout, nullptr);
+		vkDestroyRenderPass(device_, renderpass, nullptr);
+		vkDestroyFramebuffer(device_, offscreen.framebuffer, nullptr);
+		vkFreeMemory(device_, offscreen.memory, nullptr);
+		vkDestroyImageView(device_, offscreen.view, nullptr);
+		vkDestroyImage(device_, offscreen.image, nullptr);
+		vkDestroyDescriptorPool(device_, descriptorpool, nullptr);
+		vkDestroyDescriptorSetLayout(device_, descriptorsetlayout, nullptr);
+		vkDestroyPipeline(device_, pipeline, nullptr);
+		vkDestroyPipelineLayout(device_, pipelinelayout, nullptr);
 
 		auto tEnd = std::chrono::high_resolution_clock::now();
 		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
@@ -833,14 +833,14 @@ public:
 		imageCI.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCI.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		imageCI.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-		VK_CHECK_RESULT(vkCreateImage(device, &imageCI, nullptr, &textures.prefilteredCube.image));
+		VK_CHECK_RESULT(vkCreateImage(device_, &imageCI, nullptr, &textures.prefilteredCube.image));
 		VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
 		VkMemoryRequirements memReqs;
-		vkGetImageMemoryRequirements(device, textures.prefilteredCube.image, &memReqs);
+		vkGetImageMemoryRequirements(device_, textures.prefilteredCube.image, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
 		memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &textures.prefilteredCube.deviceMemory));
-		VK_CHECK_RESULT(vkBindImageMemory(device, textures.prefilteredCube.image, textures.prefilteredCube.deviceMemory, 0));
+		VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr, &textures.prefilteredCube.deviceMemory));
+		VK_CHECK_RESULT(vkBindImageMemory(device_, textures.prefilteredCube.image, textures.prefilteredCube.deviceMemory, 0));
 		// Image view
 		VkImageViewCreateInfo viewCI = vks::initializers::imageViewCreateInfo();
 		viewCI.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
@@ -850,7 +850,7 @@ public:
 		viewCI.subresourceRange.levelCount = numMips;
 		viewCI.subresourceRange.layerCount = 6;
 		viewCI.image = textures.prefilteredCube.image;
-		VK_CHECK_RESULT(vkCreateImageView(device, &viewCI, nullptr, &textures.prefilteredCube.view));
+		VK_CHECK_RESULT(vkCreateImageView(device_, &viewCI, nullptr, &textures.prefilteredCube.view));
 		// Sampler
 		VkSamplerCreateInfo samplerCI = vks::initializers::samplerCreateInfo();
 		samplerCI.magFilter = VK_FILTER_LINEAR;
@@ -862,7 +862,7 @@ public:
 		samplerCI.minLod = 0.0f;
 		samplerCI.maxLod = static_cast<float>(numMips);
 		samplerCI.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		VK_CHECK_RESULT(vkCreateSampler(device, &samplerCI, nullptr, &textures.prefilteredCube.sampler));
+		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerCI, nullptr, &textures.prefilteredCube.sampler));
 
 		textures.prefilteredCube.descriptor.imageView = textures.prefilteredCube.view;
 		textures.prefilteredCube.descriptor.sampler = textures.prefilteredCube.sampler;
@@ -913,7 +913,7 @@ public:
 		renderPassCI.dependencyCount = 2;
 		renderPassCI.pDependencies = dependencies.data();
 		VkRenderPass renderpass;
-		VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassCI, nullptr, &renderpass));
+		VK_CHECK_RESULT(vkCreateRenderPass(device_, &renderPassCI, nullptr, &renderpass));
 
 		struct {
 			VkImage image;
@@ -938,15 +938,15 @@ public:
 			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 			imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-			VK_CHECK_RESULT(vkCreateImage(device, &imageCreateInfo, nullptr, &offscreen.image));
+			VK_CHECK_RESULT(vkCreateImage(device_, &imageCreateInfo, nullptr, &offscreen.image));
 
 			VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
 			VkMemoryRequirements memReqs;
-			vkGetImageMemoryRequirements(device, offscreen.image, &memReqs);
+			vkGetImageMemoryRequirements(device_, offscreen.image, &memReqs);
 			memAlloc.allocationSize = memReqs.size;
 			memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-			VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &offscreen.memory));
-			VK_CHECK_RESULT(vkBindImageMemory(device, offscreen.image, offscreen.memory, 0));
+			VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr, &offscreen.memory));
+			VK_CHECK_RESULT(vkBindImageMemory(device_, offscreen.image, offscreen.memory, 0));
 
 			VkImageViewCreateInfo colorImageView = vks::initializers::imageViewCreateInfo();
 			colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -959,7 +959,7 @@ public:
 			colorImageView.subresourceRange.baseArrayLayer = 0;
 			colorImageView.subresourceRange.layerCount = 1;
 			colorImageView.image = offscreen.image;
-			VK_CHECK_RESULT(vkCreateImageView(device, &colorImageView, nullptr, &offscreen.view));
+			VK_CHECK_RESULT(vkCreateImageView(device_, &colorImageView, nullptr, &offscreen.view));
 
 			VkFramebufferCreateInfo fbufCreateInfo = vks::initializers::framebufferCreateInfo();
 			fbufCreateInfo.renderPass = renderpass;
@@ -968,7 +968,7 @@ public:
 			fbufCreateInfo.width = dim;
 			fbufCreateInfo.height = dim;
 			fbufCreateInfo.layers = 1;
-			VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbufCreateInfo, nullptr, &offscreen.framebuffer));
+			VK_CHECK_RESULT(vkCreateFramebuffer(device_, &fbufCreateInfo, nullptr, &offscreen.framebuffer));
 
 			VkCommandBuffer layoutCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 			vks::tools::setImageLayout(
@@ -977,7 +977,7 @@ public:
 				VK_IMAGE_ASPECT_COLOR_BIT,
 				VK_IMAGE_LAYOUT_UNDEFINED,
 				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-			vulkanDevice->flushCommandBuffer(layoutCmd, queue, true);
+			vulkanDevice->flushCommandBuffer(layoutCmd, queue_, true);
 		}
 
 		// Descriptors
@@ -986,20 +986,20 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0),
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorsetlayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorsetlayoutCI, nullptr, &descriptorsetlayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorsetlayoutCI, nullptr, &descriptorsetlayout));
 
 		// Descriptor Pool
 		std::vector<VkDescriptorPoolSize> poolSizes = { vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1) };
 		VkDescriptorPoolCreateInfo descriptorPoolCI = vks::initializers::descriptorPoolCreateInfo(poolSizes, 2);
 		VkDescriptorPool descriptorpool;
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolCI, nullptr, &descriptorpool));
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolCI, nullptr, &descriptorpool));
 
 		// Descriptor sets
 		VkDescriptorSet descriptorset;
 		VkDescriptorSetAllocateInfo allocInfo =	vks::initializers::descriptorSetAllocateInfo(descriptorpool, &descriptorsetlayout, 1);
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorset));
+		VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorset));
 		VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptorset, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &textures.environmentCube.descriptor);
-		vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
+		vkUpdateDescriptorSets(device_, 1, &writeDescriptorSet, 0, nullptr);
 
 		// Pipeline layout
 		struct PushBlock {
@@ -1015,7 +1015,7 @@ public:
 		VkPipelineLayoutCreateInfo pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descriptorsetlayout, 1);
 		pipelineLayoutCI.pushConstantRangeCount = 1;
 		pipelineLayoutCI.pPushConstantRanges = pushConstantRanges.data();
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelinelayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr, &pipelinelayout));
 
 		// Pipeline
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -1045,7 +1045,7 @@ public:
 		shaderStages[0] = loadShader(getShadersPath() + "pbrtexture/filtercube.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "pbrtexture/prefilterenvmap.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 		VkPipeline pipeline;
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
 
 		// Render
 
@@ -1116,7 +1116,7 @@ public:
 				vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 				vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelinelayout, 0, 1, &descriptorset, 0, NULL);
 
-				models.skybox.draw(cmdBuf);
+				models_.skybox.draw(cmdBuf);
 
 				vkCmdEndRenderPass(cmdBuf);
 
@@ -1172,17 +1172,17 @@ public:
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			subresourceRange);
 
-		vulkanDevice->flushCommandBuffer(cmdBuf, queue);
+		vulkanDevice->flushCommandBuffer(cmdBuf, queue_);
 
-		vkDestroyRenderPass(device, renderpass, nullptr);
-		vkDestroyFramebuffer(device, offscreen.framebuffer, nullptr);
-		vkFreeMemory(device, offscreen.memory, nullptr);
-		vkDestroyImageView(device, offscreen.view, nullptr);
-		vkDestroyImage(device, offscreen.image, nullptr);
-		vkDestroyDescriptorPool(device, descriptorpool, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorsetlayout, nullptr);
-		vkDestroyPipeline(device, pipeline, nullptr);
-		vkDestroyPipelineLayout(device, pipelinelayout, nullptr);
+		vkDestroyRenderPass(device_, renderpass, nullptr);
+		vkDestroyFramebuffer(device_, offscreen.framebuffer, nullptr);
+		vkFreeMemory(device_, offscreen.memory, nullptr);
+		vkDestroyImageView(device_, offscreen.view, nullptr);
+		vkDestroyImage(device_, offscreen.image, nullptr);
+		vkDestroyDescriptorPool(device_, descriptorpool, nullptr);
+		vkDestroyDescriptorSetLayout(device_, descriptorsetlayout, nullptr);
+		vkDestroyPipeline(device_, pipeline, nullptr);
+		vkDestroyPipelineLayout(device_, pipelinelayout, nullptr);
 
 		auto tEnd = std::chrono::high_resolution_clock::now();
 		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
@@ -1192,7 +1192,7 @@ public:
 	// Prepare and initialize uniform buffer containing shader uniforms
 	void prepareUniformBuffers()
 	{
-		for (auto& buffer : uniformBuffers) {
+		for (auto& buffer : uniformBuffers_) {
 			// Scene matrices uniform buffer
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer.scene, sizeof(UniformDataMatrices)));
 			VK_CHECK_RESULT(buffer.scene.map());
@@ -1208,15 +1208,15 @@ public:
 	void updateUniformBuffers()
 	{
 		// 3D object
-		uniformDataMatrices.projection = camera.matrices.perspective;
-		uniformDataMatrices.view = camera.matrices.view;
+		uniformDataMatrices.projection = camera_.matrices.perspective;
+		uniformDataMatrices.view = camera_.matrices.view;
 		uniformDataMatrices.model = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-		uniformDataMatrices.camPos = camera.position * -1.0f;
-		memcpy(uniformBuffers[currentBuffer].scene.mapped, &uniformDataMatrices, sizeof(UniformDataMatrices));
+		uniformDataMatrices.camPos = camera_.position * -1.0f;
+		memcpy(uniformBuffers_[currentBuffer_].scene.mapped, &uniformDataMatrices, sizeof(UniformDataMatrices));
 
 		// Skybox
-		uniformDataMatrices.model = glm::mat4(glm::mat3(camera.matrices.view));
-		memcpy(uniformBuffers[currentBuffer].skybox.mapped, &uniformDataMatrices, sizeof(UniformDataMatrices));
+		uniformDataMatrices.model = glm::mat4(glm::mat3(camera_.matrices.view));
+		memcpy(uniformBuffers_[currentBuffer_].skybox.mapped, &uniformDataMatrices, sizeof(UniformDataMatrices));
 
 		// PBR parameters
 		const float p = 15.0f;
@@ -1225,7 +1225,7 @@ public:
 		uniformDataParams.lights[2] = glm::vec4(p, -p * 0.5f, p, 1.0f);
 		uniformDataParams.lights[3] = glm::vec4(p, -p * 0.5f, -p, 1.0f);
 
-		memcpy(uniformBuffers[currentBuffer].params.mapped, &uniformDataParams, sizeof(UniformDataParams));
+		memcpy(uniformBuffers_[currentBuffer_].params.mapped, &uniformDataParams, sizeof(UniformDataParams));
 	}
 
 	void prepare()
@@ -1238,12 +1238,12 @@ public:
 		prepareUniformBuffers();
 		setupDescriptors();
 		preparePipelines();
-		prepared = true;
+		prepared_ = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -1252,23 +1252,23 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass;
+		renderPassBeginInfo.renderPass = renderPass_;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.renderArea.extent.width = width_;
+		renderPassBeginInfo.renderArea.extent.height = height_;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
 		
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 		VkDeviceSize offsets[1] = { 0 };
@@ -1276,15 +1276,15 @@ public:
 		// Skybox
 		if (displaySkybox)
 		{
-			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentBuffer].skybox, 0, nullptr);
-			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.skybox);
-			models.skybox.draw(cmdBuffer);
+			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_].skybox, 0, nullptr);
+			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.skybox);
+			models_.skybox.draw(cmdBuffer);
 		}
 
 		// Objects
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentBuffer].scene, 0, nullptr);
-		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.pbr);
-		models.object.draw(cmdBuffer);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_].scene, 0, nullptr);
+		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.pbr);
+		models_.object.draw(cmdBuffer);
 
 		drawUI(cmdBuffer);
 
@@ -1295,7 +1295,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared)
+		if (!prepared_)
 			return;
 		VulkanExampleBase::prepareFrame();
 		updateUniformBuffers();

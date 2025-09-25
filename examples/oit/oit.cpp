@@ -18,7 +18,7 @@ public:
 	struct {
 		vkglTF::Model sphere;
 		vkglTF::Model cube;
-	} models;
+	} models_;
 
 	struct Node {
 		glm::vec4 color;
@@ -43,7 +43,7 @@ public:
 		glm::mat4 projection;
 		glm::mat4 view;
 	} renderPassUniformData;
-	std::array<vks::Buffer, maxConcurrentFrames> renderPassUniformBuffer;
+	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> renderPassUniformBuffer;
 
 	struct ObjectData {
 		glm::mat4 model;
@@ -53,44 +53,44 @@ public:
 	struct {
 		VkDescriptorSetLayout geometry{ VK_NULL_HANDLE };
 		VkDescriptorSetLayout color{ VK_NULL_HANDLE };
-	} descriptorSetLayouts;
+	} descriptorSetLayouts_;
 
 	struct {
 		VkPipelineLayout geometry{ VK_NULL_HANDLE };
 		VkPipelineLayout color{ VK_NULL_HANDLE };
-	} pipelineLayouts;
+	} pipelineLayouts_;
 
 	struct {
 		VkPipeline geometry{ VK_NULL_HANDLE };
 		VkPipeline color{ VK_NULL_HANDLE };
-	} pipelines;
+	} pipelines_;
 
 	struct DescriptorSets {
 		VkDescriptorSet geometry{ VK_NULL_HANDLE };
 		VkDescriptorSet color{ VK_NULL_HANDLE };
 	};
-	std::array<DescriptorSets, maxConcurrentFrames> descriptorSets{};
+	std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
 	VkDeviceSize objectUniformBufferSize{ 0 };
 
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Order independent transparency rendering";
-		camera.type = Camera::CameraType::lookat;
-		camera.setPosition(glm::vec3(0.0f, 0.0f, -6.0f));
-		camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
-		camera.setPerspective(60.0f, (float) width / (float) height, 0.1f, 256.0f);
+		camera_.type = Camera::CameraType::lookat;
+		camera_.setPosition(glm::vec3(0.0f, 0.0f, -6.0f));
+		camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+		camera_.setPerspective(60.0f, (float) width_ / (float) height_, 0.1f, 256.0f);
 	}
 
 	~VulkanExample()
 	{
-		if (device) {
-			vkDestroyPipeline(device, pipelines.geometry, nullptr);
-			vkDestroyPipeline(device, pipelines.color, nullptr);
-			vkDestroyPipelineLayout(device, pipelineLayouts.geometry, nullptr);
-			vkDestroyPipelineLayout(device, pipelineLayouts.color, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayouts.geometry, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayouts.color, nullptr);
+		if (device_) {
+			vkDestroyPipeline(device_, pipelines_.geometry, nullptr);
+			vkDestroyPipeline(device_, pipelines_.color, nullptr);
+			vkDestroyPipelineLayout(device_, pipelineLayouts_.geometry, nullptr);
+			vkDestroyPipelineLayout(device_, pipelineLayouts_.color, nullptr);
+			vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.geometry, nullptr);
+			vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.color, nullptr);
 			destroyGeometryPass();
 			for (auto& buffer : renderPassUniformBuffer) {
 				buffer.destroy();
@@ -111,8 +111,8 @@ public:
 	void loadAssets()
 	{
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::FlipY;
-		models.sphere.loadFromFile(getAssetPath() + "models/sphere.gltf", vulkanDevice, queue, glTFLoadingFlags);
-		models.cube.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice, queue, glTFLoadingFlags);
+		models_.sphere.loadFromFile(getAssetPath() + "models/sphere.gltf", vulkanDevice, queue_, glTFLoadingFlags);
+		models_.cube.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice, queue_, glTFLoadingFlags);
 	}
 
 	void prepareUniformBuffers()
@@ -135,17 +135,17 @@ public:
 		renderPassInfo.subpassCount = 1;
 		renderPassInfo.pSubpasses = &subpassDescription;
 
-		VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr, &geometryPass.renderPass));
+		VK_CHECK_RESULT(vkCreateRenderPass(device_, &renderPassInfo, nullptr, &geometryPass.renderPass));
 
 		// Geometry frame buffer doesn't need any output attachment.
 		VkFramebufferCreateInfo fbufCreateInfo = vks::initializers::framebufferCreateInfo();
 		fbufCreateInfo.renderPass = geometryPass.renderPass;
 		fbufCreateInfo.attachmentCount = 0;
-		fbufCreateInfo.width = width;
-		fbufCreateInfo.height = height;
+		fbufCreateInfo.width = width_;
+		fbufCreateInfo.height = height_;
 		fbufCreateInfo.layers = 1;
 
-		VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbufCreateInfo, nullptr, &geometryPass.framebuffer));
+		VK_CHECK_RESULT(vkCreateFramebuffer(device_, &fbufCreateInfo, nullptr, &geometryPass.framebuffer));
 
 		// Create a buffer for GeometrySBO
 		vks::Buffer stagingBuffer;
@@ -165,7 +165,7 @@ public:
 
 		// Set up GeometrySBO data.
 		geometrySBO.count = 0;
-		geometrySBO.maxNodeCount = NODE_COUNT * width * height;
+		geometrySBO.maxNodeCount = NODE_COUNT * width_ * height_;
 		memcpy(stagingBuffer.mapped, &geometrySBO, sizeof(geometrySBO));
 
 		// Copy data to device
@@ -173,7 +173,7 @@ public:
 		VkBufferCopy copyRegion = {};
 		copyRegion.size = sizeof(geometrySBO);
 		vkCmdCopyBuffer(copyCmd, stagingBuffer.buffer, geometryPass.geometry.buffer, 1, &copyRegion);
-		vulkanDevice->flushCommandBuffer(copyCmd, queue, true);
+		vulkanDevice->flushCommandBuffer(copyCmd, queue_, true);
 
 		stagingBuffer.destroy();
 		
@@ -184,8 +184,8 @@ public:
 		VkImageCreateInfo imageInfo = vks::initializers::imageCreateInfo();
 		imageInfo.imageType = VK_IMAGE_TYPE_2D;
 		imageInfo.format = VK_FORMAT_R32_UINT;
-		imageInfo.extent.width = width;
-		imageInfo.extent.height = height;
+		imageInfo.extent.width = width_;
+		imageInfo.extent.height = height_;
 		imageInfo.extent.depth = 1;
 		imageInfo.mipLevels = 1;
 		imageInfo.arrayLayers = 1;
@@ -198,19 +198,19 @@ public:
 #endif
 		imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
 
-		VK_CHECK_RESULT(vkCreateImage(device, &imageInfo, nullptr, &geometryPass.headIndex.image));
+		VK_CHECK_RESULT(vkCreateImage(device_, &imageInfo, nullptr, &geometryPass.headIndex.image));
 
 		geometryPass.headIndex.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		VkMemoryRequirements memReqs;
-		vkGetImageMemoryRequirements(device, geometryPass.headIndex.image, &memReqs);
+		vkGetImageMemoryRequirements(device_, geometryPass.headIndex.image, &memReqs);
 
 		VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
 		memAlloc.allocationSize = memReqs.size;
 		memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-		VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &geometryPass.headIndex.deviceMemory));
-		VK_CHECK_RESULT(vkBindImageMemory(device, geometryPass.headIndex.image, geometryPass.headIndex.deviceMemory, 0));
+		VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr, &geometryPass.headIndex.deviceMemory));
+		VK_CHECK_RESULT(vkBindImageMemory(device_, geometryPass.headIndex.image, geometryPass.headIndex.deviceMemory, 0));
 
 		VkImageViewCreateInfo imageViewInfo = vks::initializers::imageViewCreateInfo();
 		imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -223,10 +223,10 @@ public:
 		imageViewInfo.subresourceRange.baseArrayLayer = 0;
 		imageViewInfo.subresourceRange.layerCount = 1;
 
-		VK_CHECK_RESULT(vkCreateImageView(device, &imageViewInfo, nullptr, &geometryPass.headIndex.view));
+		VK_CHECK_RESULT(vkCreateImageView(device_, &imageViewInfo, nullptr, &geometryPass.headIndex.view));
 
-		geometryPass.headIndex.width = width;
-		geometryPass.headIndex.height = height;
+		geometryPass.headIndex.width = width_;
+		geometryPass.headIndex.height = height_;
 		geometryPass.headIndex.mipLevels = 1;
 		geometryPass.headIndex.layerCount = 1;
 		geometryPass.headIndex.descriptor.imageView = geometryPass.headIndex.view;
@@ -244,7 +244,7 @@ public:
 		VkCommandBufferAllocateInfo cmdBufAllocInfo = vks::initializers::commandBufferAllocateInfo(cmdPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
 
 		VkCommandBuffer cmdBuf;
-		VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocInfo, &cmdBuf));
+		VK_CHECK_RESULT(vkAllocateCommandBuffers(device_, &cmdBufAllocInfo, &cmdBuf));
 
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuf, &cmdBufInfo));
@@ -266,21 +266,21 @@ public:
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &cmdBuf;
 
-		VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
-		VK_CHECK_RESULT(vkQueueWaitIdle(queue));
+		VK_CHECK_RESULT(vkQueueSubmit(queue_, 1, &submitInfo, VK_NULL_HANDLE));
+		VK_CHECK_RESULT(vkQueueWaitIdle(queue_));
 	}
 
 	void setupDescriptors()
 	{
 		// Pool
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, maxConcurrentFrames),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, maxConcurrentFrames * 3),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, maxConcurrentFrames * 2),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, MAX_CONCURRENT_FRAMES),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, MAX_CONCURRENT_FRAMES * 3),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, MAX_CONCURRENT_FRAMES * 2),
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxConcurrentFrames * 2);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
+		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, MAX_CONCURRENT_FRAMES * 2);
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
 
 		// Layouts
 
@@ -296,7 +296,7 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 3),
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayoutCI, nullptr, &descriptorSetLayouts.geometry));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr, &descriptorSetLayouts_.geometry));
 
 		// Create a color descriptor set layout
 		setLayoutBindings = {
@@ -306,7 +306,7 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 1),
 		};
 		descriptorLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayoutCI, nullptr, &descriptorSetLayouts.color));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr, &descriptorSetLayouts_.color));
 
 		updateDescriptors();
 	}
@@ -317,30 +317,30 @@ public:
 		// Images and GPU-only SSBO do not need to be duplicated per frame, we reuse the same one for each frame
 		for (auto i = 0; i < renderPassUniformBuffer.size(); i++) {
 			// Images and linked buffers are recreated on resize and part of the descriptors, so we need to update those at runtime
-			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.geometry, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i].geometry));
+			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayouts_.geometry, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i].geometry));
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 				// Binding 0: renderPassUniformData
-				vks::initializers::writeDescriptorSet(descriptorSets[i].geometry, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &renderPassUniformBuffer[i].descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].geometry, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &renderPassUniformBuffer[i].descriptor),
 				// Binding 2: GeometrySBO
-				vks::initializers::writeDescriptorSet(descriptorSets[i].geometry, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, &geometryPass.geometry.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].geometry, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, &geometryPass.geometry.descriptor),
 				// Binding 3: headIndexImage
-				vks::initializers::writeDescriptorSet(descriptorSets[i].geometry, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 2, &geometryPass.headIndex.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].geometry, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 2, &geometryPass.headIndex.descriptor),
 				// Binding 4: LinkedListSBO
-				vks::initializers::writeDescriptorSet(descriptorSets[i].geometry, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, &geometryPass.linkedList.descriptor)
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].geometry, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, &geometryPass.linkedList.descriptor)
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
 			// Update a color descriptor set
-			allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.color, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i].color));
+			allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayouts_.color, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i].color));
 			writeDescriptorSets = {
 				// Binding 0: headIndexImage
-				vks::initializers::writeDescriptorSet(descriptorSets[i].color, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0, &geometryPass.headIndex.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].color, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0, &geometryPass.headIndex.descriptor),
 				// Binding 1: LinkedListSBO
-				vks::initializers::writeDescriptorSet(descriptorSets[i].color, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, &geometryPass.linkedList.descriptor)
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].color, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, &geometryPass.linkedList.descriptor)
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}
 	}
 
@@ -349,16 +349,16 @@ public:
 		// Layouts
 
 		// Create a geometry pipeline layout
-		VkPipelineLayoutCreateInfo pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts.geometry, 1);
+		VkPipelineLayoutCreateInfo pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts_.geometry, 1);
 		// Static object data passed using push constants
 		VkPushConstantRange pushConstantRange = vks::initializers::pushConstantRange(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(ObjectData), 0);
 		pipelineLayoutCI.pushConstantRangeCount = 1;
 		pipelineLayoutCI.pPushConstantRanges = &pushConstantRange;
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayouts.geometry));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr, &pipelineLayouts_.geometry));
 
 		// Create a color pipeline layout
-		pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts.color, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayouts.color));
+		pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts_.color, 1);
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr, &pipelineLayouts_.color));
 
 		// Pipelines
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -371,7 +371,7 @@ public:
 		VkPipelineDynamicStateCreateInfo dynamicState = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
 		std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{};
 
-		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayouts.geometry, geometryPass.renderPass);
+		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayouts_.geometry, geometryPass.renderPass);
 		pipelineCI.pInputAssemblyState = &inputAssemblyState;
 		pipelineCI.pRasterizationState = &rasterizationState;
 		pipelineCI.pColorBlendState = &colorBlendState;
@@ -387,7 +387,7 @@ public:
 		shaderStages[0] = loadShader(getShadersPath() + "oit/geometry.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "oit/geometry.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.geometry));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.geometry));
 
 		// Create a color pipeline
 		VkPipelineColorBlendAttachmentState blendAttachmentState = vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
@@ -396,7 +396,7 @@ public:
 		VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 		vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-		pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayouts.color, renderPass);
+		pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayouts_.color, renderPass_);
 		pipelineCI.pInputAssemblyState = &inputAssemblyState;
 		pipelineCI.pRasterizationState = &rasterizationState;
 		pipelineCI.pColorBlendState = &colorBlendState;
@@ -413,14 +413,14 @@ public:
 		rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
 		rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.color));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.color));
 	}
 
 	void updateUniformBuffers()
 	{
-		renderPassUniformData.projection = camera.matrices.perspective;
-		renderPassUniformData.view = camera.matrices.view;
-		memcpy(renderPassUniformBuffer[currentBuffer].mapped, &renderPassUniformData, sizeof(RenderPassUniformData));
+		renderPassUniformData.projection = camera_.matrices.perspective;
+		renderPassUniformData.view = camera_.matrices.view;
+		memcpy(renderPassUniformBuffer[currentBuffer_].mapped, &renderPassUniformData, sizeof(RenderPassUniformData));
 	}
 
 	void prepare() override
@@ -431,12 +431,12 @@ public:
 		prepareGeometryPass();
 		setupDescriptors();
 		preparePipelines();
-		prepared = true;
+		prepared_ = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -447,11 +447,11 @@ public:
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.renderArea.extent.width = width_;
+		renderPassBeginInfo.renderArea.extent.height = height_;
 
-		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
-		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
@@ -488,14 +488,14 @@ public:
 		renderPassBeginInfo.pClearValues = nullptr;
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.geometry);
+		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.geometry);
 		uint32_t dynamicOffset = 0;
-		models.sphere.bindBuffers(cmdBuffer);
+		models_.sphere.bindBuffers(cmdBuffer);
 
 		// Render the scene
 		ObjectData objectData;
 
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts.geometry, 0, 1, &descriptorSets[currentBuffer].geometry, 0, nullptr);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.geometry, 0, 1, &descriptorSets_[currentBuffer_].geometry, 0, nullptr);
 		objectData.color = glm::vec4(1.0f, 0.0f, 0.0f, 0.5f);
 		for (int32_t x = 0; x < 5; x++)
 		{
@@ -506,21 +506,21 @@ public:
 					glm::mat4 T = glm::translate(glm::mat4(1.0f), glm::vec3(x - 2, y - 2, z - 2));
 					glm::mat4 S = glm::scale(glm::mat4(1.0f), glm::vec3(0.3f));
 					objectData.model = T * S;
-					vkCmdPushConstants(cmdBuffer, pipelineLayouts.geometry, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(ObjectData), &objectData);
-					models.sphere.draw(cmdBuffer);
+					vkCmdPushConstants(cmdBuffer, pipelineLayouts_.geometry, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(ObjectData), &objectData);
+					models_.sphere.draw(cmdBuffer);
 				}
 			}
 		}
 
-		models.cube.bindBuffers(cmdBuffer);
+		models_.cube.bindBuffers(cmdBuffer);
 		objectData.color = glm::vec4(0.0f, 0.0f, 1.0f, 0.5f);
 		for (uint32_t x = 0; x < 2; x++)
 		{
 			glm::mat4 T = glm::translate(glm::mat4(1.0f), glm::vec3(3.0f * x - 1.5f, 0.0f, 0.0f));
 			glm::mat4 S = glm::scale(glm::mat4(1.0f), glm::vec3(0.2f));
 			objectData.model = T * S;
-			vkCmdPushConstants(cmdBuffer, pipelineLayouts.geometry, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(ObjectData), &objectData);
-			models.cube.draw(cmdBuffer);
+			vkCmdPushConstants(cmdBuffer, pipelineLayouts_.geometry, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(ObjectData), &objectData);
+			models_.cube.draw(cmdBuffer);
 		}
 
 		vkCmdEndRenderPass(cmdBuffer);
@@ -535,14 +535,14 @@ public:
 		vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 1, &memoryBarrier, 0, nullptr, 0, nullptr);
 
 		// Begin the color render pass
-		renderPassBeginInfo.renderPass = renderPass;
-		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+		renderPassBeginInfo.renderPass = renderPass_;
+		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.color);
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts.color, 0, 1, &descriptorSets[currentBuffer].color, 0, nullptr);
+		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.color);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.color, 0, 1, &descriptorSets_[currentBuffer_].color, 0, nullptr);
 		vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
 		drawUI(cmdBuffer);
 		vkCmdEndRenderPass(cmdBuffer);
@@ -552,7 +552,7 @@ public:
 
 	void render() override
 	{
-		if (!prepared)
+		if (!prepared_)
 			return;
 		VulkanExampleBase::prepareFrame();
 		updateUniformBuffers();
@@ -564,15 +564,15 @@ public:
 	{
 		destroyGeometryPass();
 		prepareGeometryPass();
-		vkResetDescriptorPool(device, descriptorPool, 0);
+		vkResetDescriptorPool(device_, descriptorPool_, 0);
 		updateDescriptors();
 		resized = false;
 	}
 
 	void destroyGeometryPass()
 	{
-		vkDestroyRenderPass(device, geometryPass.renderPass, nullptr);
-		vkDestroyFramebuffer(device, geometryPass.framebuffer, nullptr);
+		vkDestroyRenderPass(device_, geometryPass.renderPass, nullptr);
+		vkDestroyFramebuffer(device_, geometryPass.framebuffer, nullptr);
 		geometryPass.geometry.destroy();
 		geometryPass.headIndex.destroy();
 		geometryPass.linkedList.destroy();

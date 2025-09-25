@@ -18,12 +18,12 @@ public:
 	struct Cube {
 		glm::mat4 matrix;
 		vks::Texture2D texture;
-		std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers;
+		std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers;
 		glm::vec3 rotation;
 	};
 	std::array<Cube, 2> cubes;
 
-	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffersCamera;
+	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffersCamera;
 
 	vkglTF::Model model;
 
@@ -49,7 +49,7 @@ public:
 		VkDescriptorSetLayout setLayout;
 	};
 	struct BufferDescriptorInfo : DescriptorInfo {
-		std::array<vks::Buffer, maxConcurrentFrames> buffers;
+		std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> buffers;
 	};
 	BufferDescriptorInfo uniformDescriptor{};
 
@@ -61,17 +61,17 @@ public:
 	uint64_t getBufferDeviceAddress(vks::Buffer &buffer)
 	{
 		VkBufferDeviceAddressInfoKHR bufferDeviceAI{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = buffer.buffer };
-		buffer.deviceAddress = vkGetBufferDeviceAddressKHR(device, &bufferDeviceAI);
+		buffer.deviceAddress = vkGetBufferDeviceAddressKHR(device_, &bufferDeviceAI);
 		return buffer.deviceAddress;
 	}
 
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Descriptor buffers (VK_EXT_descriptor_buffer)";
-		camera.type = Camera::CameraType::lookat;
-		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
-		camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
-		camera.setTranslation(glm::vec3(0.0f, 0.0f, -5.0f));
+		camera_.type = Camera::CameraType::lookat;
+		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
+		camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+		camera_.setTranslation(glm::vec3(0.0f, 0.0f, -5.0f));
 
 		apiVersion = VK_API_VERSION_1_1;
 
@@ -96,10 +96,10 @@ public:
 
 	~VulkanExample()
 	{
-		vkDestroyDescriptorSetLayout(device, uniformDescriptor.setLayout, nullptr);
-		vkDestroyDescriptorSetLayout(device, combinedImageDescriptor.setLayout, nullptr);
-		vkDestroyPipeline(device, pipeline, nullptr);
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device_, uniformDescriptor.setLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device_, combinedImageDescriptor.setLayout, nullptr);
+		vkDestroyPipeline(device_, pipeline, nullptr);
+		vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
 		for (auto& cube : cubes) {
 			for (auto& buffer : cube.uniformBuffers) {
 				buffer.destroy();
@@ -135,14 +135,14 @@ public:
 		setLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 		setLayoutBinding.descriptorCount = 1;
 		descriptorLayoutCI.pBindings = &setLayoutBinding;
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayoutCI, nullptr, &uniformDescriptor.setLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr, &uniformDescriptor.setLayout));
 
 		setLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		setLayoutBinding.binding = 0;
 		setLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		setLayoutBinding.descriptorCount = 1;
 		descriptorLayoutCI.pBindings = &setLayoutBinding;
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayoutCI, nullptr, &combinedImageDescriptor.setLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr, &combinedImageDescriptor.setLayout));
 	}
 
 	void preparePipelines()
@@ -157,7 +157,7 @@ public:
 		// The pipeline layout is based on the descriptor set layout we created above
 		pipelineLayoutCI.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
 		pipelineLayoutCI.pSetLayouts = setLayouts.data();
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr, &pipelineLayout));
 
 		const std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
@@ -174,7 +174,7 @@ public:
 			loadShader(getShadersPath() + "descriptorbuffer/cube.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT)
 		};
 
-		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
+		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_, 0);
 		pipelineCI.pInputAssemblyState = &inputAssemblyStateCI;
 		pipelineCI.pRasterizationState = &rasterizationStateCI;
 		pipelineCI.pColorBlendState = &colorBlendStateCI;
@@ -186,7 +186,7 @@ public:
 		pipelineCI.pStages = shaderStages.data();
 		pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState({ vkglTF::VertexComponent::Position, vkglTF::VertexComponent::Normal, vkglTF::VertexComponent::UV, vkglTF::VertexComponent::Color });
 		pipelineCI.flags = VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
 	}
 
 	void prepareDescriptorBuffer()
@@ -194,7 +194,7 @@ public:
 		// We need to get sizes and offsets for the descriptor layouts
 
 		// This is done using a new extension structures and features
-		PFN_vkGetPhysicalDeviceProperties2KHR vkGetPhysicalDeviceProperties2KHR = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2KHR>(vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2KHR"));
+		PFN_vkGetPhysicalDeviceProperties2KHR vkGetPhysicalDeviceProperties2KHR = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2KHR>(vkGetInstanceProcAddr(instance_, "vkGetPhysicalDeviceProperties2KHR"));
 		assert(vkGetPhysicalDeviceProperties2KHR);
 		VkPhysicalDeviceProperties2KHR deviceProps2{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR };
 		descriptorBufferProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT;
@@ -206,11 +206,11 @@ public:
 			vks::tools::exitFatal("This sample requires at least 2 descriptor bindings to run, the selected device only supports " + std::to_string(descriptorBufferProperties.maxResourceDescriptorBufferBindings), - 1);
 		}
 
-		vkGetDescriptorSetLayoutSizeEXT(device, uniformDescriptor.setLayout, &uniformDescriptor.layoutSize);
-		vkGetDescriptorSetLayoutSizeEXT(device, combinedImageDescriptor.setLayout, &combinedImageDescriptor.layoutSize);
+		vkGetDescriptorSetLayoutSizeEXT(device_, uniformDescriptor.setLayout, &uniformDescriptor.layoutSize);
+		vkGetDescriptorSetLayoutSizeEXT(device_, combinedImageDescriptor.setLayout, &combinedImageDescriptor.layoutSize);
 
-		vkGetDescriptorSetLayoutBindingOffsetEXT(device, uniformDescriptor.setLayout, 0, &uniformDescriptor.layoutOffset);
-		vkGetDescriptorSetLayoutBindingOffsetEXT(device, combinedImageDescriptor.setLayout, 0, &combinedImageDescriptor.layoutOffset);
+		vkGetDescriptorSetLayoutBindingOffsetEXT(device_, uniformDescriptor.setLayout, 0, &uniformDescriptor.layoutOffset);
+		vkGetDescriptorSetLayoutBindingOffsetEXT(device_, combinedImageDescriptor.setLayout, 0, &combinedImageDescriptor.layoutOffset);
 
 		// In order to copy resource descriptors to the correct place, we need to calculate aligned sizes
 		uniformDescriptor.layoutSize = vks::tools::alignedVkSize(uniformDescriptor.layoutSize, descriptorBufferProperties.descriptorBufferOffsetAlignment);
@@ -218,7 +218,7 @@ public:
 
 		// This buffer will contain resource descriptors for all the uniform buffers of a single frame (global matrices and cubes)
 		uint32_t bufferDescriptorSize = (static_cast<uint32_t>(cubes.size()) + 1) * uniformDescriptor.layoutSize;
-		for (uint32_t i = 0; i < maxConcurrentFrames; i++) {
+		for (uint32_t i = 0; i < MAX_CONCURRENT_FRAMES; i++) {
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(
 				VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -244,11 +244,11 @@ public:
 		descriptorInfo.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		for (uint32_t i = 0; i < static_cast<uint32_t>(cubes.size()); i++) {
 			descriptorInfo.data.pCombinedImageSampler = &cubes[i].texture.descriptor;
-			vkGetDescriptorEXT(device, &descriptorInfo, descriptorBufferProperties.combinedImageSamplerDescriptorSize, imageDescriptorBufPtr + i * combinedImageDescriptor.layoutSize + combinedImageDescriptor.layoutOffset);
+			vkGetDescriptorEXT(device_, &descriptorInfo, descriptorBufferProperties.combinedImageSamplerDescriptorSize, imageDescriptorBufPtr + i * combinedImageDescriptor.layoutSize + combinedImageDescriptor.layoutOffset);
 		}
 
 		// For uniform buffers we only need buffer device addresses and store them in the descriptor buffer
-		for (uint32_t i = 0; i < maxConcurrentFrames; i++) {
+		for (uint32_t i = 0; i < MAX_CONCURRENT_FRAMES; i++) {
 			// Offset for the frame to be updated
 			char* uniformDescriptorBufPtr = (char*)uniformDescriptor.buffers[i].mapped;
 
@@ -261,7 +261,7 @@ public:
 			descriptorInfo.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			descriptorInfo.data.pCombinedImageSampler = nullptr;
 			descriptorInfo.data.pUniformBuffer = &descriptorAddressInfo;
-			vkGetDescriptorEXT(device, &descriptorInfo, descriptorBufferProperties.uniformBufferDescriptorSize, uniformDescriptorBufPtr);
+			vkGetDescriptorEXT(device_, &descriptorInfo, descriptorBufferProperties.uniformBufferDescriptorSize, uniformDescriptorBufPtr);
 
 			// Per-model uniform buffers
 			for (uint32_t j = 0; j < static_cast<uint32_t>(cubes.size()); j++) {
@@ -273,7 +273,7 @@ public:
 				descriptorInfo.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 				descriptorInfo.data.pCombinedImageSampler = nullptr;
 				descriptorInfo.data.pUniformBuffer = &descriptorAddressInfo;
-				vkGetDescriptorEXT(device, &descriptorInfo, descriptorBufferProperties.uniformBufferDescriptorSize, uniformDescriptorBufPtr + (j + 1) * uniformDescriptor.layoutSize + uniformDescriptor.layoutOffset);
+				vkGetDescriptorEXT(device_, &descriptorInfo, descriptorBufferProperties.uniformBufferDescriptorSize, uniformDescriptorBufPtr + (j + 1) * uniformDescriptor.layoutSize + uniformDescriptor.layoutOffset);
 			}
 		}
 	}
@@ -281,14 +281,14 @@ public:
 	void loadAssets()
 	{
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
-		model.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice, queue, glTFLoadingFlags);
-		cubes[0].texture.loadFromFile(getAssetPath() + "textures/crate01_color_height_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
-		cubes[1].texture.loadFromFile(getAssetPath() + "textures/crate02_color_height_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
+		model.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice, queue_, glTFLoadingFlags);
+		cubes[0].texture.loadFromFile(getAssetPath() + "textures/crate01_color_height_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue_);
+		cubes[1].texture.loadFromFile(getAssetPath() + "textures/crate02_color_height_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue_);
 	}
 
 	void prepareUniformBuffers()
 	{
-		for (uint32_t i = 0; i < maxConcurrentFrames; i++) {
+		for (uint32_t i = 0; i < MAX_CONCURRENT_FRAMES; i++) {
 			// UBO for camera matrices
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &uniformBuffersCamera[i], sizeof(glm::mat4) * 2));
 			VK_CHECK_RESULT(uniformBuffersCamera[i].map());
@@ -302,8 +302,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		memcpy(uniformBuffersCamera[currentBuffer].mapped, &camera.matrices.perspective, sizeof(glm::mat4));
-		memcpy((char*)uniformBuffersCamera[currentBuffer].mapped + sizeof(glm::mat4), &camera.matrices.view, sizeof(glm::mat4));
+		memcpy(uniformBuffersCamera[currentBuffer_].mapped, &camera_.matrices.perspective, sizeof(glm::mat4));
+		memcpy((char*)uniformBuffersCamera[currentBuffer_].mapped + sizeof(glm::mat4), &camera_.matrices.view, sizeof(glm::mat4));
 
 		cubes[0].matrix = glm::translate(glm::mat4(1.0f), glm::vec3(-2.0f, 0.0f, 0.0f));
 		cubes[1].matrix = glm::translate(glm::mat4(1.0f), glm::vec3( 1.5f, 0.5f, 0.0f));
@@ -312,7 +312,7 @@ public:
 			cube.matrix = glm::rotate(cube.matrix, glm::radians(cube.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
 			cube.matrix = glm::rotate(cube.matrix, glm::radians(cube.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
 			cube.matrix = glm::scale(cube.matrix, glm::vec3(0.25f));
-			memcpy(cube.uniformBuffers[currentBuffer].mapped, &cube.matrix, sizeof(glm::mat4));
+			memcpy(cube.uniformBuffers[currentBuffer_].mapped, &cube.matrix, sizeof(glm::mat4));
 		}
 	}
 
@@ -321,25 +321,25 @@ public:
 		VulkanExampleBase::prepare();
 
 		// Using descriptor buffers requires some extensions, and with that functions to be loaded explicitly
-		vkGetBufferDeviceAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(vkGetDeviceProcAddr(device, "vkGetBufferDeviceAddressKHR"));
-		vkGetDescriptorSetLayoutSizeEXT = reinterpret_cast<PFN_vkGetDescriptorSetLayoutSizeEXT>(vkGetDeviceProcAddr(device, "vkGetDescriptorSetLayoutSizeEXT"));
-		vkGetDescriptorSetLayoutBindingOffsetEXT = reinterpret_cast<PFN_vkGetDescriptorSetLayoutBindingOffsetEXT>(vkGetDeviceProcAddr(device, "vkGetDescriptorSetLayoutBindingOffsetEXT"));
-		vkCmdBindDescriptorBuffersEXT = reinterpret_cast<PFN_vkCmdBindDescriptorBuffersEXT>(vkGetDeviceProcAddr(device, "vkCmdBindDescriptorBuffersEXT"));
-		vkGetDescriptorEXT = reinterpret_cast<PFN_vkGetDescriptorEXT>(vkGetDeviceProcAddr(device, "vkGetDescriptorEXT"));
-		vkCmdBindDescriptorBufferEmbeddedSamplersEXT = reinterpret_cast<PFN_vkCmdBindDescriptorBufferEmbeddedSamplersEXT>(vkGetDeviceProcAddr(device, "vkCmdBindDescriptorBufferEmbeddedSamplersEXT"));
-		vkCmdSetDescriptorBufferOffsetsEXT = reinterpret_cast<PFN_vkCmdSetDescriptorBufferOffsetsEXT>(vkGetDeviceProcAddr(device, "vkCmdSetDescriptorBufferOffsetsEXT"));
+		vkGetBufferDeviceAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(vkGetDeviceProcAddr(device_, "vkGetBufferDeviceAddressKHR"));
+		vkGetDescriptorSetLayoutSizeEXT = reinterpret_cast<PFN_vkGetDescriptorSetLayoutSizeEXT>(vkGetDeviceProcAddr(device_, "vkGetDescriptorSetLayoutSizeEXT"));
+		vkGetDescriptorSetLayoutBindingOffsetEXT = reinterpret_cast<PFN_vkGetDescriptorSetLayoutBindingOffsetEXT>(vkGetDeviceProcAddr(device_, "vkGetDescriptorSetLayoutBindingOffsetEXT"));
+		vkCmdBindDescriptorBuffersEXT = reinterpret_cast<PFN_vkCmdBindDescriptorBuffersEXT>(vkGetDeviceProcAddr(device_, "vkCmdBindDescriptorBuffersEXT"));
+		vkGetDescriptorEXT = reinterpret_cast<PFN_vkGetDescriptorEXT>(vkGetDeviceProcAddr(device_, "vkGetDescriptorEXT"));
+		vkCmdBindDescriptorBufferEmbeddedSamplersEXT = reinterpret_cast<PFN_vkCmdBindDescriptorBufferEmbeddedSamplersEXT>(vkGetDeviceProcAddr(device_, "vkCmdBindDescriptorBufferEmbeddedSamplersEXT"));
+		vkCmdSetDescriptorBufferOffsetsEXT = reinterpret_cast<PFN_vkCmdSetDescriptorBufferOffsetsEXT>(vkGetDeviceProcAddr(device_, "vkCmdSetDescriptorBufferOffsetsEXT"));
 
 		loadAssets();
 		prepareUniformBuffers();
 		setupDescriptors();
 		prepareDescriptorBuffer();
 		preparePipelines();
-		prepared = true;
+		prepared_ = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -348,14 +348,14 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass;
+		renderPassBeginInfo.renderPass = renderPass_;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.renderArea.extent.width = width_;
+		renderPassBeginInfo.renderArea.extent.height = height_;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
@@ -363,10 +363,10 @@ public:
 
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 		VkDeviceSize offsets[1] = { 0 };
@@ -413,7 +413,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared)
+		if (!prepared_)
 			return;
 		if (animate && !paused) {
 			cubes[0].rotation.x += 2.5f * frameTimer;

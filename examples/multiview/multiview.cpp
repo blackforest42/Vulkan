@@ -34,12 +34,12 @@ public:
 		glm::vec4 lightPos = glm::vec4(-2.5f, -3.5f, 0.0f, 1.0f);
 		float distortionAlpha = 0.2f;
 	} uniformData;
-	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers;
+	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipeline pipeline{ VK_NULL_HANDLE };
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
-	std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets{};
+	std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
 	VkPipeline viewDisplayPipelines[2]{};
 
@@ -55,10 +55,10 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Multiview rendering";
-		camera.type = Camera::CameraType::firstperson;
-		camera.setRotation(glm::vec3(0.0f, 90.0f, 0.0f));
-		camera.setTranslation(glm::vec3(7.0f, 3.2f, 0.0f));
-		camera.movementSpeed = 5.0f;
+		camera_.type = Camera::CameraType::firstperson;
+		camera_.setRotation(glm::vec3(0.0f, 90.0f, 0.0f));
+		camera_.setTranslation(glm::vec3(7.0f, 3.2f, 0.0f));
+		camera_.movementSpeed = 5.0f;
 
 		// Enable extension required for multiview
 		enabledDeviceExtensions.push_back(VK_KHR_MULTIVIEW_EXTENSION_NAME);
@@ -74,23 +74,23 @@ public:
 
 	~VulkanExample()
 	{
-		if (device) {
-			vkDestroyPipeline(device, pipeline, nullptr);
-			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-			vkDestroyImageView(device, multiviewPass.color.view, nullptr);
-			vkDestroyImage(device, multiviewPass.color.image, nullptr);
-			vkFreeMemory(device, multiviewPass.color.memory, nullptr);
-			vkDestroyImageView(device, multiviewPass.depth.view, nullptr);
-			vkDestroyImage(device, multiviewPass.depth.image, nullptr);
-			vkFreeMemory(device, multiviewPass.depth.memory, nullptr);
-			vkDestroyRenderPass(device, multiviewPass.renderPass, nullptr);
-			vkDestroySampler(device, multiviewPass.sampler, nullptr);
-			vkDestroyFramebuffer(device, multiviewPass.frameBuffer, nullptr);
+		if (device_) {
+			vkDestroyPipeline(device_, pipeline, nullptr);
+			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
+			vkDestroyImageView(device_, multiviewPass.color.view, nullptr);
+			vkDestroyImage(device_, multiviewPass.color.image, nullptr);
+			vkFreeMemory(device_, multiviewPass.color.memory, nullptr);
+			vkDestroyImageView(device_, multiviewPass.depth.view, nullptr);
+			vkDestroyImage(device_, multiviewPass.depth.image, nullptr);
+			vkFreeMemory(device_, multiviewPass.depth.memory, nullptr);
+			vkDestroyRenderPass(device_, multiviewPass.renderPass, nullptr);
+			vkDestroySampler(device_, multiviewPass.sampler, nullptr);
+			vkDestroyFramebuffer(device_, multiviewPass.frameBuffer, nullptr);
 			for (auto& pipeline : viewDisplayPipelines) {
-				vkDestroyPipeline(device, pipeline, nullptr);
+				vkDestroyPipeline(device_, pipeline, nullptr);
 			}
-			for (auto& buffer : uniformBuffers) {
+			for (auto& buffer : uniformBuffers_) {
 				buffer.destroy();
 			}
 		}
@@ -112,17 +112,17 @@ public:
 			VkImageCreateInfo imageCI= vks::initializers::imageCreateInfo();
 			imageCI.imageType = VK_IMAGE_TYPE_2D;
 			imageCI.format = depthFormat;
-			imageCI.extent = { width, height, 1 };
+			imageCI.extent = { width_, height_, 1 };
 			imageCI.mipLevels = 1;
 			imageCI.arrayLayers = multiviewLayerCount;
 			imageCI.samples = VK_SAMPLE_COUNT_1_BIT;
 			imageCI.tiling = VK_IMAGE_TILING_OPTIMAL;
 			imageCI.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 			imageCI.flags = 0;
-			VK_CHECK_RESULT(vkCreateImage(device, &imageCI, nullptr, &multiviewPass.depth.image));
+			VK_CHECK_RESULT(vkCreateImage(device_, &imageCI, nullptr, &multiviewPass.depth.image));
 
 			VkMemoryRequirements memReqs;
-			vkGetImageMemoryRequirements(device, multiviewPass.depth.image, &memReqs);
+			vkGetImageMemoryRequirements(device_, multiviewPass.depth.image, &memReqs);
 
 			VkMemoryAllocateInfo memAllocInfo{};
 			memAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -148,9 +148,9 @@ public:
 
 			memAllocInfo.allocationSize = memReqs.size;
 			memAllocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-			VK_CHECK_RESULT(vkAllocateMemory(device, &memAllocInfo, nullptr, &multiviewPass.depth.memory));
-			VK_CHECK_RESULT(vkBindImageMemory(device, multiviewPass.depth.image, multiviewPass.depth.memory, 0));
-			VK_CHECK_RESULT(vkCreateImageView(device, &depthStencilView, nullptr, &multiviewPass.depth.view));
+			VK_CHECK_RESULT(vkAllocateMemory(device_, &memAllocInfo, nullptr, &multiviewPass.depth.memory));
+			VK_CHECK_RESULT(vkBindImageMemory(device_, multiviewPass.depth.image, multiviewPass.depth.memory, 0));
+			VK_CHECK_RESULT(vkCreateImageView(device_, &depthStencilView, nullptr, &multiviewPass.depth.view));
 		}
 
 		/*
@@ -159,27 +159,27 @@ public:
 		{
 			VkImageCreateInfo imageCI = vks::initializers::imageCreateInfo();
 			imageCI.imageType = VK_IMAGE_TYPE_2D;
-			imageCI.format = swapChain.colorFormat;
-			imageCI.extent = { width, height, 1 };
+			imageCI.format = swapChain_.colorFormat;
+			imageCI.extent = { width_, height_, 1 };
 			imageCI.mipLevels = 1;
 			imageCI.arrayLayers = multiviewLayerCount;
 			imageCI.samples = VK_SAMPLE_COUNT_1_BIT;
 			imageCI.tiling = VK_IMAGE_TILING_OPTIMAL;
 			imageCI.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-			VK_CHECK_RESULT(vkCreateImage(device, &imageCI, nullptr, &multiviewPass.color.image));
+			VK_CHECK_RESULT(vkCreateImage(device_, &imageCI, nullptr, &multiviewPass.color.image));
 
 			VkMemoryRequirements memReqs;
-			vkGetImageMemoryRequirements(device, multiviewPass.color.image, &memReqs);
+			vkGetImageMemoryRequirements(device_, multiviewPass.color.image, &memReqs);
 
 			VkMemoryAllocateInfo memoryAllocInfo = vks::initializers::memoryAllocateInfo();
 			memoryAllocInfo.allocationSize = memReqs.size;
 			memoryAllocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-			VK_CHECK_RESULT(vkAllocateMemory(device, &memoryAllocInfo, nullptr, &multiviewPass.color.memory));
-			VK_CHECK_RESULT(vkBindImageMemory(device, multiviewPass.color.image, multiviewPass.color.memory, 0));
+			VK_CHECK_RESULT(vkAllocateMemory(device_, &memoryAllocInfo, nullptr, &multiviewPass.color.memory));
+			VK_CHECK_RESULT(vkBindImageMemory(device_, multiviewPass.color.image, multiviewPass.color.memory, 0));
 
 			VkImageViewCreateInfo imageViewCI = vks::initializers::imageViewCreateInfo();
 			imageViewCI.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-			imageViewCI.format = swapChain.colorFormat;
+			imageViewCI.format = swapChain_.colorFormat;
 			imageViewCI.flags = 0;
 			imageViewCI.subresourceRange = {};
 			imageViewCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -188,7 +188,7 @@ public:
 			imageViewCI.subresourceRange.baseArrayLayer = 0;
 			imageViewCI.subresourceRange.layerCount = multiviewLayerCount;
 			imageViewCI.image = multiviewPass.color.image;
-			VK_CHECK_RESULT(vkCreateImageView(device, &imageViewCI, nullptr, &multiviewPass.color.view));
+			VK_CHECK_RESULT(vkCreateImageView(device_, &imageViewCI, nullptr, &multiviewPass.color.view));
 
 			// Create sampler to sample from the attachment in the fragment shader
 			VkSamplerCreateInfo samplerCI = vks::initializers::samplerCreateInfo();
@@ -203,7 +203,7 @@ public:
 			samplerCI.minLod = 0.0f;
 			samplerCI.maxLod = 1.0f;
 			samplerCI.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-			VK_CHECK_RESULT(vkCreateSampler(device, &samplerCI, nullptr, &multiviewPass.sampler));
+			VK_CHECK_RESULT(vkCreateSampler(device_, &samplerCI, nullptr, &multiviewPass.sampler));
 
 			// Fill a descriptor for later use in a descriptor set
 			multiviewPass.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -217,7 +217,7 @@ public:
 		{
 			std::array<VkAttachmentDescription, 2> attachments = {};
 			// Color attachment
-			attachments[0].format = swapChain.colorFormat;
+			attachments[0].format = swapChain_.colorFormat;
 			attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
 			attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 			attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -310,7 +310,7 @@ public:
 
 			renderPassCI.pNext = &renderPassMultiviewCI;
 
-			VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassCI, nullptr, &multiviewPass.renderPass));
+			VK_CHECK_RESULT(vkCreateRenderPass(device_, &renderPassCI, nullptr, &multiviewPass.renderPass));
 		}
 
 		/*
@@ -325,27 +325,27 @@ public:
 			framebufferCI.renderPass = multiviewPass.renderPass;
 			framebufferCI.attachmentCount = 2;
 			framebufferCI.pAttachments = attachments;
-			framebufferCI.width = width;
-			framebufferCI.height = height;
+			framebufferCI.width = width_;
+			framebufferCI.height = height_;
 			framebufferCI.layers = 1;
-			VK_CHECK_RESULT(vkCreateFramebuffer(device, &framebufferCI, nullptr, &multiviewPass.frameBuffer));
+			VK_CHECK_RESULT(vkCreateFramebuffer(device_, &framebufferCI, nullptr, &multiviewPass.frameBuffer));
 		}
 	}
 
 	void loadAssets()
 	{
-		scene.loadFromFile(getAssetPath() + "models/sampleroom.gltf", vulkanDevice, queue, vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY);
+		scene.loadFromFile(getAssetPath() + "models/sampleroom.gltf", vulkanDevice, queue_, vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY);
 	}
 
 	void prepareDescriptors()
 	{
 		// Pool
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, maxConcurrentFrames)
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_CONCURRENT_FRAMES)
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(static_cast<uint32_t>(poolSizes.size()), poolSizes.data(), maxConcurrentFrames);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
+		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(static_cast<uint32_t>(poolSizes.size()), poolSizes.data(), MAX_CONCURRENT_FRAMES);
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
 
 		// Layouts
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -353,9 +353,9 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1)
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr, &descriptorSetLayout));
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 
 		updateDescriptors();
 	}
@@ -365,14 +365,14 @@ public:
 	{
 		// Sets per frame, just like the buffers themselves
 		// Images don't need to be duplicated per frame, we use the same for each descriptor set to keep things simple
-		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-		for (auto i = 0; i < uniformBuffers.size(); i++) {
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i]));
+		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayout, 1);
+		for (auto i = 0; i < uniformBuffers_.size(); i++) {
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-				vks::initializers::writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers[i].descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &multiviewPass.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &multiviewPass.descriptor),
 			};
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}
 	}
 	
@@ -387,7 +387,7 @@ public:
 		extFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES_KHR;
 		deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR;
 		deviceFeatures2.pNext = &extFeatures;
-		PFN_vkGetPhysicalDeviceFeatures2KHR vkGetPhysicalDeviceFeatures2KHR = reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures2KHR>(vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceFeatures2KHR"));
+		PFN_vkGetPhysicalDeviceFeatures2KHR vkGetPhysicalDeviceFeatures2KHR = reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures2KHR>(vkGetInstanceProcAddr(instance_, "vkGetPhysicalDeviceFeatures2KHR"));
 		vkGetPhysicalDeviceFeatures2KHR(physicalDevice, &deviceFeatures2);
 		std::cout << "Multiview features:" << std::endl;
 		std::cout << "\tmultiview = " << extFeatures.multiview << std::endl;
@@ -400,7 +400,7 @@ public:
 		extProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_PROPERTIES_KHR;
 		deviceProps2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
 		deviceProps2.pNext = &extProps;
-		PFN_vkGetPhysicalDeviceProperties2KHR vkGetPhysicalDeviceProperties2KHR = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2KHR>(vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2KHR"));
+		PFN_vkGetPhysicalDeviceProperties2KHR vkGetPhysicalDeviceProperties2KHR = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2KHR>(vkGetInstanceProcAddr(instance_, "vkGetPhysicalDeviceProperties2KHR"));
 		vkGetPhysicalDeviceProperties2KHR(physicalDevice, &deviceProps2);
 		std::cout << "Multiview properties:" << std::endl;
 		std::cout << "\tmaxMultiviewViewCount = " << extProps.maxMultiviewViewCount << std::endl;
@@ -439,7 +439,7 @@ public:
 		shaderStages[1] = loadShader(getShadersPath() + "multiview/multiview.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 		pipelineCI.stageCount = 2;
 		pipelineCI.pStages = shaderStages.data();
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
 
 		/*
 			Full screen pass
@@ -468,8 +468,8 @@ public:
 			VkPipelineVertexInputStateCreateInfo emptyInputState = vks::initializers::pipelineVertexInputStateCreateInfo();
 			pipelineCI.pVertexInputState = &emptyInputState;
 			pipelineCI.layout = pipelineLayout;
-			pipelineCI.renderPass = renderPass;
-			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &viewDisplayPipelines[i]));
+			pipelineCI.renderPass = renderPass_;
+			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache, 1, &pipelineCI, nullptr, &viewDisplayPipelines[i]));
 		}
 
 	}
@@ -477,7 +477,7 @@ public:
 	// Prepare and initialize uniform buffer containing shader uniforms
 	void prepareUniformBuffers()
 	{
-		for (auto& buffer : uniformBuffers) {
+		for (auto& buffer : uniformBuffers_) {
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
 			VK_CHECK_RESULT(buffer.map());
 		}
@@ -489,7 +489,7 @@ public:
 		// See http://paulbourke.net/stereographics/stereorender/
 
 		// Calculate some variables
-		float aspectRatio = (float)(width * 0.5f) / (float)height;
+		float aspectRatio = (float)(width_ * 0.5f) / (float)height_;
 		float wd2 = zNear * tan(glm::radians(fov / 2.0f));
 		float ndfl = zNear / focalLength;
 		float left, right;
@@ -497,24 +497,24 @@ public:
 		float bottom = -wd2;
 
 		glm::vec3 camFront;
-		camFront.x = -cos(glm::radians(camera.rotation.x)) * sin(glm::radians(camera.rotation.y));
-		camFront.y = sin(glm::radians(camera.rotation.x));
-		camFront.z = cos(glm::radians(camera.rotation.x)) * cos(glm::radians(camera.rotation.y));
+		camFront.x = -cos(glm::radians(camera_.rotation.x)) * sin(glm::radians(camera_.rotation.y));
+		camFront.y = sin(glm::radians(camera_.rotation.x));
+		camFront.z = cos(glm::radians(camera_.rotation.x)) * cos(glm::radians(camera_.rotation.y));
 		camFront = glm::normalize(camFront);
 		glm::vec3 camRight = glm::normalize(glm::cross(camFront, glm::vec3(0.0f, 1.0f, 0.0f)));
 
 		glm::mat4 rotM = glm::mat4(1.0f);
 		glm::mat4 transM;
 
-		rotM = glm::rotate(rotM, glm::radians(camera.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-		rotM = glm::rotate(rotM, glm::radians(camera.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-		rotM = glm::rotate(rotM, glm::radians(camera.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+		rotM = glm::rotate(rotM, glm::radians(camera_.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+		rotM = glm::rotate(rotM, glm::radians(camera_.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+		rotM = glm::rotate(rotM, glm::radians(camera_.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
 
 		// Left eye
 		left = -aspectRatio * wd2 - 0.5f * eyeSeparation * ndfl;
 		right = aspectRatio * wd2 - 0.5f * eyeSeparation * ndfl;
 
-		transM = glm::translate(glm::mat4(1.0f), camera.position - camRight * (eyeSeparation / 2.0f));
+		transM = glm::translate(glm::mat4(1.0f), camera_.position - camRight * (eyeSeparation / 2.0f));
 
 		uniformData.projection[0] = glm::frustum(left, right, bottom, top, zNear, zFar);
 		uniformData.modelview[0] = rotM * transM;
@@ -523,12 +523,12 @@ public:
 		left = -aspectRatio * wd2 + 0.5f * eyeSeparation * ndfl;
 		right = aspectRatio * wd2 + 0.5f * eyeSeparation * ndfl;
 
-		transM = glm::translate(glm::mat4(1.0f), camera.position + camRight * (eyeSeparation / 2.0f));
+		transM = glm::translate(glm::mat4(1.0f), camera_.position + camRight * (eyeSeparation / 2.0f));
 
 		uniformData.projection[1] = glm::frustum(left, right, bottom, top, zNear, zFar);
 		uniformData.modelview[1] = rotM * transM;
 
-		memcpy(uniformBuffers[currentBuffer].mapped, &uniformData, sizeof(UniformData));
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
 	}
 
 	void prepare()
@@ -539,22 +539,22 @@ public:
 		prepareUniformBuffers();
 		prepareDescriptors();
 		preparePipelines();
-		prepared = true;
+		prepared_ = true;
 	}
 
 	// SRS - Recreate and update Multiview resources when window size has changed
 	virtual void windowResized()
 	{
-		vkDestroyImageView(device, multiviewPass.color.view, nullptr);
-		vkDestroyImage(device, multiviewPass.color.image, nullptr);
-		vkFreeMemory(device, multiviewPass.color.memory, nullptr);
-		vkDestroyImageView(device, multiviewPass.depth.view, nullptr);
-		vkDestroyImage(device, multiviewPass.depth.image, nullptr);
-		vkFreeMemory(device, multiviewPass.depth.memory, nullptr);
+		vkDestroyImageView(device_, multiviewPass.color.view, nullptr);
+		vkDestroyImage(device_, multiviewPass.color.image, nullptr);
+		vkFreeMemory(device_, multiviewPass.color.memory, nullptr);
+		vkDestroyImageView(device_, multiviewPass.depth.view, nullptr);
+		vkDestroyImage(device_, multiviewPass.depth.image, nullptr);
+		vkFreeMemory(device_, multiviewPass.depth.memory, nullptr);
 
-		vkDestroyRenderPass(device, multiviewPass.renderPass, nullptr);
-		vkDestroySampler(device, multiviewPass.sampler, nullptr);
-		vkDestroyFramebuffer(device, multiviewPass.frameBuffer, nullptr);
+		vkDestroyRenderPass(device_, multiviewPass.renderPass, nullptr);
+		vkDestroySampler(device_, multiviewPass.sampler, nullptr);
+		vkDestroyFramebuffer(device_, multiviewPass.frameBuffer, nullptr);
 
 		prepareMultiview();
 		updateDescriptors();
@@ -564,7 +564,7 @@ public:
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer_];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -575,8 +575,8 @@ public:
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.renderArea.extent.width = width_;
+		renderPassBeginInfo.renderArea.extent.height = height_;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
 
@@ -588,12 +588,12 @@ public:
 			renderPassBeginInfo.framebuffer = multiviewPass.frameBuffer;
 
 			vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+			VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
 			vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
-			VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+			VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
 			vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
-			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentBuffer], 0, nullptr);
+			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_], 0, nullptr);
 			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 			scene.draw(cmdBuffer);
 
@@ -602,24 +602,24 @@ public:
 
 		// Display the multiview images
 		{
-			renderPassBeginInfo.renderPass = renderPass;
-			renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+			renderPassBeginInfo.renderPass = renderPass_;
+			renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
 
 			vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			VkViewport viewport = vks::initializers::viewport((float)width / 2.0f, (float)height, 0.0f, 1.0f);
-			VkRect2D scissor = vks::initializers::rect2D(width / 2, height, 0, 0);
+			VkViewport viewport = vks::initializers::viewport((float)width_ / 2.0f, (float)height_, 0.0f, 1.0f);
+			VkRect2D scissor = vks::initializers::rect2D(width_ / 2, height_, 0, 0);
 			vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 			vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
-			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentBuffer], 0, nullptr);
+			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_], 0, nullptr);
 
 			// Left eye
 			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, viewDisplayPipelines[0]);
 			vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
 
 			// Right eye
-			viewport.x = (float)width / 2;
-			scissor.offset.x = width / 2;
+			viewport.x = (float)width_ / 2;
+			scissor.offset.x = width_ / 2;
 			vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 			vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
@@ -636,7 +636,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared)
+		if (!prepared_)
 			return;
 		VulkanExampleBase::prepareFrame();
 		updateUniformBuffers();
