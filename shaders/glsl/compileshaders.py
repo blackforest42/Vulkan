@@ -7,9 +7,16 @@ import os
 import subprocess
 import sys
 
+def dir_path(string):
+    if os.path.isdir(string):
+        return string
+    else:
+        raise NotADirectoryError(string)
+
 parser = argparse.ArgumentParser(description='Compile all GLSL shaders')
 parser.add_argument('--glslang', type=str, help='path to glslangvalidator executable')
 parser.add_argument('--g', action='store_true', help='compile with debug symbols')
+parser.add_argument('--path', type=dir_path)
 args = parser.parse_args()
 
 def findGlslang():
@@ -34,6 +41,9 @@ file_extensions = tuple([".vert", ".frag", ".comp", ".geom", ".tesc", ".tese", "
 
 glslang_path = findGlslang()
 dir_path = os.path.dirname(os.path.realpath(__file__))
+if args.path:
+    dir_path =args.path
+    print("DIRECTORY PATH: ", dir_path)
 dir_path = dir_path.replace('\\', '/')
 for root, dirs, files in os.walk(dir_path):
     for file in files:
