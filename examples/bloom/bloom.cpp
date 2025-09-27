@@ -89,8 +89,9 @@ class VulkanExample : public VulkanExampleBase {
     int32_t width, height;
     VkRenderPass renderPass;
     VkSampler sampler;
+    // 1 framebuffer for each vert/hori pass
     std::array<FrameBuffer, 2> framebuffers;
-  } offscreenPass_{};
+  } offscreenPass_{};  // Handles the vertical and horzontal blurring passes
 
   VulkanExample() : VulkanExampleBase() {
     title = "Bloom (offscreen rendering)";
@@ -249,7 +250,6 @@ class VulkanExample : public VulkanExampleBase {
     renderPassInfo.pSubpasses = &subpassDescription;
     renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
     renderPassInfo.pDependencies = dependencies.data();
-
     VK_CHECK_RESULT(vkCreateRenderPass(device_, &renderPassInfo, nullptr,
                                        &offscreenPass_.renderPass));
 
