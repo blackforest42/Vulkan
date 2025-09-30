@@ -333,10 +333,10 @@ public:
 		frameBufferCreateInfo.layers = 1;
 
 		// Create frame buffers for every swap chain image
-		frameBuffers_.resize(swapChain_.images.size());
+		frameBuffers_.resize(swapChain_.images_.size());
 		for (uint32_t i = 0; i < frameBuffers_.size(); i++)
 		{
-			attachments[1] = swapChain_.imageViews[i];
+			attachments[1] = swapChain_.imageViews_[i];
 			VK_CHECK_RESULT(vkCreateFramebuffer(device_, &frameBufferCreateInfo, nullptr, &frameBuffers_[i]));
 		}
 	}

@@ -190,7 +190,7 @@ public:
 		}
 		// Render completion
 		// Semaphore used to ensure that all commands submitted have been finished before submitting the image to the queue
-		renderCompleteSemaphores.resize(swapChain_.images.size());
+		renderCompleteSemaphores.resize(swapChain_.images_.size());
 		for (auto& semaphore : renderCompleteSemaphores) {
 			VkSemaphoreCreateInfo semaphoreCI{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
 			VK_CHECK_RESULT(vkCreateSemaphore(device_, &semaphoreCI, nullptr, &semaphore));
@@ -202,7 +202,7 @@ public:
 	{
 		// All command buffers are allocated from the same command pool
 		VkCommandPoolCreateInfo commandPoolCI{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
-		commandPoolCI.queueFamilyIndex = swapChain_.queueNodeIndex;
+		commandPoolCI.queueFamilyIndex = swapChain_.queueNodeIndex_;
 		commandPoolCI.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		VK_CHECK_RESULT(vkCreateCommandPool(device_, &commandPoolCI, nullptr, &commandPool));
 		// Allocate one command buffer per max. concurrent frame from above pool
@@ -703,7 +703,7 @@ public:
 		// Get the next swap chain image from the implementation
 		// Note that the implementation is free to return the images in any order, so we must use the acquire function and can't just cycle through the images/imageIndex on our own
 		uint32_t imageIndex{ 0 };
-		VkResult result = vkAcquireNextImageKHR(device_, swapChain_.swapChain, UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+		VkResult result = vkAcquireNextImageKHR(device_, swapChain_.swapChain_, UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
 			windowResize();
 			return;
@@ -726,13 +726,13 @@ public:
 		VK_CHECK_RESULT(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));
 
 		// With dynamic rendering we need to explicitly add layout transitions by using barriers, this set of barriers prepares the color and depth images for output
-		vks::tools::insertImageMemoryBarrier(commandBuffer, swapChain_.images[imageIndex], 0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
+		vks::tools::insertImageMemoryBarrier(commandBuffer, swapChain_.images_[imageIndex], 0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
 		vks::tools::insertImageMemoryBarrier(commandBuffer, depthStencil_.image, 0, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VkImageSubresourceRange{ VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0, 1 });
 
 		// New structures are used to define the attachments used in dynamic rendering
 		// Color attachment
 		VkRenderingAttachmentInfo colorAttachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
-		colorAttachment.imageView = swapChain_.imageViews[imageIndex];
+		colorAttachment.imageView = swapChain_.imageViews_[imageIndex];
 		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -776,7 +776,7 @@ public:
 		vkCmdEndRendering(commandBuffer);
 
 		// This barrier prepares the color image for presentation, we don't need to care for the depth image
-		vks::tools::insertImageMemoryBarrier(commandBuffer, swapChain_.images[imageIndex], VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_NONE, VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
+		vks::tools::insertImageMemoryBarrier(commandBuffer, swapChain_.images_[imageIndex], VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_NONE, VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
 		VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
 
 		// Submit the command buffer to the graphics queue
@@ -806,7 +806,7 @@ public:
 		presentInfo.waitSemaphoreCount = 1;
 		presentInfo.pWaitSemaphores = &renderCompleteSemaphores[imageIndex];
 		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = &swapChain_.swapChain;
+		presentInfo.pSwapchains = &swapChain_.swapChain_;
 		presentInfo.pImageIndices = &imageIndex;
 		result = vkQueuePresentKHR(queue_, &presentInfo);
 		if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {

@@ -1046,7 +1046,7 @@ class VulkanExample : public VulkanExampleBase {
     */
 
     // Prepare current swap chain image as transfer destination
-    vks::tools::setImageLayout(cmdBuffer, swapChain_.images[currentImageIndex_],
+    vks::tools::setImageLayout(cmdBuffer, swapChain_.images_[currentImageIndex_],
                                VK_IMAGE_LAYOUT_UNDEFINED,
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                subresourceRange);
@@ -1064,11 +1064,11 @@ class VulkanExample : public VulkanExampleBase {
     copyRegion.extent = {width_, height_, 1};
     vkCmdCopyImage(cmdBuffer, storageImage.image,
                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                   swapChain_.images[currentImageIndex_],
+                   swapChain_.images_[currentImageIndex_],
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
     // Transition swap chain image back for presentation
-    vks::tools::setImageLayout(cmdBuffer, swapChain_.images[currentImageIndex_],
+    vks::tools::setImageLayout(cmdBuffer, swapChain_.images_[currentImageIndex_],
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                                subresourceRange);

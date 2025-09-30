@@ -728,7 +728,7 @@ public:
 		// Prepare current swap chain image as transfer destination
 		vks::tools::setImageLayout(
 			cmdBuffer,
-			swapChain_.images[currentImageIndex_],
+			swapChain_.images_[currentImageIndex_],
 			VK_IMAGE_LAYOUT_UNDEFINED,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			subresourceRange);
@@ -747,12 +747,12 @@ public:
 		copyRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
 		copyRegion.dstOffset = { 0, 0, 0 };
 		copyRegion.extent = { width_, height_, 1 };
-		vkCmdCopyImage(cmdBuffer, storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChain_.images[currentImageIndex_], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+		vkCmdCopyImage(cmdBuffer, storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChain_.images_[currentImageIndex_], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
 		// Transition swap chain image back for presentation
 		vks::tools::setImageLayout(
 			cmdBuffer,
-			swapChain_.images[currentImageIndex_],
+			swapChain_.images_[currentImageIndex_],
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 			subresourceRange);

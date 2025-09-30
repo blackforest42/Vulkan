@@ -92,9 +92,9 @@ void VulkanRaytracingSample::setupRenderPass()
 void VulkanRaytracingSample::setupFrameBuffer()
 {
 
-	frameBuffers_.resize(swapChain_.images.size());
+	frameBuffers_.resize(swapChain_.images_.size());
 	for (uint32_t i = 0; i < frameBuffers_.size(); i++) {
-		VkImageView attachments[2] { swapChain_.imageViews[i], depthStencil_.view };
+		VkImageView attachments[2] { swapChain_.imageViews_[i], depthStencil_.view };
 		VkFramebufferCreateInfo frameBufferCreateInfo{
 			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
 			.renderPass = renderPass_,

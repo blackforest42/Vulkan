@@ -197,7 +197,7 @@ public:
 		}
 		// Render completion
 		// Semaphore used to ensure that all commands submitted have been finished before submitting the image to the queue
-		renderCompleteSemaphores.resize(swapChain_.images.size());
+		renderCompleteSemaphores.resize(swapChain_.images_.size());
 		for (auto& semaphore : renderCompleteSemaphores) {
 			VkSemaphoreCreateInfo semaphoreCI{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
 			VK_CHECK_RESULT(vkCreateSemaphore(device_, &semaphoreCI, nullptr, &semaphore));
@@ -209,7 +209,7 @@ public:
 		// All command buffers are allocated from a command pool
 		VkCommandPoolCreateInfo commandPoolCI{};
 		commandPoolCI.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-		commandPoolCI.queueFamilyIndex = swapChain_.queueNodeIndex;
+		commandPoolCI.queueFamilyIndex = swapChain_.queueNodeIndex_;
 		commandPoolCI.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		VK_CHECK_RESULT(vkCreateCommandPool(device_, &commandPoolCI, nullptr, &commandPool));
 
@@ -510,12 +510,12 @@ public:
 	void setupFrameBuffer() override
 	{
 		// Create a frame buffer for every image in the swapchain
-		frameBuffers_.resize(swapChain_.images.size());
+		frameBuffers_.resize(swapChain_.images_.size());
 		for (size_t i = 0; i < frameBuffers_.size(); i++)
 		{
 			std::array<VkImageView, 2> attachments{};
 			// Color attachment is the view of the swapchain image
-			attachments[0] = swapChain_.imageViews[i];
+			attachments[0] = swapChain_.imageViews_[i];
 			// Depth/Stencil attachment is the same for all frame buffers due to how depth works with current GPUs
 			attachments[1] = depthStencil_.view;         
 
@@ -917,7 +917,7 @@ public:
 		// Get the next swap chain image from the implementation
 		// Note that the implementation is free to return the images in any order, so we must use the acquire function and can't just cycle through the images/imageIndex on our own
 		uint32_t imageIndex;
-		VkResult result = vkAcquireNextImageKHR(device_, swapChain_.swapChain, UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+		VkResult result = vkAcquireNextImageKHR(device_, swapChain_.swapChain_, UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
 			windowResize();
 			return;
@@ -1031,7 +1031,7 @@ public:
 		presentInfo.waitSemaphoreCount = 1;
 		presentInfo.pWaitSemaphores = &renderCompleteSemaphores[imageIndex];
 		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = &swapChain_.swapChain;
+		presentInfo.pSwapchains = &swapChain_.swapChain_;
 		presentInfo.pImageIndices = &imageIndex;
 		result = vkQueuePresentKHR(queue_, &presentInfo);
 

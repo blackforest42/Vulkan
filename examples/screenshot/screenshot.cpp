@@ -163,7 +163,7 @@ public:
 		}
 
 		// Source for the copy is the last rendered swapchain image
-		VkImage srcImage = swapChain_.images[currentBuffer_];
+		VkImage srcImage = swapChain_.images_[currentBuffer_];
 
 		// Create the linear tiled destination image to copy to and to read the memory from
 		VkImageCreateInfo imageCreateCI(vks::initializers::imageCreateInfo());

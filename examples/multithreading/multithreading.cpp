@@ -146,7 +146,7 @@ public:
 
 			// Command pools need to be per thread
 			VkCommandPoolCreateInfo cmdPoolInfo = vks::initializers::commandPoolCreateInfo();
-			cmdPoolInfo.queueFamilyIndex = swapChain_.queueNodeIndex;
+			cmdPoolInfo.queueFamilyIndex = swapChain_.queueNodeIndex_;
 			cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 			VK_CHECK_RESULT(vkCreateCommandPool(device_, &cmdPoolInfo, nullptr, &thread->commandPool));
 

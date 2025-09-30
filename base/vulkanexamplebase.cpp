@@ -754,7 +754,7 @@ void VulkanExampleBase::submitFrame(bool skipQueueSubmit) {
       .waitSemaphoreCount = 1,
       .pWaitSemaphores = &renderCompleteSemaphores_[currentImageIndex_],
       .swapchainCount = 1,
-      .pSwapchains = &swapChain_.swapChain,
+      .pSwapchains = &swapChain_.swapChain_,
       .pImageIndices = &currentImageIndex_};
   VkResult result = vkQueuePresentKHR(queue_, &presentInfo);
   // Recreate the swapchain if it's no longer compatible with the surface
@@ -2978,7 +2978,7 @@ void VulkanExampleBase::createSynchronizationPrimitives() {
   }
   // Semaphore used to ensure that all commands submitted have been finished
   // before submitting the image to the queue
-  renderCompleteSemaphores_.resize(swapChain_.images.size());
+  renderCompleteSemaphores_.resize(swapChain_.images_.size());
   for (auto& semaphore : renderCompleteSemaphores_) {
     VkSemaphoreCreateInfo semaphoreCI{
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
@@ -2991,7 +2991,7 @@ void VulkanExampleBase::createCommandPool() {
   VkCommandPoolCreateInfo cmdPoolInfo{
       .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
       .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-      .queueFamilyIndex = swapChain_.queueNodeIndex,
+      .queueFamilyIndex = swapChain_.queueNodeIndex_,
   };
   VK_CHECK_RESULT(
       vkCreateCommandPool(device_, &cmdPoolInfo, nullptr, &cmdPool_));
@@ -3047,9 +3047,9 @@ void VulkanExampleBase::setupDepthStencil() {
 void VulkanExampleBase::setupFrameBuffer() {
   // Create frame buffers for every swap chain image, only one depth/stencil
   // attachment is required, as this is owned by the application
-  frameBuffers_.resize(swapChain_.images.size());
+  frameBuffers_.resize(swapChain_.images_.size());
   for (uint32_t i = 0; i < frameBuffers_.size(); i++) {
-    const VkImageView attachments[2] = {swapChain_.imageViews[i],
+    const VkImageView attachments[2] = {swapChain_.imageViews_[i],
                                         depthStencil_.view};
     VkFramebufferCreateInfo frameBufferCreateInfo{
         .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,

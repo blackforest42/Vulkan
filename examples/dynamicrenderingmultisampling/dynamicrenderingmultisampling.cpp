@@ -317,7 +317,7 @@ public:
 		// We also need an initial barrier for the swap chain image to make it usable for general layout
 		vks::tools::insertImageMemoryBarrier(
 			cmdBuffer,
-			swapChain_.images[currentImageIndex_],
+			swapChain_.images_[currentImageIndex_],
 			0,
 			VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 			VK_IMAGE_LAYOUT_UNDEFINED,
@@ -336,7 +336,7 @@ public:
 		// When multi sampling is used, we use intermediate images to render and resolve to the swap chain images
 		colorAttachment.imageView = renderImage.view;
 		colorAttachment.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
-		colorAttachment.resolveImageView = swapChain_.imageViews[currentImageIndex_];
+		colorAttachment.resolveImageView = swapChain_.imageViews_[currentImageIndex_];
 		colorAttachment.resolveImageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		// A single depth stencil attachment info can be used, but they can also be specified separately.
@@ -380,7 +380,7 @@ public:
 		// This set of barriers prepares the color image for presentation, we don't need to care for the depth image
 		vks::tools::insertImageMemoryBarrier(
 			cmdBuffer,
-			swapChain_.images[currentImageIndex_],
+			swapChain_.images_[currentImageIndex_],
 			VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 			0,
 			VK_IMAGE_LAYOUT_GENERAL,

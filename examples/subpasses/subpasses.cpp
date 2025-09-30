@@ -249,10 +249,10 @@ public:
 		frameBufferCreateInfo.layers = 1;
 
 		// Create frame buffers for every swap chain image
-		frameBuffers_.resize(swapChain_.images.size());
+		frameBuffers_.resize(swapChain_.images_.size());
 		for (uint32_t i = 0; i < frameBuffers_.size(); i++)
 		{
-			attachments[0] = swapChain_.imageViews[i];
+			attachments[0] = swapChain_.imageViews_[i];
 			attachments[1] = this->attachments.position.view;
 			attachments[2] = this->attachments.normal.view;
 			attachments[3] = this->attachments.albedo.view;

@@ -214,7 +214,7 @@ public:
 		// This set of barriers prepares the color and depth images for output
 		vks::tools::insertImageMemoryBarrier(
 			cmdBuffer,
-			swapChain_.images[currentImageIndex_],
+			swapChain_.images_[currentImageIndex_],
 			0,
 			VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 			VK_IMAGE_LAYOUT_UNDEFINED,
@@ -236,7 +236,7 @@ public:
 		// New structures are used to define the attachments used in dynamic rendering
 		VkRenderingAttachmentInfoKHR colorAttachment{};
 		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-		colorAttachment.imageView = swapChain_.imageViews[currentImageIndex_];
+		colorAttachment.imageView = swapChain_.imageViews_[currentImageIndex_];
 		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -283,7 +283,7 @@ public:
 		// This set of barriers prepares the color image for presentation, we don't need to care for the depth image
 		vks::tools::insertImageMemoryBarrier(
 			cmdBuffer,
-			swapChain_.images[currentImageIndex_],
+			swapChain_.images_[currentImageIndex_],
 			VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 			0,
 			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,

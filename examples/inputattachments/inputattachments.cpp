@@ -198,10 +198,10 @@ public:
 		frameBufferCI.height = height_;
 		frameBufferCI.layers = 1;
 
-		frameBuffers_.resize(swapChain_.images.size());
+		frameBuffers_.resize(swapChain_.images_.size());
 		for (uint32_t i = 0; i < frameBuffers_.size(); i++)
 		{
-			views[0] = swapChain_.imageViews[i];
+			views[0] = swapChain_.imageViews_[i];
 			views[1] = attachments.color.view;
 			views[2] = attachments.depth.view;
 			VK_CHECK_RESULT(vkCreateFramebuffer(device_, &frameBufferCI, nullptr, &frameBuffers_[i]));
