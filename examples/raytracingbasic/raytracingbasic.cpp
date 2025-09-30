@@ -79,7 +79,7 @@ class VulkanExample : public VulkanExampleBase {
   struct UniformData {
     glm::mat4 viewInverse;
     glm::mat4 projInverse;
-  } uniformData;
+  } uniformData_;
   std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
   VkPipeline pipeline{VK_NULL_HANDLE};
@@ -855,7 +855,7 @@ class VulkanExample : public VulkanExampleBase {
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer, sizeof(UniformData), &uniformData));
+          &buffer, sizeof(UniformData), &uniformData_));
       VK_CHECK_RESULT(buffer.map());
     }
   }
@@ -885,10 +885,10 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    uniformData.projInverse = glm::inverse(camera_.matrices.perspective);
-    uniformData.viewInverse = glm::inverse(camera_.matrices.view);
-    memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData,
-           sizeof(uniformData));
+    uniformData_.projInverse = glm::inverse(camera_.matrices.perspective);
+    uniformData_.viewInverse = glm::inverse(camera_.matrices.view);
+    memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_,
+           sizeof(uniformData_));
   }
 
   void getEnabledFeatures() {

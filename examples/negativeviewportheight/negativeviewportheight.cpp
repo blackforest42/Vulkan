@@ -31,7 +31,7 @@ public:
 	struct Textures {
 		vks::Texture2D CW;
 		vks::Texture2D CCW;
-	} textures{};
+	} textures_{};
 
 	struct Quad {
 		vks::Buffer verticesYUp;
@@ -60,15 +60,15 @@ public:
 		vkDestroyPipeline(device_, pipeline, nullptr);
 		vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
-		textures.CW.destroy();
-		textures.CCW.destroy();
+		textures_.CW.destroy();
+		textures_.CCW.destroy();
 		quad.destroy();
 	}
 
 	void loadAssets()
 	{
-		textures.CW.loadFromFile(getAssetPath() + "textures/texture_orientation_cw_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
-		textures.CCW.loadFromFile(getAssetPath() + "textures/texture_orientation_ccw_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.CW.loadFromFile(getAssetPath() + "textures/texture_orientation_cw_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.CCW.loadFromFile(getAssetPath() + "textures/texture_orientation_ccw_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
 
 		// [POI] Create two quads with different Y orientations
 
@@ -127,8 +127,8 @@ public:
 		VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &descriptorSetAI, &descriptorSets_.CCW));
 
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-			vks::initializers::writeDescriptorSet(descriptorSets_.CW, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &textures.CW.descriptor),
-			vks::initializers::writeDescriptorSet(descriptorSets_.CCW, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &textures.CCW.descriptor)
+			vks::initializers::writeDescriptorSet(descriptorSets_.CW, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &textures_.CW.descriptor),
+			vks::initializers::writeDescriptorSet(descriptorSets_.CCW, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &textures_.CCW.descriptor)
 		};
 		vkUpdateDescriptorSets(device_, 2, &writeDescriptorSets[0], 0, nullptr);
 	}

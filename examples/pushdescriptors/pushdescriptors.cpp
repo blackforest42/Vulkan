@@ -37,7 +37,7 @@ public:
 	struct UniformData {
 		glm::mat4 projection;
 		glm::mat4 view;
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipeline pipeline{ VK_NULL_HANDLE };
@@ -146,7 +146,7 @@ public:
 	{
 		for (uint32_t i = 0; i < MAX_CONCURRENT_FRAMES; i++) {
 			// Scene uniform buffer block
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &uniformBuffers_[i], sizeof(UniformData), &uniformData));
+			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &uniformBuffers_[i], sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(uniformBuffers_[i].map());
 			// Cube model uniform buffer blocks
 			for (auto& cube : cubes) {
@@ -161,9 +161,9 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.view = camera_.matrices.view;
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(uniformData));
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.view = camera_.matrices.view;
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(uniformData_));
 	}
 
 	void updateCubeUniformBuffers()

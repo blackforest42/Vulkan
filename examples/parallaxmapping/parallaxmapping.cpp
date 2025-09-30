@@ -16,7 +16,7 @@ public:
 		vks::Texture2D colorMap;
 		// Normals and height are combined into one texture (height = alpha channel)
 		vks::Texture2D normalHeightMap;
-	} textures{};
+	} textures_{};
 
 	vkglTF::Model plane;
 
@@ -73,8 +73,8 @@ public:
 			vkDestroyPipeline(device_, pipeline, nullptr);
 			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
 			vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
-			textures.colorMap.destroy();
-			textures.normalHeightMap.destroy();
+			textures_.colorMap.destroy();
+			textures_.normalHeightMap.destroy();
 			for (auto& buffer : uniformBuffers_) {
 				buffer.vertexShader.destroy();
 				buffer.fragmentShader.destroy();
@@ -86,8 +86,8 @@ public:
 	{
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
 		plane.loadFromFile(getAssetPath() + "models/plane.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
-		textures.normalHeightMap.loadFromFile(getAssetPath() + "textures/rocks_normal_height_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
-		textures.colorMap.loadFromFile(getAssetPath() + "textures/rocks_color_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.normalHeightMap.loadFromFile(getAssetPath() + "textures/rocks_normal_height_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.colorMap.loadFromFile(getAssetPath() + "textures/rocks_color_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
 	}
 
 	void setupDescriptors()
@@ -123,9 +123,9 @@ public:
 				// Binding 0: Vertex shader uniform buffer
 				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].vertexShader.descriptor),
 				// Binding 1: Fragment shader image sampler
-				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.colorMap.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures_.colorMap.descriptor),
 				// Binding 2: Combined normal and heightmap
-				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures.normalHeightMap.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures_.normalHeightMap.descriptor),
 				// Binding 3: Fragment shader uniform buffer
 				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3, &uniformBuffers_[i].fragmentShader.descriptor),
 			};

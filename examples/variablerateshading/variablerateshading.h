@@ -30,7 +30,7 @@ public:
 		glm::vec4 lightPos = glm::vec4(0.0f, 2.5f, 0.0f, 1.0f);
 		glm::vec4 viewPos;
 		int32_t colorShadingRate;
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	struct Pipelines {

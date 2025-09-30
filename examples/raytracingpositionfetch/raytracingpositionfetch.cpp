@@ -29,7 +29,7 @@ public:
 		glm::mat4 viewInverse;
 		glm::mat4 projInverse;
 		glm::vec4 lightPos;
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipeline pipeline{ VK_NULL_HANDLE };
@@ -393,7 +393,7 @@ public:
 	void createUniformBuffer()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
+			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
@@ -416,10 +416,10 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData.projInverse = glm::inverse(camera_.matrices.perspective);
-		uniformData.viewInverse = glm::inverse(camera_.matrices.view);
-		uniformData.lightPos = glm::vec4(cos(glm::radians(timer * 360.0f)) * 25.0f, 25.0f, 25.0f + sin(glm::radians(timer * 360.0f)) * 5.0f, 0.0f);
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(uniformData));
+		uniformData_.projInverse = glm::inverse(camera_.matrices.perspective);
+		uniformData_.viewInverse = glm::inverse(camera_.matrices.view);
+		uniformData_.lightPos = glm::vec4(cos(glm::radians(timer * 360.0f)) * 25.0f, 25.0f, 25.0f + sin(glm::radians(timer * 360.0f)) * 5.0f, 0.0f);
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(uniformData_));
 	}
 
 	void getEnabledFeatures()

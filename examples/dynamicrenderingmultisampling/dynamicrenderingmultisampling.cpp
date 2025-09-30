@@ -25,7 +25,7 @@ public:
 		glm::mat4 projection;
 		glm::mat4 modelView;
 		glm::vec4 viewPos;
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipeline pipeline{ VK_NULL_HANDLE };
@@ -257,17 +257,17 @@ public:
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
+			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.modelView = camera_.matrices.view;
-		uniformData.viewPos = camera_.viewPos;
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(uniformData));
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.modelView = camera_.matrices.view;
+		uniformData_.viewPos = camera_.viewPos;
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(uniformData_));
 	}
 
 	void prepare() override

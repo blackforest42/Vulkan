@@ -20,7 +20,7 @@ public:
 		glm::vec4 lightPos = glm::vec4(0.0f, -2.0f, 1.0f, 0.0f);
 		// Vertex shader extrudes model by this value along normals for outlining
 		float outlineWidth = 0.025f;
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	struct {
@@ -150,16 +150,16 @@ public:
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
+			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.model = camera_.matrices.view;
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.model = camera_.matrices.view;
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void prepare()
@@ -237,7 +237,7 @@ public:
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay)
 	{
 		if (overlay->header("Settings")) {
-			if (overlay->inputFloat("Outline width", &uniformData.outlineWidth, 0.01f, 2)) {
+			if (overlay->inputFloat("Outline width", &uniformData_.outlineWidth, 0.01f, 2)) {
 				updateUniformBuffers();
 			}
 		}

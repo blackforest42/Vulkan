@@ -19,25 +19,25 @@
 class VulkanExample : public VulkanExampleBase {
  public:
   bool bloom_ = true;
-  bool displaySkybox = true;
+  bool displaySkybox_ = true;
 
   struct {
     vks::TextureCubeMap envmap;
-  } textures;
+  } textures_;
 
   struct Models {
     vkglTF::Model skybox;
     std::vector<vkglTF::Model> objects;
     int32_t index{1};
   } models_;
-  std::vector<std::string> modelNames{};
+  std::vector<std::string> modelNames_{};
 
   struct UniformData {
     glm::mat4 projection;
     glm::mat4 modelview;
     glm::mat4 inverseModelview;
     float exposure{1.0f};
-  } uniformData;
+  } uniformData_;
   std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
   struct {
@@ -87,7 +87,7 @@ class VulkanExample : public VulkanExampleBase {
     FrameBufferAttachment depth;
     VkRenderPass renderPass;
     VkSampler sampler;
-  } offscreen;
+  } offscreen_;
 
   struct {
     int32_t width, height;
@@ -95,7 +95,7 @@ class VulkanExample : public VulkanExampleBase {
     FrameBufferAttachment color[1];
     VkRenderPass renderPass;
     VkSampler sampler;
-  } filterPass;
+  } filterPass_;
 
   VulkanExample() : VulkanExampleBase() {
     title = "High dynamic range rendering";
@@ -121,17 +121,17 @@ class VulkanExample : public VulkanExampleBase {
                                    nullptr);
       vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.bloomFilter,
                                    nullptr);
-      vkDestroyRenderPass(device_, offscreen.renderPass, nullptr);
-      vkDestroyRenderPass(device_, filterPass.renderPass, nullptr);
-      vkDestroyFramebuffer(device_, offscreen.frameBuffer, nullptr);
-      vkDestroyFramebuffer(device_, filterPass.frameBuffer, nullptr);
-      vkDestroySampler(device_, offscreen.sampler, nullptr);
-      vkDestroySampler(device_, filterPass.sampler, nullptr);
-      offscreen.depth.destroy(device_);
-      offscreen.color[0].destroy(device_);
-      offscreen.color[1].destroy(device_);
-      filterPass.color[0].destroy(device_);
-      textures.envmap.destroy();
+      vkDestroyRenderPass(device_, offscreen_.renderPass, nullptr);
+      vkDestroyRenderPass(device_, filterPass_.renderPass, nullptr);
+      vkDestroyFramebuffer(device_, offscreen_.frameBuffer, nullptr);
+      vkDestroyFramebuffer(device_, filterPass_.frameBuffer, nullptr);
+      vkDestroySampler(device_, offscreen_.sampler, nullptr);
+      vkDestroySampler(device_, filterPass_.sampler, nullptr);
+      offscreen_.depth.destroy(device_);
+      offscreen_.color[0].destroy(device_);
+      offscreen_.color[1].destroy(device_);
+      filterPass_.color[0].destroy(device_);
+      textures_.envmap.destroy();
       for (auto& buffer : uniformBuffers_) {
         buffer.destroy();
       }
@@ -162,8 +162,8 @@ class VulkanExample : public VulkanExampleBase {
     VkImageCreateInfo image = vks::initializers::imageCreateInfo();
     image.imageType = VK_IMAGE_TYPE_2D;
     image.format = format;
-    image.extent.width = offscreen.width;
-    image.extent.height = offscreen.height;
+    image.extent.width = offscreen_.width;
+    image.extent.height = offscreen_.height;
     image.extent.depth = 1;
     image.mipLevels = 1;
     image.arrayLayers = 1;
@@ -203,22 +203,22 @@ class VulkanExample : public VulkanExampleBase {
   // (G-Buffer)
   void prepareoffscreenfer() {
     {
-      offscreen.width = width_;
-      offscreen.height = height_;
+      offscreen_.width = width_;
+      offscreen_.height = height_;
 
       // Color attachments
 
       // Two floating point color buffers
       createAttachment(VK_FORMAT_R32G32B32A32_SFLOAT,
                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-                       &offscreen.color[0]);
+                       &offscreen_.color[0]);
       createAttachment(VK_FORMAT_R32G32B32A32_SFLOAT,
                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-                       &offscreen.color[1]);
+                       &offscreen_.color[1]);
       // Depth attachment
       createAttachment(depthFormat_,
                        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                       &offscreen.depth);
+                       &offscreen_.depth);
 
       // Set up separate renderpass with references to the color and depth
       // attachments
@@ -243,9 +243,9 @@ class VulkanExample : public VulkanExampleBase {
       }
 
       // Formats
-      attachmentDescs[0].format = offscreen.color[0].format;
-      attachmentDescs[1].format = offscreen.color[1].format;
-      attachmentDescs[2].format = offscreen.depth.format;
+      attachmentDescs[0].format = offscreen_.color[0].format;
+      attachmentDescs[1].format = offscreen_.color[1].format;
+      attachmentDescs[2].format = offscreen_.depth.format;
 
       std::vector<VkAttachmentReference> colorReferences;
       colorReferences.push_back({0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL});
@@ -311,25 +311,25 @@ class VulkanExample : public VulkanExampleBase {
       renderPassInfo.pDependencies = dependencies.data();
 
       VK_CHECK_RESULT(vkCreateRenderPass(device_, &renderPassInfo, nullptr,
-                                         &offscreen.renderPass));
+                                         &offscreen_.renderPass));
 
       std::array<VkImageView, 3> attachments;
-      attachments[0] = offscreen.color[0].view;
-      attachments[1] = offscreen.color[1].view;
-      attachments[2] = offscreen.depth.view;
+      attachments[0] = offscreen_.color[0].view;
+      attachments[1] = offscreen_.color[1].view;
+      attachments[2] = offscreen_.depth.view;
 
       VkFramebufferCreateInfo fbufCreateInfo = {};
       fbufCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
       fbufCreateInfo.pNext = NULL;
-      fbufCreateInfo.renderPass = offscreen.renderPass;
+      fbufCreateInfo.renderPass = offscreen_.renderPass;
       fbufCreateInfo.pAttachments = attachments.data();
       fbufCreateInfo.attachmentCount =
           static_cast<uint32_t>(attachments.size());
-      fbufCreateInfo.width = offscreen.width;
-      fbufCreateInfo.height = offscreen.height;
+      fbufCreateInfo.width = offscreen_.width;
+      fbufCreateInfo.height = offscreen_.height;
       fbufCreateInfo.layers = 1;
       VK_CHECK_RESULT(vkCreateFramebuffer(device_, &fbufCreateInfo, nullptr,
-                                          &offscreen.frameBuffer));
+                                          &offscreen_.frameBuffer));
 
       // Create sampler to sample from the color attachments
       VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
@@ -345,20 +345,20 @@ class VulkanExample : public VulkanExampleBase {
       sampler.maxLod = 1.0f;
       sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
       VK_CHECK_RESULT(
-          vkCreateSampler(device_, &sampler, nullptr, &offscreen.sampler));
+          vkCreateSampler(device_, &sampler, nullptr, &offscreen_.sampler));
     }
 
     // Bloom separable filter pass
     {
-      filterPass.width = width_;
-      filterPass.height = height_;
+      filterPass_.width = width_;
+      filterPass_.height = height_;
 
       // Color attachments
 
       // Two floating point color buffers
       createAttachment(VK_FORMAT_R32G32B32A32_SFLOAT,
                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-                       &filterPass.color[0]);
+                       &filterPass_.color[0]);
 
       // Set up separate renderpass with references to the color and depth
       // attachments
@@ -372,7 +372,7 @@ class VulkanExample : public VulkanExampleBase {
       attachmentDescs[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
       attachmentDescs[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
       attachmentDescs[0].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-      attachmentDescs[0].format = filterPass.color[0].format;
+      attachmentDescs[0].format = filterPass_.color[0].format;
 
       std::vector<VkAttachmentReference> colorReferences;
       colorReferences.push_back({0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL});
@@ -416,23 +416,23 @@ class VulkanExample : public VulkanExampleBase {
       renderPassInfo.pDependencies = dependencies.data();
 
       VK_CHECK_RESULT(vkCreateRenderPass(device_, &renderPassInfo, nullptr,
-                                         &filterPass.renderPass));
+                                         &filterPass_.renderPass));
 
       std::array<VkImageView, 1> attachments;
-      attachments[0] = filterPass.color[0].view;
+      attachments[0] = filterPass_.color[0].view;
 
       VkFramebufferCreateInfo fbufCreateInfo = {};
       fbufCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
       fbufCreateInfo.pNext = NULL;
-      fbufCreateInfo.renderPass = filterPass.renderPass;
+      fbufCreateInfo.renderPass = filterPass_.renderPass;
       fbufCreateInfo.pAttachments = attachments.data();
       fbufCreateInfo.attachmentCount =
           static_cast<uint32_t>(attachments.size());
-      fbufCreateInfo.width = filterPass.width;
-      fbufCreateInfo.height = filterPass.height;
+      fbufCreateInfo.width = filterPass_.width;
+      fbufCreateInfo.height = filterPass_.height;
       fbufCreateInfo.layers = 1;
       VK_CHECK_RESULT(vkCreateFramebuffer(device_, &fbufCreateInfo, nullptr,
-                                          &filterPass.frameBuffer));
+                                          &filterPass_.frameBuffer));
 
       // Create sampler to sample from the color attachments
       VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
@@ -448,7 +448,7 @@ class VulkanExample : public VulkanExampleBase {
       sampler.maxLod = 1.0f;
       sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
       VK_CHECK_RESULT(
-          vkCreateSampler(device_, &sampler, nullptr, &filterPass.sampler));
+          vkCreateSampler(device_, &sampler, nullptr, &filterPass_.sampler));
     }
   }
 
@@ -461,14 +461,14 @@ class VulkanExample : public VulkanExampleBase {
                                 vulkanDevice_, queue_, glTFLoadingFlags);
     std::vector<std::string> filenames = {"sphere.gltf", "teapot.gltf",
                                           "torusknot.gltf", "venus.gltf"};
-    modelNames = {"Sphere", "Teapot", "Torusknot", "Venus"};
+    modelNames_ = {"Sphere", "Teapot", "Torusknot", "Venus"};
     models_.objects.resize(filenames.size());
     for (size_t i = 0; i < filenames.size(); i++) {
       models_.objects[i].loadFromFile(getAssetPath() + "models/" + filenames[i],
                                       vulkanDevice_, queue_, glTFLoadingFlags);
     }
     // Load HDR cube map
-    textures.envmap.loadFromFile(
+    textures_.envmap.loadFromFile(
         getAssetPath() + "textures/hdr/uffizi_cube.ktx",
         VK_FORMAT_R16G16B16A16_SFLOAT, vulkanDevice_, queue_);
   }
@@ -556,7 +556,7 @@ class VulkanExample : public VulkanExampleBase {
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i].object,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1,
-              &textures.envmap.descriptor),
+              &textures_.envmap.descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -572,7 +572,7 @@ class VulkanExample : public VulkanExampleBase {
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i].skybox,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1,
-              &textures.envmap.descriptor),
+              &textures_.envmap.descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -585,10 +585,10 @@ class VulkanExample : public VulkanExampleBase {
           device_, &allocInfo, &descriptorSets_[i].bloomFilter));
       std::vector<VkDescriptorImageInfo> colorDescriptors = {
           vks::initializers::descriptorImageInfo(
-              offscreen.sampler, offscreen.color[0].view,
+              offscreen_.sampler, offscreen_.color[0].view,
               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL),
           vks::initializers::descriptorImageInfo(
-              offscreen.sampler, offscreen.color[1].view,
+              offscreen_.sampler, offscreen_.color[1].view,
               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL),
       };
       writeDescriptorSets = {
@@ -612,10 +612,10 @@ class VulkanExample : public VulkanExampleBase {
           device_, &allocInfo, &descriptorSets_[i].composition));
       colorDescriptors = {
           vks::initializers::descriptorImageInfo(
-              offscreen.sampler, offscreen.color[0].view,
+              offscreen_.sampler, offscreen_.color[0].view,
               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL),
           vks::initializers::descriptorImageInfo(
-              offscreen.sampler, filterPass.color[0].view,
+              offscreen_.sampler, filterPass_.color[0].view,
               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL),
       };
       writeDescriptorSets = {
@@ -750,7 +750,7 @@ class VulkanExample : public VulkanExampleBase {
                                               &pipelines_.bloom[0]));
 
     // Second blur pass (into separate framebuffer)
-    pipelineCI.renderPass = filterPass.renderPass;
+    pipelineCI.renderPass = filterPass_.renderPass;
     dir = 0;
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCI, nullptr,
@@ -763,7 +763,7 @@ class VulkanExample : public VulkanExampleBase {
 
     blendAttachmentState.blendEnable = VK_FALSE;
     pipelineCI.layout = pipelineLayouts_.models;
-    pipelineCI.renderPass = offscreen.renderPass;
+    pipelineCI.renderPass = offscreen_.renderPass;
     colorBlendState.attachmentCount = 2;
     colorBlendState.pAttachments = blendAttachmentStates.data();
     shaderStages[0] = loadShader(getShadersPath() + "hdr/gbuffer.vert.spv",
@@ -808,11 +808,11 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    uniformData.projection = camera_.matrices.perspective;
-    uniformData.modelview = camera_.matrices.view;
-    uniformData.inverseModelview = glm::inverse(camera_.matrices.view);
-    memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData,
-           sizeof(uniformData));
+    uniformData_.projection = camera_.matrices.perspective;
+    uniformData_.modelview = camera_.matrices.view;
+    uniformData_.inverseModelview = glm::inverse(camera_.matrices.view);
+    memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_,
+           sizeof(uniformData_));
   }
 
   void prepare() {
@@ -845,10 +845,10 @@ class VulkanExample : public VulkanExampleBase {
 
       VkRenderPassBeginInfo renderPassBeginInfo =
           vks::initializers::renderPassBeginInfo();
-      renderPassBeginInfo.renderPass = offscreen.renderPass;
-      renderPassBeginInfo.framebuffer = offscreen.frameBuffer;
-      renderPassBeginInfo.renderArea.extent.width = offscreen.width;
-      renderPassBeginInfo.renderArea.extent.height = offscreen.height;
+      renderPassBeginInfo.renderPass = offscreen_.renderPass;
+      renderPassBeginInfo.framebuffer = offscreen_.frameBuffer;
+      renderPassBeginInfo.renderArea.extent.width = offscreen_.width;
+      renderPassBeginInfo.renderArea.extent.height = offscreen_.height;
       renderPassBeginInfo.clearValueCount = 3;
       renderPassBeginInfo.pClearValues = clearValues.data();
 
@@ -856,17 +856,17 @@ class VulkanExample : public VulkanExampleBase {
                            VK_SUBPASS_CONTENTS_INLINE);
 
       VkViewport viewport = vks::initializers::viewport(
-          (float)offscreen.width, (float)offscreen.height, 0.0f, 1.0f);
+          (float)offscreen_.width, (float)offscreen_.height, 0.0f, 1.0f);
       vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
       VkRect2D scissor =
-          vks::initializers::rect2D(offscreen.width, offscreen.height, 0, 0);
+          vks::initializers::rect2D(offscreen_.width, offscreen_.height, 0, 0);
       vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
       VkDeviceSize offsets[1] = {0};
 
       // Skybox
-      if (displaySkybox) {
+      if (displaySkybox_) {
         vkCmdBindDescriptorSets(
             cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.models,
             0, 1, &descriptorSets_[currentBuffer_].skybox, 0, nullptr);
@@ -907,22 +907,22 @@ class VulkanExample : public VulkanExampleBase {
       // Bloom filter
       VkRenderPassBeginInfo renderPassBeginInfo =
           vks::initializers::renderPassBeginInfo();
-      renderPassBeginInfo.framebuffer = filterPass.frameBuffer;
-      renderPassBeginInfo.renderPass = filterPass.renderPass;
+      renderPassBeginInfo.framebuffer = filterPass_.frameBuffer;
+      renderPassBeginInfo.renderPass = filterPass_.renderPass;
       renderPassBeginInfo.clearValueCount = 1;
-      renderPassBeginInfo.renderArea.extent.width = filterPass.width;
-      renderPassBeginInfo.renderArea.extent.height = filterPass.height;
+      renderPassBeginInfo.renderArea.extent.width = filterPass_.width;
+      renderPassBeginInfo.renderArea.extent.height = filterPass_.height;
       renderPassBeginInfo.pClearValues = clearValues;
 
       vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
                            VK_SUBPASS_CONTENTS_INLINE);
 
       VkViewport viewport = vks::initializers::viewport(
-          (float)filterPass.width, (float)filterPass.height, 0.0f, 1.0f);
+          (float)filterPass_.width, (float)filterPass_.height, 0.0f, 1.0f);
       vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-      VkRect2D scissor =
-          vks::initializers::rect2D(filterPass.width, filterPass.height, 0, 0);
+      VkRect2D scissor = vks::initializers::rect2D(filterPass_.width,
+                                                   filterPass_.height, 0, 0);
       vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
       vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -1007,10 +1007,10 @@ class VulkanExample : public VulkanExampleBase {
 
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {
     if (overlay->header("Settings")) {
-      overlay->comboBox("Object type", &models_.index, modelNames);
-      overlay->inputFloat("Exposure", &uniformData.exposure, 0.025f, 3);
+      overlay->comboBox("Object type", &models_.index, modelNames_);
+      overlay->inputFloat("Exposure", &uniformData_.exposure, 0.025f, 3);
       overlay->checkBox("Bloom", &bloom_);
-      overlay->checkBox("Skybox", &displaySkybox);
+      overlay->checkBox("Skybox", &displaySkybox_);
     }
   }
 };

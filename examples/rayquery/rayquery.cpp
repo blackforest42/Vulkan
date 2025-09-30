@@ -23,7 +23,7 @@ public:
 		glm::mat4 view;
 		glm::mat4 model;
 		glm::vec3 lightPos;
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	vkglTF::Model scene;
@@ -331,7 +331,7 @@ public:
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
+			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
@@ -346,11 +346,11 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.view = camera_.matrices.view;
-		uniformData.model = glm::mat4(1.0f);
-		uniformData.lightPos = lightPos;
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.view = camera_.matrices.view;
+		uniformData_.model = glm::mat4(1.0f);
+		uniformData_.lightPos = lightPos;
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void getEnabledFeatures()

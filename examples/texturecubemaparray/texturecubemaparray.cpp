@@ -17,7 +17,7 @@
 class VulkanExample : public VulkanExampleBase
 {
 public:
-	bool displaySkybox = true;
+	bool displaySkybox_ = true;
 
 	vks::Texture cubeMapArray;
 
@@ -34,7 +34,7 @@ public:
 		float lodBias = 0.0f;
 		// Used by the fragment shader to select the cubemap from the array cubemap
 		int cubeMapIndex = 1;
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	struct {
@@ -387,17 +387,17 @@ public:
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
+			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.modelView = camera_.matrices.view;
-		uniformData.inverseModelview = glm::inverse(camera_.matrices.view);
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.modelView = camera_.matrices.view;
+		uniformData_.inverseModelview = glm::inverse(camera_.matrices.view);
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void prepare()
@@ -443,7 +443,7 @@ public:
 		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_], 0, nullptr);
 
 		// Skybox
-		if (displaySkybox)
+		if (displaySkybox_)
 		{
 			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.skybox);
 			models_.skybox.draw(cmdBuffer);
@@ -473,10 +473,10 @@ public:
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay)
 	{
 		if (overlay->header("Settings")) {
-			overlay->sliderInt("Cube map", &uniformData.cubeMapIndex, 0, cubeMapArray.layerCount - 1);
-			overlay->sliderFloat("LOD bias", &uniformData.lodBias, 0.0f, (float)cubeMapArray.mipLevels);
+			overlay->sliderInt("Cube map", &uniformData_.cubeMapIndex, 0, cubeMapArray.layerCount - 1);
+			overlay->sliderFloat("LOD bias", &uniformData_.lodBias, 0.0f, (float)cubeMapArray.mipLevels);
 			overlay->comboBox("Object type", &models_.objectIndex, objectNames);
-			overlay->checkBox("Skybox", &displaySkybox);
+			overlay->checkBox("Skybox", &displaySkybox_);
 		}
 	}
 };

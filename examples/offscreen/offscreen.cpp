@@ -28,7 +28,7 @@ class VulkanExample : public VulkanExampleBase {
     glm::mat4 view;
     glm::mat4 model;
     glm::vec4 lightPos = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-  } uniformData;
+  } uniformData_;
 
   struct UniformBuffers {
     vks::Buffer model;
@@ -568,31 +568,31 @@ class VulkanExample : public VulkanExampleBase {
       modelRotation.y += frameTimer * 10.0f;
     }
 
-    uniformData.projection = camera_.matrices.perspective;
-    uniformData.view = camera_.matrices.view;
+    uniformData_.projection = camera_.matrices.perspective;
+    uniformData_.view = camera_.matrices.view;
 
     // Model
-    uniformData.model = glm::mat4(1.0f);
-    uniformData.model =
-        glm::rotate(uniformData.model, glm::radians(modelRotation.y),
+    uniformData_.model = glm::mat4(1.0f);
+    uniformData_.model =
+        glm::rotate(uniformData_.model, glm::radians(modelRotation.y),
                     glm::vec3(0.0f, 1.0f, 0.0f));
-    uniformData.model = glm::translate(uniformData.model, modelPosition);
-    memcpy(uniformBuffers_[currentBuffer_].model.mapped, &uniformData,
+    uniformData_.model = glm::translate(uniformData_.model, modelPosition);
+    memcpy(uniformBuffers_[currentBuffer_].model.mapped, &uniformData_,
            sizeof(UniformData));
 
     // Mirror
-    uniformData.model = glm::mat4(1.0f);
-    memcpy(uniformBuffers_[currentBuffer_].mirror.mapped, &uniformData,
+    uniformData_.model = glm::mat4(1.0f);
+    memcpy(uniformBuffers_[currentBuffer_].mirror.mapped, &uniformData_,
            sizeof(UniformData));
 
-    uniformData.model = glm::mat4(1.0f);
-    uniformData.model =
-        glm::rotate(uniformData.model, glm::radians(modelRotation.y),
+    uniformData_.model = glm::mat4(1.0f);
+    uniformData_.model =
+        glm::rotate(uniformData_.model, glm::radians(modelRotation.y),
                     glm::vec3(0.0f, 1.0f, 0.0f));
-    uniformData.model =
-        glm::scale(uniformData.model, glm::vec3(1.0f, -1.0f, 1.0f));
-    uniformData.model = glm::translate(uniformData.model, modelPosition);
-    memcpy(uniformBuffers_[currentBuffer_].offscreen.mapped, &uniformData,
+    uniformData_.model =
+        glm::scale(uniformData_.model, glm::vec3(1.0f, -1.0f, 1.0f));
+    uniformData_.model = glm::translate(uniformData_.model, modelPosition);
+    memcpy(uniformBuffers_[currentBuffer_].offscreen.mapped, &uniformData_,
            sizeof(UniformData));
   }
 

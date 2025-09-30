@@ -22,7 +22,7 @@ public:
 	struct {
 		vks::Texture2DArray rocks;
 		vks::Texture2D planet;
-	} textures{};
+	} textures_{};
 
 	struct {
 		vkglTF::Model rock;
@@ -50,7 +50,7 @@ public:
 		glm::vec4 lightPos = glm::vec4(0.0f, -5.0f, 0.0f, 1.0f);
 		float locSpeed = 0.0f;
 		float globSpeed = 0.0f;
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
@@ -86,8 +86,8 @@ public:
 			vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
 			vkDestroyBuffer(device_, instanceBuffer.buffer, nullptr);
 			vkFreeMemory(device_, instanceBuffer.memory, nullptr);
-			textures.rocks.destroy();
-			textures.planet.destroy();
+			textures_.rocks.destroy();
+			textures_.planet.destroy();
 			for (auto& buffer : uniformBuffers_) {
 				buffer.destroy();
 			}
@@ -109,8 +109,8 @@ public:
 		models_.rock.loadFromFile(getAssetPath() + "models/rock01.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
 		models_.planet.loadFromFile(getAssetPath() + "models/lavaplanet.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
 
-		textures.planet.loadFromFile(getAssetPath() + "textures/lavaplanet_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
-		textures.rocks.loadFromFile(getAssetPath() + "textures/texturearray_rocks_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.planet.loadFromFile(getAssetPath() + "textures/lavaplanet_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.rocks.loadFromFile(getAssetPath() + "textures/texturearray_rocks_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
 	}
 
 	void setupDescriptors()
@@ -145,7 +145,7 @@ public:
 			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &descripotrSetAllocInfo, &descriptorSets_[i].instancedRocks));
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 				vks::initializers::writeDescriptorSet(descriptorSets_[i].instancedRocks, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,	0, &uniformBuffers_[i].descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets_[i].instancedRocks, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.rocks.descriptor)
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].instancedRocks, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures_.rocks.descriptor)
 			};
 			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
@@ -155,7 +155,7 @@ public:
 			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &descripotrSetAllocInfo, &descriptorSets_[i].staticObjects));
 			writeDescriptorSets = {
 				vks::initializers::writeDescriptorSet(descriptorSets_[i].staticObjects, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,	0, &uniformBuffers_[i].descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets_[i].staticObjects, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.planet.descriptor)
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].staticObjects, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures_.planet.descriptor)
 			};
 			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}
@@ -264,7 +264,7 @@ public:
 
 		std::default_random_engine rndGenerator(benchmark.active ? 0 : (unsigned)time(nullptr));
 		std::uniform_real_distribution<float> uniformDist(0.0, 1.0);
-		std::uniform_int_distribution<uint32_t> rndTextureIndex(0, textures.rocks.layerCount);
+		std::uniform_int_distribution<uint32_t> rndTextureIndex(0, textures_.rocks.layerCount);
 
 		// Distribute rocks randomly on two different rings
 		for (auto i = 0; i < INSTANCE_COUNT / 2; i++) {
@@ -352,14 +352,14 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.view = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.view = camera_.matrices.view;
 		// Animate asteroids
 		if (!paused) {
-			uniformData.locSpeed += frameTimer * 0.35f;
-			uniformData.globSpeed += frameTimer * 0.01f;
+			uniformData_.locSpeed += frameTimer * 0.35f;
+			uniformData_.globSpeed += frameTimer * 0.01f;
 		}
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(uniformData));
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(uniformData_));
 	}
 
 	void prepare()

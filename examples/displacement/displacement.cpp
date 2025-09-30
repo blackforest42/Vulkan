@@ -29,7 +29,7 @@ public:
 		float tessAlpha = 1.0f;
 		float tessStrength = 0.1f;
 		float tessLevel = 64.0f;
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	struct Pipelines {
@@ -178,25 +178,25 @@ public:
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
+			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.modelView = camera_.matrices.view;
-		uniformData.lightPos.y = -0.5f - uniformData.tessStrength;
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.modelView = camera_.matrices.view;
+		uniformData_.lightPos.y = -0.5f - uniformData_.tessStrength;
 		// Tessellation control
-		float savedLevel = uniformData.tessLevel;
+		float savedLevel = uniformData_.tessLevel;
 		// If displacement is unchecked, we simply set the tessellation level to 1.0f, which disables tessellation
 		if (!displacement) {
-			uniformData.tessLevel = 1.0f;
+			uniformData_.tessLevel = 1.0f;
 		}
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 		if (!displacement) {
-			uniformData.tessLevel = savedLevel;
+			uniformData_.tessLevel = savedLevel;
 		}
 	}
 
@@ -278,8 +278,8 @@ public:
 	{
 		if (overlay->header("Settings")) {
 			overlay->checkBox("Tessellation displacement", &displacement);
-			overlay->inputFloat("Strength", &uniformData.tessStrength, 0.025f, 3);
-			overlay->inputFloat("Level", &uniformData.tessLevel, 0.5f, 2);
+			overlay->inputFloat("Strength", &uniformData_.tessStrength, 0.025f, 3);
+			overlay->inputFloat("Level", &uniformData_.tessLevel, 0.5f, 2);
 			if (deviceFeatures_.fillModeNonSolid) {
 				overlay->checkBox("Splitscreen", &splitScreen);
 			}

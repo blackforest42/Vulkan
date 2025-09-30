@@ -26,7 +26,7 @@ public:
 		glm::mat4 projection;
 		glm::mat4 modelView;
 		glm::vec4 lightPos{ 0.0f, -2.0f, 1.0f, 0.0f };
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
@@ -189,7 +189,7 @@ public:
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
+			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
@@ -197,9 +197,9 @@ public:
 	void updateUniformBuffers()
 	{
 		camera_.setPerspective(60.0f, ((float)width_ / 3.0f) / (float)height_, 0.1f, 512.0f);
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.modelView = camera_.matrices.view;
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.modelView = camera_.matrices.view;
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void buildCommandBuffer()

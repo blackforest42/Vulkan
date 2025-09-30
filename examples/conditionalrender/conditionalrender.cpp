@@ -26,7 +26,7 @@ public:
 		glm::mat4 projection;
 		glm::mat4 view;
 		glm::mat4 model;
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	std::vector<int32_t> conditionalVisibility{};
@@ -195,10 +195,10 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.view = glm::scale(camera_.matrices.view, glm::vec3(0.1f , -0.1f, 0.1f));
-		uniformData.model = glm::translate(glm::mat4(1.0f), scene.dimensions.min);
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.view = glm::scale(camera_.matrices.view, glm::vec3(0.1f , -0.1f, 0.1f));
+		uniformData_.model = glm::translate(glm::mat4(1.0f), scene.dimensions.min);
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void updateConditionalBuffer()

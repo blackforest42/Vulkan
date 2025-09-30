@@ -33,7 +33,7 @@ struct Material {
 class VulkanExample : public VulkanExampleBase
 {
 public:
-	bool displaySkybox = true;
+	bool displaySkybox_ = true;
 
 	struct Textures {
 		vks::TextureCubeMap environmentCube;
@@ -41,7 +41,7 @@ public:
 		vks::Texture2D lutBrdf;
 		vks::TextureCubeMap irradianceCube;
 		vks::TextureCubeMap prefilteredCube;
-	} textures{};
+	} textures_{};
 
 	struct Meshes {
 		vkglTF::Model skybox;
@@ -134,10 +134,10 @@ public:
 				buffer.params.destroy();
 				buffer.skybox.destroy();
 			}
-			textures.environmentCube.destroy();
-			textures.irradianceCube.destroy();
-			textures.prefilteredCube.destroy();
-			textures.lutBrdf.destroy();
+			textures_.environmentCube.destroy();
+			textures_.irradianceCube.destroy();
+			textures_.prefilteredCube.destroy();
+			textures_.lutBrdf.destroy();
 		}
 	}
 
@@ -160,7 +160,7 @@ public:
 			models_.objects[i].loadFromFile(getAssetPath() + "models/" + filenames[i], vulkanDevice_, queue_, glTFLoadingFlags);
 		}
 		// HDR cubemap
-		textures.environmentCube.loadFromFile(getAssetPath() + "textures/hdr/pisa_cube.ktx", VK_FORMAT_R16G16B16A16_SFLOAT, vulkanDevice_, queue_);
+		textures_.environmentCube.loadFromFile(getAssetPath() + "textures/hdr/pisa_cube.ktx", VK_FORMAT_R16G16B16A16_SFLOAT, vulkanDevice_, queue_);
 	}
 
 	void setupDescriptors()
@@ -193,9 +193,9 @@ public:
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].scene.descriptor),
 				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, &uniformBuffers_[i].params.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures.irradianceCube.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3, &textures.lutBrdf.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4, &textures.prefilteredCube.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures_.irradianceCube.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3, &textures_.lutBrdf.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4, &textures_.prefilteredCube.descriptor),
 			};
 			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
@@ -204,7 +204,7 @@ public:
 			writeDescriptorSets = {
 				vks::initializers::writeDescriptorSet(descriptorSets_[i].skybox, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].skybox.descriptor),
 				vks::initializers::writeDescriptorSet(descriptorSets_[i].skybox, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, &uniformBuffers_[i].params.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets_[i].skybox, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures.environmentCube.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].skybox, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures_.environmentCube.descriptor),
 			};
 			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}
@@ -300,14 +300,14 @@ public:
 		imageCI.samples = VK_SAMPLE_COUNT_1_BIT;
 		imageCI.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCI.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-		VK_CHECK_RESULT(vkCreateImage(device_, &imageCI, nullptr, &textures.lutBrdf.image));
+		VK_CHECK_RESULT(vkCreateImage(device_, &imageCI, nullptr, &textures_.lutBrdf.image));
 		VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
 		VkMemoryRequirements memReqs;
-		vkGetImageMemoryRequirements(device_, textures.lutBrdf.image, &memReqs);
+		vkGetImageMemoryRequirements(device_, textures_.lutBrdf.image, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
 		memAlloc.memoryTypeIndex = vulkanDevice_->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr, &textures.lutBrdf.deviceMemory));
-		VK_CHECK_RESULT(vkBindImageMemory(device_, textures.lutBrdf.image, textures.lutBrdf.deviceMemory, 0));
+		VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr, &textures_.lutBrdf.deviceMemory));
+		VK_CHECK_RESULT(vkBindImageMemory(device_, textures_.lutBrdf.image, textures_.lutBrdf.deviceMemory, 0));
 		// Image view
 		VkImageViewCreateInfo viewCI = vks::initializers::imageViewCreateInfo();
 		viewCI.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -316,8 +316,8 @@ public:
 		viewCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		viewCI.subresourceRange.levelCount = 1;
 		viewCI.subresourceRange.layerCount = 1;
-		viewCI.image = textures.lutBrdf.image;
-		VK_CHECK_RESULT(vkCreateImageView(device_, &viewCI, nullptr, &textures.lutBrdf.view));
+		viewCI.image = textures_.lutBrdf.image;
+		VK_CHECK_RESULT(vkCreateImageView(device_, &viewCI, nullptr, &textures_.lutBrdf.view));
 		// Sampler
 		VkSamplerCreateInfo samplerCI = vks::initializers::samplerCreateInfo();
 		samplerCI.magFilter = VK_FILTER_LINEAR;
@@ -329,12 +329,12 @@ public:
 		samplerCI.minLod = 0.0f;
 		samplerCI.maxLod = 1.0f;
 		samplerCI.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerCI, nullptr, &textures.lutBrdf.sampler));
+		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerCI, nullptr, &textures_.lutBrdf.sampler));
 
-		textures.lutBrdf.descriptor.imageView = textures.lutBrdf.view;
-		textures.lutBrdf.descriptor.sampler = textures.lutBrdf.sampler;
-		textures.lutBrdf.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		textures.lutBrdf.device = vulkanDevice_;
+		textures_.lutBrdf.descriptor.imageView = textures_.lutBrdf.view;
+		textures_.lutBrdf.descriptor.sampler = textures_.lutBrdf.sampler;
+		textures_.lutBrdf.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		textures_.lutBrdf.device = vulkanDevice_;
 
 		// FB, Att, RP, Pipe, etc.
 		VkAttachmentDescription attDesc = {};
@@ -386,7 +386,7 @@ public:
 		VkFramebufferCreateInfo framebufferCI = vks::initializers::framebufferCreateInfo();
 		framebufferCI.renderPass = renderpass;
 		framebufferCI.attachmentCount = 1;
-		framebufferCI.pAttachments = &textures.lutBrdf.view;
+		framebufferCI.pAttachments = &textures_.lutBrdf.view;
 		framebufferCI.width = dim;
 		framebufferCI.height = dim;
 		framebufferCI.layers = 1;
@@ -507,14 +507,14 @@ public:
 		imageCI.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCI.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		imageCI.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-		VK_CHECK_RESULT(vkCreateImage(device_, &imageCI, nullptr, &textures.irradianceCube.image));
+		VK_CHECK_RESULT(vkCreateImage(device_, &imageCI, nullptr, &textures_.irradianceCube.image));
 		VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
 		VkMemoryRequirements memReqs;
-		vkGetImageMemoryRequirements(device_, textures.irradianceCube.image, &memReqs);
+		vkGetImageMemoryRequirements(device_, textures_.irradianceCube.image, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
 		memAlloc.memoryTypeIndex = vulkanDevice_->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr, &textures.irradianceCube.deviceMemory));
-		VK_CHECK_RESULT(vkBindImageMemory(device_, textures.irradianceCube.image, textures.irradianceCube.deviceMemory, 0));
+		VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr, &textures_.irradianceCube.deviceMemory));
+		VK_CHECK_RESULT(vkBindImageMemory(device_, textures_.irradianceCube.image, textures_.irradianceCube.deviceMemory, 0));
 		// Image view
 		VkImageViewCreateInfo viewCI = vks::initializers::imageViewCreateInfo();
 		viewCI.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
@@ -523,8 +523,8 @@ public:
 		viewCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		viewCI.subresourceRange.levelCount = numMips;
 		viewCI.subresourceRange.layerCount = 6;
-		viewCI.image = textures.irradianceCube.image;
-		VK_CHECK_RESULT(vkCreateImageView(device_, &viewCI, nullptr, &textures.irradianceCube.view));
+		viewCI.image = textures_.irradianceCube.image;
+		VK_CHECK_RESULT(vkCreateImageView(device_, &viewCI, nullptr, &textures_.irradianceCube.view));
 		// Sampler
 		VkSamplerCreateInfo samplerCI = vks::initializers::samplerCreateInfo();
 		samplerCI.magFilter = VK_FILTER_LINEAR;
@@ -536,12 +536,12 @@ public:
 		samplerCI.minLod = 0.0f;
 		samplerCI.maxLod = static_cast<float>(numMips);
 		samplerCI.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerCI, nullptr, &textures.irradianceCube.sampler));
+		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerCI, nullptr, &textures_.irradianceCube.sampler));
 
-		textures.irradianceCube.descriptor.imageView = textures.irradianceCube.view;
-		textures.irradianceCube.descriptor.sampler = textures.irradianceCube.sampler;
-		textures.irradianceCube.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		textures.irradianceCube.device = vulkanDevice_;
+		textures_.irradianceCube.descriptor.imageView = textures_.irradianceCube.view;
+		textures_.irradianceCube.descriptor.sampler = textures_.irradianceCube.sampler;
+		textures_.irradianceCube.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		textures_.irradianceCube.device = vulkanDevice_;
 
 		// FB, Att, RP, Pipe, etc.
 		VkAttachmentDescription attDesc = {};
@@ -672,7 +672,7 @@ public:
 		VkDescriptorSet descriptorset;
 		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorpool, &descriptorsetlayout, 1);
 		VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorset));
-		VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptorset, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &textures.environmentCube.descriptor);
+		VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptorset, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &textures_.environmentCube.descriptor);
 		vkUpdateDescriptorSets(device_, 1, &writeDescriptorSet, 0, nullptr);
 
 		// Pipeline layout
@@ -768,7 +768,7 @@ public:
 		// Change image layout for all cubemap faces to transfer destination
 		vks::tools::setImageLayout(
 			cmdBuf,
-			textures.irradianceCube.image,
+			textures_.irradianceCube.image,
 			VK_IMAGE_LAYOUT_UNDEFINED,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			subresourceRange);
@@ -824,7 +824,7 @@ public:
 					cmdBuf,
 					offscreen.image,
 					VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-					textures.irradianceCube.image,
+					textures_.irradianceCube.image,
 					VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 					1,
 					&copyRegion);
@@ -841,7 +841,7 @@ public:
 
 		vks::tools::setImageLayout(
 			cmdBuf,
-			textures.irradianceCube.image,
+			textures_.irradianceCube.image,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			subresourceRange);
@@ -887,14 +887,14 @@ public:
 		imageCI.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCI.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		imageCI.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-		VK_CHECK_RESULT(vkCreateImage(device_, &imageCI, nullptr, &textures.prefilteredCube.image));
+		VK_CHECK_RESULT(vkCreateImage(device_, &imageCI, nullptr, &textures_.prefilteredCube.image));
 		VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
 		VkMemoryRequirements memReqs;
-		vkGetImageMemoryRequirements(device_, textures.prefilteredCube.image, &memReqs);
+		vkGetImageMemoryRequirements(device_, textures_.prefilteredCube.image, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
 		memAlloc.memoryTypeIndex = vulkanDevice_->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr, &textures.prefilteredCube.deviceMemory));
-		VK_CHECK_RESULT(vkBindImageMemory(device_, textures.prefilteredCube.image, textures.prefilteredCube.deviceMemory, 0));
+		VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr, &textures_.prefilteredCube.deviceMemory));
+		VK_CHECK_RESULT(vkBindImageMemory(device_, textures_.prefilteredCube.image, textures_.prefilteredCube.deviceMemory, 0));
 		// Image view
 		VkImageViewCreateInfo viewCI = vks::initializers::imageViewCreateInfo();
 		viewCI.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
@@ -903,8 +903,8 @@ public:
 		viewCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		viewCI.subresourceRange.levelCount = numMips;
 		viewCI.subresourceRange.layerCount = 6;
-		viewCI.image = textures.prefilteredCube.image;
-		VK_CHECK_RESULT(vkCreateImageView(device_, &viewCI, nullptr, &textures.prefilteredCube.view));
+		viewCI.image = textures_.prefilteredCube.image;
+		VK_CHECK_RESULT(vkCreateImageView(device_, &viewCI, nullptr, &textures_.prefilteredCube.view));
 		// Sampler
 		VkSamplerCreateInfo samplerCI = vks::initializers::samplerCreateInfo();
 		samplerCI.magFilter = VK_FILTER_LINEAR;
@@ -916,12 +916,12 @@ public:
 		samplerCI.minLod = 0.0f;
 		samplerCI.maxLod = static_cast<float>(numMips);
 		samplerCI.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerCI, nullptr, &textures.prefilteredCube.sampler));
+		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerCI, nullptr, &textures_.prefilteredCube.sampler));
 
-		textures.prefilteredCube.descriptor.imageView = textures.prefilteredCube.view;
-		textures.prefilteredCube.descriptor.sampler = textures.prefilteredCube.sampler;
-		textures.prefilteredCube.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		textures.prefilteredCube.device = vulkanDevice_;
+		textures_.prefilteredCube.descriptor.imageView = textures_.prefilteredCube.view;
+		textures_.prefilteredCube.descriptor.sampler = textures_.prefilteredCube.sampler;
+		textures_.prefilteredCube.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		textures_.prefilteredCube.device = vulkanDevice_;
 
 		// FB, Att, RP, Pipe, etc.
 		VkAttachmentDescription attDesc = {};
@@ -1052,7 +1052,7 @@ public:
 		VkDescriptorSet descriptorset;
 		VkDescriptorSetAllocateInfo allocInfo =	vks::initializers::descriptorSetAllocateInfo(descriptorpool, &descriptorsetlayout, 1);
 		VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorset));
-		VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptorset, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &textures.environmentCube.descriptor);
+		VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptorset, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &textures_.environmentCube.descriptor);
 		vkUpdateDescriptorSets(device_, 1, &writeDescriptorSet, 0, nullptr);
 
 		// Pipeline layout
@@ -1147,7 +1147,7 @@ public:
 		// Change image layout for all cubemap faces to transfer destination
 		vks::tools::setImageLayout(
 			cmdBuf,
-			textures.prefilteredCube.image,
+			textures_.prefilteredCube.image,
 			VK_IMAGE_LAYOUT_UNDEFINED,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			subresourceRange);
@@ -1204,7 +1204,7 @@ public:
 					cmdBuf,
 					offscreen.image,
 					VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-					textures.prefilteredCube.image,
+					textures_.prefilteredCube.image,
 					VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 					1,
 					&copyRegion);
@@ -1221,7 +1221,7 @@ public:
 
 		vks::tools::setImageLayout(
 			cmdBuf,
-			textures.prefilteredCube.image,
+			textures_.prefilteredCube.image,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			subresourceRange);
@@ -1325,7 +1325,7 @@ public:
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 		// Skybox
-		if (displaySkybox)
+		if (displaySkybox_)
 		{
 			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_].skybox, 0, nullptr);
 			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.skybox);
@@ -1372,7 +1372,7 @@ public:
 			overlay->comboBox("Object type", &models_.objectIndex, objectNames);
 			overlay->inputFloat("Exposure", &uniformDataParams.exposure, 0.1f, 2);
 			overlay->inputFloat("Gamma", &uniformDataParams.gamma, 0.1f, 2);
-			overlay->checkBox("Skybox", &displaySkybox);
+			overlay->checkBox("Skybox", &displaySkybox_);
 		}
 	}
 

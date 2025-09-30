@@ -27,7 +27,7 @@ public:
 		glm::mat4 normal;
 		glm::mat4 view;
 		glm::vec4 lightPos;
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	struct {
@@ -174,19 +174,19 @@ public:
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
+			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.view = camera_.matrices.view;
-		uniformData.model = glm::mat4(1.0f);
-		uniformData.normal = glm::inverseTranspose(uniformData.view * uniformData.model);
-		uniformData.lightPos = lightPos;
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(uniformData));
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.view = camera_.matrices.view;
+		uniformData_.model = glm::mat4(1.0f);
+		uniformData_.normal = glm::inverseTranspose(uniformData_.view * uniformData_.model);
+		uniformData_.lightPos = lightPos;
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(uniformData_));
 	}
 
 	void prepare()

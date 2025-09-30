@@ -84,7 +84,7 @@ public:
 		glm::mat4 model;
 		glm::vec4 viewPos;
 		float lodBias = 0.0f;
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipeline pipeline{ VK_NULL_HANDLE };

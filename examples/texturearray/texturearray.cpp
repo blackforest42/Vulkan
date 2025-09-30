@@ -49,7 +49,7 @@ public:
 		} matrices;
 		// Separate data for each instance
 		PerInstanceData instance[MAX_LAYERS];
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipeline pipeline{ VK_NULL_HANDLE };
@@ -427,24 +427,24 @@ public:
 		float center = (layerCount * offset) / 2.0f - (offset * 0.5f);
 		for (uint32_t i = 0; i < layerCount; i++) {
 			// Instance model matrix
-			uniformData.instance[i].model = glm::translate(glm::mat4(1.0f), glm::vec3(i * offset - center, 0.0f, 0.0f));
-			uniformData.instance[i].model = glm::scale(uniformData.instance[i].model, glm::vec3(0.5f));
+			uniformData_.instance[i].model = glm::translate(glm::mat4(1.0f), glm::vec3(i * offset - center, 0.0f, 0.0f));
+			uniformData_.instance[i].model = glm::scale(uniformData_.instance[i].model, glm::vec3(0.5f));
 			// Instance texture array index
-			uniformData.instance[i].arrayIndex = (float)i;
+			uniformData_.instance[i].arrayIndex = (float)i;
 		}
 
 		for (auto& buffer : uniformBuffers_) {
-			const size_t uboSize = sizeof(uniformData.matrices) + (MAX_LAYERS * sizeof(PerInstanceData));
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, uboSize, &uniformData));
+			const size_t uboSize = sizeof(uniformData_.matrices) + (MAX_LAYERS * sizeof(PerInstanceData));
+			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, uboSize, &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
 
 	void updateUniformBuffers()
 	{
-		uniformData.matrices.projection = camera_.matrices.perspective;
-		uniformData.matrices.view = camera_.matrices.view;
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+		uniformData_.matrices.projection = camera_.matrices.perspective;
+		uniformData_.matrices.view = camera_.matrices.view;
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void prepare()

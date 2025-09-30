@@ -30,7 +30,7 @@ class VulkanExample : public VulkanRaytracingSample {
     glm::mat4 projInverse;
     glm::vec4 lightPos;
     int32_t vertexSize{0};
-  } uniformData;
+  } uniformData_;
   std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
   VkPipeline pipeline{VK_NULL_HANDLE};
@@ -557,7 +557,7 @@ class VulkanExample : public VulkanRaytracingSample {
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer, sizeof(UniformData), &uniformData));
+          &buffer, sizeof(UniformData), &uniformData_));
       VK_CHECK_RESULT(buffer.map());
     }
   }
@@ -583,16 +583,16 @@ class VulkanExample : public VulkanRaytracingSample {
   }
 
   void updateUniformBuffers() {
-    uniformData.projInverse = glm::inverse(camera_.matrices.perspective);
-    uniformData.viewInverse = glm::inverse(camera_.matrices.view);
-    uniformData.lightPos =
+    uniformData_.projInverse = glm::inverse(camera_.matrices.perspective);
+    uniformData_.viewInverse = glm::inverse(camera_.matrices.view);
+    uniformData_.lightPos =
         glm::vec4(cos(glm::radians(timer * 360.0f)) * 40.0f,
                   -50.0f + sin(glm::radians(timer * 360.0f)) * 20.0f,
                   25.0f + sin(glm::radians(timer * 360.0f)) * 5.0f, 0.0f);
     // Pass the vertex size to the shader for unpacking vertices
-    uniformData.vertexSize = sizeof(vkglTF::Vertex);
-    memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData,
-           sizeof(uniformData));
+    uniformData_.vertexSize = sizeof(vkglTF::Vertex);
+    memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_,
+           sizeof(uniformData_));
   }
 
   void getEnabledFeatures() {

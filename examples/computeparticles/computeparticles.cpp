@@ -30,7 +30,7 @@ public:
 	struct {
 		vks::Texture2D particle;
 		vks::Texture2D gradient;
-	} textures{};
+	} textures_{};
 
 	// SSBO particle declaration
 	struct Particle {
@@ -100,15 +100,15 @@ public:
 			for (auto& buffer : storageBuffers) {
 				buffer.destroy();
 			}
-			textures.particle.destroy();
-			textures.gradient.destroy();
+			textures_.particle.destroy();
+			textures_.gradient.destroy();
 		}
 	}
 
 	void loadAssets()
 	{
-		textures.particle.loadFromFile(getAssetPath() + "textures/particle01_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
-		textures.gradient.loadFromFile(getAssetPath() + "textures/particle_gradient_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.particle.loadFromFile(getAssetPath() + "textures/particle01_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.gradient.loadFromFile(getAssetPath() + "textures/particle_gradient_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
 	}
 
 	// Setup and fill the compute shader storage buffers containing the particles
@@ -205,9 +205,9 @@ public:
 
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
 		// Binding 0 : Particle color map
-		writeDescriptorSets.push_back(vks::initializers::writeDescriptorSet(graphics.descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &textures.particle.descriptor));
+		writeDescriptorSets.push_back(vks::initializers::writeDescriptorSet(graphics.descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &textures_.particle.descriptor));
 		// Binding 1 : Particle gradient ramp
-		writeDescriptorSets.push_back(vks::initializers::writeDescriptorSet(graphics.descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.gradient.descriptor));
+		writeDescriptorSets.push_back(vks::initializers::writeDescriptorSet(graphics.descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures_.gradient.descriptor));
 
 		vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, NULL);
 

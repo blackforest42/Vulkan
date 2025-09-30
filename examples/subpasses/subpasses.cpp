@@ -24,7 +24,7 @@ class VulkanExample : public VulkanExampleBase
 public:
 	struct {
 		vks::Texture2D glass;
-	} textures;
+	} textures_;
 
 	struct {
 		vkglTF::Model scene;
@@ -120,7 +120,7 @@ public:
 			clearAttachment(&attachments.position);
 			clearAttachment(&attachments.normal);
 			clearAttachment(&attachments.albedo);
-			textures.glass.destroy();
+			textures_.glass.destroy();
 			for (auto& buffer : uniformBuffers_) {
 				buffer.GBuffer.destroy();
 				buffer.lights.destroy();
@@ -430,7 +430,7 @@ public:
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
 		models_.scene.loadFromFile(getAssetPath() + "models/samplebuilding.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
 		models_.transparent.loadFromFile(getAssetPath() + "models/samplebuilding_glass.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
-		textures.glass.loadFromFile(getAssetPath() + "textures/colored_glass_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.glass.loadFromFile(getAssetPath() + "textures/colored_glass_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
 	}
 
 	void setupDescriptors()
@@ -496,7 +496,7 @@ public:
 			writeDescriptorSets = {
 				vks::initializers::writeDescriptorSet(descriptorSets_[i].transparent, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].GBuffer.descriptor),
 				vks::initializers::writeDescriptorSet(descriptorSets_[i].transparent, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, &texDescriptorPosition),
-				vks::initializers::writeDescriptorSet(descriptorSets_[i].transparent, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures.glass.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].transparent, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures_.glass.descriptor),
 			};
 			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, NULL);
 			

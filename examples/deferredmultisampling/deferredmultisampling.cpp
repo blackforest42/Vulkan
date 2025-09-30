@@ -29,7 +29,7 @@ public:
 			vks::Texture2D colorMap;
 			vks::Texture2D normalMap;
 		} background;
-	} textures{};
+	} textures_{};
 
 	struct {
 		vkglTF::Model model;
@@ -106,10 +106,10 @@ public:
 			vkDestroyPipeline(device_, pipelines_.offscreenSampleShading, nullptr);
 			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
 			vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
-			textures.model.colorMap.destroy();
-			textures.model.normalMap.destroy();
-			textures.background.colorMap.destroy();
-			textures.background.normalMap.destroy();
+			textures_.model.colorMap.destroy();
+			textures_.model.normalMap.destroy();
+			textures_.background.colorMap.destroy();
+			textures_.background.normalMap.destroy();
 			for (auto& buffer : uniformBuffers_) {
 				buffer.offscreen.destroy();
 				buffer.composition.destroy();
@@ -187,10 +187,10 @@ public:
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
 		models_.model.loadFromFile(getAssetPath() + "models/armor/armor.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
 		models_.background.loadFromFile(getAssetPath() + "models/deferred_box.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
-		textures.model.colorMap.loadFromFile(getAssetPath() + "models/armor/colormap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
-		textures.model.normalMap.loadFromFile(getAssetPath() + "models/armor/normalmap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
-		textures.background.colorMap.loadFromFile(getAssetPath() + "textures/stonefloor02_color_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
-		textures.background.normalMap.loadFromFile(getAssetPath() + "textures/stonefloor02_normal_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.model.colorMap.loadFromFile(getAssetPath() + "models/armor/colormap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.model.normalMap.loadFromFile(getAssetPath() + "models/armor/normalmap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.background.colorMap.loadFromFile(getAssetPath() + "textures/stonefloor02_color_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.background.normalMap.loadFromFile(getAssetPath() + "textures/stonefloor02_normal_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
 	}
 
 	void setupDescriptors()
@@ -251,9 +251,9 @@ public:
 				// Binding 0: Vertex shader uniform buffer
 				vks::initializers::writeDescriptorSet(descriptorSets_[i].model, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].offscreen.descriptor),
 				// Binding 1: Color map
-				vks::initializers::writeDescriptorSet(descriptorSets_[i].model, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.model.colorMap.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].model, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures_.model.colorMap.descriptor),
 				// Binding 2: Normal map
-				vks::initializers::writeDescriptorSet(descriptorSets_[i].model, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures.model.normalMap.descriptor)
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].model, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures_.model.normalMap.descriptor)
 			};
 			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
@@ -263,9 +263,9 @@ public:
 				// Binding 0: Vertex shader uniform buffer
 				vks::initializers::writeDescriptorSet(descriptorSets_[i].background, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].offscreen.descriptor),
 				// Binding 1: Color map
-				vks::initializers::writeDescriptorSet(descriptorSets_[i].background, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.background.colorMap.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].background, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures_.background.colorMap.descriptor),
 				// Binding 2: Normal map
-				vks::initializers::writeDescriptorSet(descriptorSets_[i].background, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures.background.normalMap.descriptor)
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].background, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures_.background.normalMap.descriptor)
 			};
 			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 

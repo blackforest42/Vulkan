@@ -380,7 +380,7 @@ public:
 		glm::mat4 projection;
 		glm::mat4 modelView;
 		glm::vec4 lightPos = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
@@ -493,9 +493,9 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.modelView = camera_.matrices.view;
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.modelView = camera_.matrices.view;
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	// Update the text buffer displayed by the text overlay
@@ -522,11 +522,11 @@ public:
 		for (uint32_t i = 0; i < 4; i++) {
 			ss.str("");
 			ss << std::fixed << std::setprecision(2) << std::showpos;
-			ss << uniformData.modelView[0][i] << " " << uniformData.modelView[1][i] << " " << uniformData.modelView[2][i] << " " << uniformData.modelView[3][i];
+			ss << uniformData_.modelView[0][i] << " " << uniformData_.modelView[1][i] << " " << uniformData_.modelView[2][i] << " " << uniformData_.modelView[3][i];
 			textOverlay->addText(ss.str(), (float)width_ - 5.0f * ui_.scale, (25.0f + (float)i * 20.0f) * ui_.scale, TextOverlay::alignRight);
 		}
 
-		glm::vec3 projected = glm::project(glm::vec3(0.0f), uniformData.modelView, uniformData.projection, glm::vec4(0, 0, (float)width_, (float)height_));
+		glm::vec3 projected = glm::project(glm::vec3(0.0f), uniformData_.modelView, uniformData_.projection, glm::vec4(0, 0, (float)width_, (float)height_));
 		textOverlay->addText("A torus knot", projected.x, projected.y, TextOverlay::alignCenter);
 
 #if defined(__ANDROID__)

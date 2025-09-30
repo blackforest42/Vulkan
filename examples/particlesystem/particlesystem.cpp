@@ -45,7 +45,7 @@ public:
 			vks::Texture2D colorMap;
 			vks::Texture2D normalMap;
 		} floor;
-	} textures{};
+	} textures_{};
 
 	vkglTF::Model environment;
 
@@ -117,10 +117,10 @@ public:
 	~VulkanExample()
 	{
 		if (device_) {
-			textures.particles.smoke.destroy();
-			textures.particles.fire.destroy();
-			textures.floor.colorMap.destroy();
-			textures.floor.normalMap.destroy();
+			textures_.particles.smoke.destroy();
+			textures_.particles.fire.destroy();
+			textures_.floor.colorMap.destroy();
+			textures_.floor.normalMap.destroy();
 			vkDestroyPipeline(device_, pipelines_.particles, nullptr);
 			vkDestroyPipeline(device_, pipelines_.environment, nullptr);
 			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
@@ -134,7 +134,7 @@ public:
 				buffer.environment.destroy();
 				buffer.particles.destroy();
 			}
-			vkDestroySampler(device_, textures.particles.sampler, nullptr);
+			vkDestroySampler(device_, textures_.particles.sampler, nullptr);
 		}
 	}
 
@@ -266,12 +266,12 @@ public:
 	void loadAssets()
 	{
 		// Particles
-		textures.particles.smoke.loadFromFile(getAssetPath() + "textures/particle_smoke.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
-		textures.particles.fire.loadFromFile(getAssetPath() + "textures/particle_fire.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.particles.smoke.loadFromFile(getAssetPath() + "textures/particle_smoke.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.particles.fire.loadFromFile(getAssetPath() + "textures/particle_fire.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
 
 		// Floor
-		textures.floor.colorMap.loadFromFile(getAssetPath() + "textures/fireplace_colormap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
-		textures.floor.normalMap.loadFromFile(getAssetPath() + "textures/fireplace_normalmap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.floor.colorMap.loadFromFile(getAssetPath() + "textures/fireplace_colormap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.floor.normalMap.loadFromFile(getAssetPath() + "textures/fireplace_normalmap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
 
 		// Create a custom sampler to be used with the particle textures
 		// Create sampler
@@ -287,7 +287,7 @@ public:
 		samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
 		samplerCreateInfo.minLod = 0.0f;
 		// Both particle textures have the same number of mip maps
-		samplerCreateInfo.maxLod = float(textures.particles.fire.mipLevels);
+		samplerCreateInfo.maxLod = float(textures_.particles.fire.mipLevels);
 
 		if (vulkanDevice_->features.samplerAnisotropy)
 		{
@@ -298,7 +298,7 @@ public:
 
 		// Use a different border color (than the normal texture loader) for additive blending
 		samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerCreateInfo, nullptr, &textures.particles.sampler));
+		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerCreateInfo, nullptr, &textures_.particles.sampler));
 
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
 		environment.loadFromFile(getAssetPath() + "models/fireplace.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
@@ -338,8 +338,8 @@ public:
 			// Particles
 
 			// Image descriptor for the color map texture
-			VkDescriptorImageInfo texDescriptorSmoke = vks::initializers::descriptorImageInfo(textures.particles.sampler, textures.particles.smoke.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-			VkDescriptorImageInfo texDescriptorFire = vks::initializers::descriptorImageInfo(textures.particles.sampler, textures.particles.fire.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			VkDescriptorImageInfo texDescriptorSmoke = vks::initializers::descriptorImageInfo(textures_.particles.sampler, textures_.particles.smoke.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			VkDescriptorImageInfo texDescriptorFire = vks::initializers::descriptorImageInfo(textures_.particles.sampler, textures_.particles.fire.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 			writeDescriptorSets = {
 				vks::initializers::writeDescriptorSet(buffer.particlesDescriptor, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[currentBuffer_].particles.descriptor),
@@ -352,8 +352,8 @@ public:
 			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &buffer.environmentDescriptor));
 			writeDescriptorSets = {
 				vks::initializers::writeDescriptorSet(buffer.environmentDescriptor, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[currentBuffer_].environment.descriptor),
-				vks::initializers::writeDescriptorSet(buffer.environmentDescriptor, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.floor.colorMap.descriptor),
-				vks::initializers::writeDescriptorSet(buffer.environmentDescriptor, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures.floor.normalMap.descriptor),
+				vks::initializers::writeDescriptorSet(buffer.environmentDescriptor, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures_.floor.colorMap.descriptor),
+				vks::initializers::writeDescriptorSet(buffer.environmentDescriptor, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures_.floor.normalMap.descriptor),
 			};
 			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}

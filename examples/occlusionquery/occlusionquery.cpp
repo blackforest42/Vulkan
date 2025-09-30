@@ -33,7 +33,7 @@ public:
 		glm::vec4 color{ glm::vec4(0.0f) };
 		glm::vec4 lightPos{ glm::vec4(10.0f, -10.0f, 10.0f, 1.0f) };
 		float visible{ false };
-	} uniformData;
+	} uniformData_;
 
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	struct {
@@ -214,28 +214,28 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.view = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.view = camera_.matrices.view;
 
 		// Occluder
-		uniformData.visible = 1.0f;
-		uniformData.model = glm::scale(glm::mat4(1.0f), glm::vec3(6.0f));
-		uniformData.color = glm::vec4(0.0f, 0.0f, 1.0f, 0.5f);
-		memcpy(uniformBuffers_[currentBuffer_].occluder.mapped, &uniformData, sizeof(uniformData));
+		uniformData_.visible = 1.0f;
+		uniformData_.model = glm::scale(glm::mat4(1.0f), glm::vec3(6.0f));
+		uniformData_.color = glm::vec4(0.0f, 0.0f, 1.0f, 0.5f);
+		memcpy(uniformBuffers_[currentBuffer_].occluder.mapped, &uniformData_, sizeof(uniformData_));
 
 		// Teapot
 		// Toggle color depending on visibility
-		uniformData.visible = (passedSamples[0] > 0) ? 1.0f : 0.0f;
-		uniformData.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -3.0f));
-		uniformData.color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-		memcpy(uniformBuffers_[currentBuffer_].teapot.mapped, &uniformData, sizeof(uniformData));
+		uniformData_.visible = (passedSamples[0] > 0) ? 1.0f : 0.0f;
+		uniformData_.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -3.0f));
+		uniformData_.color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+		memcpy(uniformBuffers_[currentBuffer_].teapot.mapped, &uniformData_, sizeof(uniformData_));
 
 		// Sphere
 		// Toggle color depending on visibility
-		uniformData.visible = (passedSamples[1] > 0) ? 1.0f : 0.0f;
-		uniformData.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 3.0f));
-		uniformData.color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
-		memcpy(uniformBuffers_[currentBuffer_].sphere.mapped, &uniformData, sizeof(uniformData));
+		uniformData_.visible = (passedSamples[1] > 0) ? 1.0f : 0.0f;
+		uniformData_.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 3.0f));
+		uniformData_.color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+		memcpy(uniformBuffers_[currentBuffer_].sphere.mapped, &uniformData_, sizeof(uniformData_));
 	}
 
 	void prepare()

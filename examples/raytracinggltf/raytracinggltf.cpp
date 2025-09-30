@@ -42,7 +42,7 @@ public:
 		glm::mat4 viewInverse;
 		glm::mat4 projInverse;
 		uint32_t frame{ 0 };
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipeline pipeline{ VK_NULL_HANDLE };
@@ -607,7 +607,7 @@ public:
 	void createUniformBuffer()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
+			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
@@ -630,14 +630,14 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData.projInverse = glm::inverse(camera_.matrices.perspective);
-		uniformData.viewInverse = glm::inverse(camera_.matrices.view);
+		uniformData_.projInverse = glm::inverse(camera_.matrices.perspective);
+		uniformData_.viewInverse = glm::inverse(camera_.matrices.view);
 		// This value is used to accumulate multiple frames into the finale picture
 		// It's required as ray tracing needs to do multiple passes for transparency
 		// In this sample we use noise offset by this frame index to shoot rays for transparency into different directions
 		// Once enough frames with random ray directions have been accumulated, it looks like proper transparency
-		uniformData.frame++;
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+		uniformData_.frame++;
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void getEnabledFeatures()
@@ -778,7 +778,7 @@ public:
 		VulkanExampleBase::prepareFrame();
 		if (camera_.updated) {
 			// If the camera's view has been updated we need to  reset the frame accumulation (which is used for transparent surfaces and anti-aliasing)
-			uniformData.frame = -1;
+			uniformData_.frame = -1;
 		}
 		updateUniformBuffers();
 		buildCommandBuffer();

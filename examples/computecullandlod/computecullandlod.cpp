@@ -55,7 +55,7 @@ public:
 		glm::mat4 modelview;
 		glm::vec4 cameraPos;
 		glm::vec4 frustumPlanes[6];
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
@@ -499,14 +499,14 @@ public:
 
 	void updateUniformBuffer()
 	{
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.modelview = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.modelview = camera_.matrices.view;
 		if (!fixedFrustum) {
-			uniformData.cameraPos = glm::vec4(camera_.position, 1.0f) * -1.0f;
-			frustum.update(uniformData.projection * uniformData.modelview);
-			memcpy(uniformData.frustumPlanes, frustum.planes.data(), sizeof(glm::vec4) * 6);
+			uniformData_.cameraPos = glm::vec4(camera_.position, 1.0f) * -1.0f;
+			frustum.update(uniformData_.projection * uniformData_.modelview);
+			memcpy(uniformData_.frustumPlanes, frustum.planes.data(), sizeof(glm::vec4) * 6);
 		}
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void prepare()

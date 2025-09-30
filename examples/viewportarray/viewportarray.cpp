@@ -18,7 +18,7 @@ public:
 		glm::mat4 projection[2];
 		glm::mat4 modelview[2];
 		glm::vec4 lightPos = glm::vec4(-2.5f, -3.5f, 0.0f, 1.0f);
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipeline pipeline{ VK_NULL_HANDLE };
@@ -149,7 +149,7 @@ public:
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
+			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
@@ -187,8 +187,8 @@ public:
 
 		transM = glm::translate(glm::mat4(1.0f), camera_.position - camRight * (eyeSeparation / 2.0f));
 
-		uniformData.projection[0] = glm::frustum(left, right, bottom, top, zNear, zFar);
-		uniformData.modelview[0] = rotM * transM;
+		uniformData_.projection[0] = glm::frustum(left, right, bottom, top, zNear, zFar);
+		uniformData_.modelview[0] = rotM * transM;
 
 		// Right eye
 		left = -aspectRatio * wd2 - 0.5f * eyeSeparation * ndfl;
@@ -196,10 +196,10 @@ public:
 
 		transM = glm::translate(glm::mat4(1.0f), camera_.position + camRight * (eyeSeparation / 2.0f));
 
-		uniformData.projection[1] = glm::frustum(left, right, bottom, top, zNear, zFar);
-		uniformData.modelview[1] = rotM * transM;
+		uniformData_.projection[1] = glm::frustum(left, right, bottom, top, zNear, zFar);
+		uniformData_.modelview[1] = rotM * transM;
 
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void prepare()

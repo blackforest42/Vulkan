@@ -32,7 +32,7 @@ public:
 		vks::Texture2D heightMap;
 		vks::Texture2D skySphere;
 		vks::Texture2DArray terrainArray;
-	} textures;
+	} textures_;
 
 	struct {
 		vkglTF::Model skysphere;
@@ -121,9 +121,9 @@ public:
 				buffer.skysphereVertex.destroy();
 				buffer.terrainTessellation.destroy();
 			}
-			textures.heightMap.destroy();
-			textures.skySphere.destroy();
-			textures.terrainArray.destroy();
+			textures_.heightMap.destroy();
+			textures_.skySphere.destroy();
+			textures_.terrainArray.destroy();
 			terrain.vertexBuffer.destroy();
 			terrain.indexBuffer.destroy();
 			if (queryPool != VK_NULL_HANDLE) {
@@ -195,17 +195,17 @@ public:
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
 		models_.skysphere.loadFromFile(getAssetPath() + "models/sphere.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
 
-		textures.skySphere.loadFromFile(getAssetPath() + "textures/skysphere_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.skySphere.loadFromFile(getAssetPath() + "textures/skysphere_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
 		// Terrain textures are stored in a texture array with layers corresponding to terrain height
-		textures.terrainArray.loadFromFile(getAssetPath() + "textures/terrain_texturearray_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.terrainArray.loadFromFile(getAssetPath() + "textures/terrain_texturearray_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
 
 		// Height data is stored in a one-channel texture
-		textures.heightMap.loadFromFile(getAssetPath() + "textures/terrain_heightmap_r16.ktx", VK_FORMAT_R16_UNORM, vulkanDevice_, queue_);
+		textures_.heightMap.loadFromFile(getAssetPath() + "textures/terrain_heightmap_r16.ktx", VK_FORMAT_R16_UNORM, vulkanDevice_, queue_);
 
 		VkSamplerCreateInfo samplerInfo = vks::initializers::samplerCreateInfo();
 
 		// Setup a mirroring sampler for the height map
-		vkDestroySampler(device_, textures.heightMap.sampler, nullptr);
+		vkDestroySampler(device_, textures_.heightMap.sampler, nullptr);
 		samplerInfo.magFilter = VK_FILTER_LINEAR;
 		samplerInfo.minFilter = VK_FILTER_LINEAR;
 		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
@@ -214,13 +214,13 @@ public:
 		samplerInfo.addressModeW = samplerInfo.addressModeU;
 		samplerInfo.compareOp = VK_COMPARE_OP_NEVER;
 		samplerInfo.minLod = 0.0f;
-		samplerInfo.maxLod = (float)textures.heightMap.mipLevels;
+		samplerInfo.maxLod = (float)textures_.heightMap.mipLevels;
 		samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerInfo, nullptr, &textures.heightMap.sampler));
-		textures.heightMap.descriptor.sampler = textures.heightMap.sampler;
+		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerInfo, nullptr, &textures_.heightMap.sampler));
+		textures_.heightMap.descriptor.sampler = textures_.heightMap.sampler;
 
 		// Setup a repeating sampler for the terrain texture layers
-		vkDestroySampler(device_, textures.terrainArray.sampler, nullptr);
+		vkDestroySampler(device_, textures_.terrainArray.sampler, nullptr);
 		samplerInfo = vks::initializers::samplerCreateInfo();
 		samplerInfo.magFilter = VK_FILTER_LINEAR;
 		samplerInfo.minFilter = VK_FILTER_LINEAR;
@@ -230,14 +230,14 @@ public:
 		samplerInfo.addressModeW = samplerInfo.addressModeU;
 		samplerInfo.compareOp = VK_COMPARE_OP_NEVER;
 		samplerInfo.minLod = 0.0f;
-		samplerInfo.maxLod = (float)textures.terrainArray.mipLevels;
+		samplerInfo.maxLod = (float)textures_.terrainArray.mipLevels;
 		samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 		if (deviceFeatures_.samplerAnisotropy) {
 			samplerInfo.maxAnisotropy = 4.0f;
 			samplerInfo.anisotropyEnable = VK_TRUE;
 		}
-		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerInfo, nullptr, &textures.terrainArray.sampler));
-		textures.terrainArray.descriptor.sampler = textures.terrainArray.sampler;
+		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerInfo, nullptr, &textures_.terrainArray.sampler));
+		textures_.terrainArray.descriptor.sampler = textures_.terrainArray.sampler;
 	}
 
 	// Generate a terrain quad patch with normals based on heightmap data
@@ -446,9 +446,9 @@ public:
 				// Binding 0 : Shared tessellation shader ubo
 				vks::initializers::writeDescriptorSet(descriptorSets_[i].terrain, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].terrainTessellation.descriptor),
 				// Binding 1 : Height map
-				vks::initializers::writeDescriptorSet(descriptorSets_[i].terrain, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.heightMap.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].terrain, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures_.heightMap.descriptor),
 				// Binding 2 : Terrain texture array layers
-				vks::initializers::writeDescriptorSet(descriptorSets_[i].terrain, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures.terrainArray.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].terrain, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures_.terrainArray.descriptor),
 			};
 			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
@@ -459,7 +459,7 @@ public:
 				// Binding 0 : Vertex shader ubo
 				vks::initializers::writeDescriptorSet(descriptorSets_[i].skysphere, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].skysphereVertex.descriptor),
 				// Binding 1 : Fragment shader color map
-				vks::initializers::writeDescriptorSet(descriptorSets_[i].skysphere, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.skySphere.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].skysphere, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures_.skySphere.descriptor),
 			};
 			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}

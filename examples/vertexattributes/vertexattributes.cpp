@@ -493,17 +493,17 @@ void VulkanExample::preparePipelines()
 void VulkanExample::prepareUniformBuffers()
 {
 	for (auto& buffer : uniformBuffers_) {
-		VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
+		VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 		VK_CHECK_RESULT(buffer.map());
 	}
 }
 
 void VulkanExample::updateUniformBuffers()
 {
-	uniformData.projection = camera_.matrices.perspective;
-	uniformData.view = camera_.matrices.view;
-	uniformData.viewPos = camera_.viewPos;
-	memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+	uniformData_.projection = camera_.matrices.perspective;
+	uniformData_.view = camera_.matrices.view;
+	uniformData_.viewPos = camera_.viewPos;
+	memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 }
 
 void VulkanExample::prepare()

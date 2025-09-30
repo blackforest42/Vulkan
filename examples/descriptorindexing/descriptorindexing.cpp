@@ -20,7 +20,7 @@ class VulkanExample : public VulkanExampleBase
 {
 public:
 	// We will be dynamically indexing into an array of images
-	std::vector<vks::Texture2D> textures;
+	std::vector<vks::Texture2D> textures_;
 
 	vks::Buffer vertexBuffer;
 	vks::Buffer indexBuffer;
@@ -30,7 +30,7 @@ public:
 		glm::mat4 projection;
 		glm::mat4 view;
 		glm::mat4 model;
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipeline pipeline{ VK_NULL_HANDLE };
@@ -90,7 +90,7 @@ public:
 	~VulkanExample()
 	{
 		if (device_) {
-			for (auto& texture : textures) {
+			for (auto& texture : textures_) {
 				texture.destroy();
 			}
 			vkDestroyPipeline(device_, pipeline, nullptr);
@@ -107,8 +107,8 @@ public:
 	// Generate some random textures
 	void generateTextures()
 	{
-		textures.resize(32);
-		for (size_t i = 0; i < textures.size(); i++) {
+		textures_.resize(32);
+		for (size_t i = 0; i < textures_.size(); i++) {
 			std::random_device rndDevice;
 			std::default_random_engine rndEngine(benchmark.active ? 0 : rndDevice());
 			std::uniform_int_distribution<> rndDist(50, UCHAR_MAX);
@@ -121,7 +121,7 @@ public:
 				texture[j * 4 + 2] = rndDist(rndEngine);
 				texture[j * 4 + 3] = 255;
 			}
-			textures[i].fromBuffer(texture.data(), bufferSize, VK_FORMAT_R8G8B8A8_UNORM, dim, dim, vulkanDevice_, queue_, VK_FILTER_NEAREST);
+			textures_[i].fromBuffer(texture.data(), bufferSize, VK_FORMAT_R8G8B8A8_UNORM, dim, dim, vulkanDevice_, queue_, VK_FILTER_NEAREST);
 		}
 	}
 
@@ -134,7 +134,7 @@ public:
 		// Generate random per-face texture indices
 		std::random_device rndDevice;
 		std::default_random_engine rndEngine(benchmark.active ? 0 : rndDevice());
-		std::uniform_int_distribution<int32_t> rndDist(0, static_cast<uint32_t>(textures.size()) - 1);
+		std::uniform_int_distribution<int32_t> rndDist(0, static_cast<uint32_t>(textures_.size()) - 1);
 
 		// Generate cubes with random per-face texture indices
 		const uint32_t count = 5;
@@ -225,7 +225,7 @@ public:
 		// Descriptor pool
 		std::vector<VkDescriptorPoolSize> poolSizes = {
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(textures.size()) * MAX_CONCURRENT_FRAMES)
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(textures_.size()) * MAX_CONCURRENT_FRAMES)
 		};
 		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, MAX_CONCURRENT_FRAMES);
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(VK_USE_PLATFORM_METAL_EXT))
@@ -240,7 +240,7 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0),
 			// [POI] Binding 1 contains a texture array that is dynamically non-uniform sampled from in the fragment shader:
 			//	outFragColor = texture(textures[nonuniformEXT(inTexIndex)], inUV);
-			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1, static_cast<uint32_t>(textures.size()))
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1, static_cast<uint32_t>(textures_.size()))
 		};
 
 		// [POI] The fragment shader will be using an unsized array of samplers, which has to be marked with the VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT
@@ -285,7 +285,7 @@ public:
 		// [POI] Descriptor sets
 		// We need to provide the descriptor counts for bindings with variable counts using a new structure
 		std::vector<uint32_t> variableDesciptorCounts = {
-			static_cast<uint32_t>(textures.size())
+			static_cast<uint32_t>(textures_.size())
 		};
 
 		VkDescriptorSetVariableDescriptorCountAllocateInfoEXT variableDescriptorCountAllocInfo = {};
@@ -298,11 +298,11 @@ public:
 #endif
 
 		// Image descriptors for the texture array
-		std::vector<VkDescriptorImageInfo> textureDescriptors(textures.size());
-		for (size_t i = 0; i < textures.size(); i++) {
+		std::vector<VkDescriptorImageInfo> textureDescriptors(textures_.size());
+		for (size_t i = 0; i < textures_.size(); i++) {
 			textureDescriptors[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			textureDescriptors[i].sampler = textures[i].sampler;;
-			textureDescriptors[i].imageView = textures[i].view;
+			textureDescriptors[i].sampler = textures_[i].sampler;;
+			textureDescriptors[i].imageView = textures_[i].view;
 		}
 		// [POI] Second and final descriptor is a texture array
 		// Unlike an array texture, these are adressed like typical arrays
@@ -311,7 +311,7 @@ public:
 		textureArrayDescriptorWrite.dstBinding = 1;
 		textureArrayDescriptorWrite.dstArrayElement = 0;
 		textureArrayDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		textureArrayDescriptorWrite.descriptorCount = static_cast<uint32_t>(textures.size());
+		textureArrayDescriptorWrite.descriptorCount = static_cast<uint32_t>(textures_.size());
 		textureArrayDescriptorWrite.pBufferInfo = 0;
 		textureArrayDescriptorWrite.pImageInfo = textureDescriptors.data();
 
@@ -383,17 +383,17 @@ public:
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
+			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
 
 	void updateUniformBuffers()
 	{
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.view = camera_.matrices.view;
-		uniformData.model = glm::mat4(1.0f);
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.view = camera_.matrices.view;
+		uniformData_.model = glm::mat4(1.0f);
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void prepare()

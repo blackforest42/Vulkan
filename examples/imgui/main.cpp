@@ -512,7 +512,7 @@ public:
 		glm::mat4 projection;
 		glm::mat4 modelview;
 		glm::vec4 lightPos;
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
@@ -619,15 +619,15 @@ public:
 	void updateUniformBuffers()
 	{
 		// Vertex shader
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.modelview = camera_.matrices.view * glm::mat4(1.0f);
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.modelview = camera_.matrices.view * glm::mat4(1.0f);
 		// Light source
 		if (imGui->animateLight) {
 			imGui->lightTimer += frameTimer * imGui->lightSpeed;
-			uniformData.lightPos.x = sin(glm::radians(imGui->lightTimer * 360.0f)) * 15.0f;
-			uniformData.lightPos.z = cos(glm::radians(imGui->lightTimer * 360.0f)) * 15.0f;
+			uniformData_.lightPos.x = sin(glm::radians(imGui->lightTimer * 360.0f)) * 15.0f;
+			uniformData_.lightPos.z = cos(glm::radians(imGui->lightTimer * 360.0f)) * 15.0f;
 		};
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void loadAssets()

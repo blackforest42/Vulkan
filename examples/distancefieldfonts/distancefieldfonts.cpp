@@ -51,7 +51,7 @@ public:
 	struct Textures {
 		vks::Texture2D fontSDF;
 		vks::Texture2D fontBitmap;
-	} textures{};
+	} textures_{};
 
 	vks::Buffer vertexBuffer;
 	vks::Buffer indexBuffer;
@@ -65,7 +65,7 @@ public:
 		glm::vec4 outlineColor{ 1.0f, 0.0f, 0.0f, 0.0f };
 		float outlineWidth{ 0.6f };
 		float outline{ true };
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
@@ -94,8 +94,8 @@ public:
 	~VulkanExample()
 	{
 		if (device_) {
-			textures.fontSDF.destroy();
-			textures.fontBitmap.destroy();
+			textures_.fontSDF.destroy();
+			textures_.fontBitmap.destroy();
 			vkDestroyPipeline(device_, pipelines_.sdf, nullptr);
 			vkDestroyPipeline(device_, pipelines_.bitmap, nullptr);
 			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
@@ -167,8 +167,8 @@ public:
 
 	void loadAssets()
 	{
-		textures.fontSDF.loadFromFile(getAssetPath() + "textures/font_sdf_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
-		textures.fontBitmap.loadFromFile(getAssetPath() + "textures/font_bitmap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.fontSDF.loadFromFile(getAssetPath() + "textures/font_sdf_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.fontBitmap.loadFromFile(getAssetPath() + "textures/font_bitmap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
 	}
 
 	// Creates a vertex and index buffer with triangle data containing the chars of the given text
@@ -178,7 +178,7 @@ public:
 		std::vector<uint32_t> indices;
 		uint32_t indexOffset = 0;
 
-		float w = static_cast<float>(textures.fontSDF.width);
+		float w = static_cast<float>(textures_.fontSDF.width);
 
 		float posx = 0.0f;
 		float posy = 0.0f;
@@ -265,7 +265,7 @@ public:
 			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i].sdf));
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 				vks::initializers::writeDescriptorSet(descriptorSets_[i].sdf, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets_[i].sdf, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.fontSDF.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].sdf, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures_.fontSDF.descriptor),
 			};
 			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
@@ -273,7 +273,7 @@ public:
 			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i].bitmap));
 			writeDescriptorSets = {
 				vks::initializers::writeDescriptorSet(descriptorSets_[i].bitmap, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSets_[i].bitmap, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures.fontBitmap.descriptor)
+				vks::initializers::writeDescriptorSet(descriptorSets_[i].bitmap, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures_.fontBitmap.descriptor)
 			};
 			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}
@@ -348,7 +348,7 @@ public:
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
+			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
@@ -357,9 +357,9 @@ public:
 	{
 		// Adjust camera perspective as we render two viewports
 		camera_.setPerspective(splitScreen ? 30.0f : 45.0f, (float)width_ / (float)(height_ * ((splitScreen) ? 0.5f : 1.0f)), 1.0f, 256.0f);
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.modelView = camera_.matrices.view;
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.modelView = camera_.matrices.view;
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void prepare()
@@ -443,9 +443,9 @@ public:
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay)
 	{
 		if (overlay->header("Settings")) {
-			bool outline = (uniformData.outline == 1.0f);
+			bool outline = (uniformData_.outline == 1.0f);
 			if (overlay->checkBox("Outline", &outline)) {
-				uniformData.outline = outline ? 1.0f : 0.0f;
+				uniformData_.outline = outline ? 1.0f : 0.0f;
 			}
 			if (overlay->checkBox("Splitscreen", &splitScreen)) {
 				camera_.setPerspective(splitScreen ? 30.0f : 45.0f, (float)width_ / (float)(height_ * ((splitScreen) ? 0.5f : 1.0f)), 1.0f, 256.0f);

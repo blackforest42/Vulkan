@@ -230,7 +230,7 @@ public:
 		glm::vec4 lightPos;
 		// The model matrix is used to rotate a given gear, so we have one mat4 per gear
 		glm::mat4 model[numGears];
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	VulkanExample() : VulkanExampleBase()
@@ -420,7 +420,7 @@ public:
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
+			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
@@ -430,19 +430,19 @@ public:
 		float degree = timer * 360.0f;
 
 		// Camera specific global matrices
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.view = camera_.matrices.view;
-		uniformData.lightPos = glm::vec4(0.0f, 0.0f, 2.5f, 1.0f);
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.view = camera_.matrices.view;
+		uniformData_.lightPos = glm::vec4(0.0f, 0.0f, 2.5f, 1.0f);
 
 		// Update the model matrix for each gear that contains it's position and rotation
 		for (auto i = 0; i < numGears; i++) {
 			Gear gear = gears[i];
-			uniformData.model[i] = glm::mat4(1.0f);
-			uniformData.model[i] = glm::translate(uniformData.model[i], gear.pos);
-			uniformData.model[i] = glm::rotate(uniformData.model[i], glm::radians((gear.rotSpeed * degree) + gear.rotOffset), glm::vec3(0.0f, 0.0f, 1.0f));
+			uniformData_.model[i] = glm::mat4(1.0f);
+			uniformData_.model[i] = glm::translate(uniformData_.model[i], gear.pos);
+			uniformData_.model[i] = glm::rotate(uniformData_.model[i], glm::radians((gear.rotSpeed * degree) + gear.rotOffset), glm::vec3(0.0f, 0.0f, 1.0f));
 		}
 
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void prepare()

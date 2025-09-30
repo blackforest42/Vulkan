@@ -26,7 +26,7 @@ public:
 		glm::mat4 modelView;
 		float tessAlpha = 1.0f;
 		float tessLevel = 3.0f;
-	} uniformData;
+	} uniformData_;
 	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
 	struct Pipelines {
@@ -196,7 +196,7 @@ public:
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData));
+			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
@@ -205,9 +205,9 @@ public:
 	{
 		// Adjust camera perspective if split screen is enabled
 		camera_.setPerspective(45.0f, (float)(width_ * ((splitScreen) ? 0.5f : 1.0f)) / (float)height_, 0.1f, 256.0f);
-		uniformData.projection = camera_.matrices.perspective;
-		uniformData.modelView = camera_.matrices.view;
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData, sizeof(UniformData));
+		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.modelView = camera_.matrices.view;
+		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void prepare()
@@ -285,7 +285,7 @@ public:
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay)
 	{
 		if (overlay->header("Settings")) {
-			overlay->inputFloat("Tessellation level", &uniformData.tessLevel, 0.25f, 2);
+			overlay->inputFloat("Tessellation level", &uniformData_.tessLevel, 0.25f, 2);
 			if (deviceFeatures_.fillModeNonSolid) {
 				overlay->checkBox("Wireframe", &wireframe);
 				if (overlay->checkBox("Splitscreen", &splitScreen)) {
