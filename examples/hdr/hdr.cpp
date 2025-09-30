@@ -105,39 +105,6 @@ class VulkanExample : public VulkanExampleBase {
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
   }
 
-  ~VulkanExample() {
-    if (device_) {
-      vkDestroyPipeline(device_, pipelines_.skybox, nullptr);
-      vkDestroyPipeline(device_, pipelines_.reflect, nullptr);
-      vkDestroyPipeline(device_, pipelines_.composition, nullptr);
-      vkDestroyPipeline(device_, pipelines_.bloom[0], nullptr);
-      vkDestroyPipeline(device_, pipelines_.bloom[1], nullptr);
-      vkDestroyPipelineLayout(device_, pipelineLayouts_.models, nullptr);
-      vkDestroyPipelineLayout(device_, pipelineLayouts_.composition, nullptr);
-      vkDestroyPipelineLayout(device_, pipelineLayouts_.bloomFilter, nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.models,
-                                   nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.composition,
-                                   nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.bloomFilter,
-                                   nullptr);
-      vkDestroyRenderPass(device_, offscreen_.renderPass, nullptr);
-      vkDestroyRenderPass(device_, filterPass_.renderPass, nullptr);
-      vkDestroyFramebuffer(device_, offscreen_.frameBuffer, nullptr);
-      vkDestroyFramebuffer(device_, filterPass_.frameBuffer, nullptr);
-      vkDestroySampler(device_, offscreen_.sampler, nullptr);
-      vkDestroySampler(device_, filterPass_.sampler, nullptr);
-      offscreen_.depth.destroy(device_);
-      offscreen_.color[0].destroy(device_);
-      offscreen_.color[1].destroy(device_);
-      filterPass_.color[0].destroy(device_);
-      textures_.envmap.destroy();
-      for (auto& buffer : uniformBuffers_) {
-        buffer.destroy();
-      }
-    }
-  }
-
   void createAttachment(VkFormat format,
                         VkImageUsageFlagBits usage,
                         FrameBufferAttachment* attachment) {
@@ -197,6 +164,50 @@ class VulkanExample : public VulkanExampleBase {
     imageView.image = attachment->image;
     VK_CHECK_RESULT(
         vkCreateImageView(device_, &imageView, nullptr, &attachment->view));
+  }
+
+  void prepare() {
+    VulkanExampleBase::prepare();
+    loadAssets();
+    prepareUniformBuffers();
+    prepareoffscreenfer();
+    setupDescriptors();
+    preparePipelines();
+    prepared_ = true;
+  }
+
+  void loadAssets() {
+    // Load glTF models
+    const uint32_t glTFLoadingFlags =
+        vkglTF::FileLoadingFlags::PreTransformVertices |
+        vkglTF::FileLoadingFlags::FlipY;
+    models_.skybox.loadFromFile(getAssetPath() + "models/cube.gltf",
+                                vulkanDevice_, queue_, glTFLoadingFlags);
+    std::vector<std::string> filenames = {"sphere.gltf", "teapot.gltf",
+                                          "torusknot.gltf", "venus.gltf"};
+    modelNames_ = {"Sphere", "Teapot", "Torusknot", "Venus"};
+    models_.objects.resize(filenames.size());
+    for (size_t i = 0; i < filenames.size(); i++) {
+      models_.objects[i].loadFromFile(getAssetPath() + "models/" + filenames[i],
+                                      vulkanDevice_, queue_, glTFLoadingFlags);
+    }
+    // Load HDR cube map
+    textures_.envmap.loadFromFile(
+        getAssetPath() + "textures/hdr/uffizi_cube.ktx",
+        VK_FORMAT_R16G16B16A16_SFLOAT, vulkanDevice_, queue_);
+  }
+
+  // Prepare and initialize uniform buffer containing shader uniforms
+  void prepareUniformBuffers() {
+    for (auto& buffer : uniformBuffers_) {
+      // Scene matrices uniform buffer
+      VK_CHECK_RESULT(
+          vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                      &buffer, sizeof(UniformData)));
+      VK_CHECK_RESULT(buffer.map());
+    }
   }
 
   // Prepare a new framebuffer and attachments for offscreen rendering
@@ -450,27 +461,6 @@ class VulkanExample : public VulkanExampleBase {
       VK_CHECK_RESULT(
           vkCreateSampler(device_, &sampler, nullptr, &filterPass_.sampler));
     }
-  }
-
-  void loadAssets() {
-    // Load glTF models
-    const uint32_t glTFLoadingFlags =
-        vkglTF::FileLoadingFlags::PreTransformVertices |
-        vkglTF::FileLoadingFlags::FlipY;
-    models_.skybox.loadFromFile(getAssetPath() + "models/cube.gltf",
-                                vulkanDevice_, queue_, glTFLoadingFlags);
-    std::vector<std::string> filenames = {"sphere.gltf", "teapot.gltf",
-                                          "torusknot.gltf", "venus.gltf"};
-    modelNames_ = {"Sphere", "Teapot", "Torusknot", "Venus"};
-    models_.objects.resize(filenames.size());
-    for (size_t i = 0; i < filenames.size(); i++) {
-      models_.objects[i].loadFromFile(getAssetPath() + "models/" + filenames[i],
-                                      vulkanDevice_, queue_, glTFLoadingFlags);
-    }
-    // Load HDR cube map
-    textures_.envmap.loadFromFile(
-        getAssetPath() + "textures/hdr/uffizi_cube.ktx",
-        VK_FORMAT_R16G16B16A16_SFLOAT, vulkanDevice_, queue_);
   }
 
   void setupDescriptors() {
@@ -794,17 +784,13 @@ class VulkanExample : public VulkanExampleBase {
         device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.reflect));
   }
 
-  // Prepare and initialize uniform buffer containing shader uniforms
-  void prepareUniformBuffers() {
-    for (auto& buffer : uniformBuffers_) {
-      // Scene matrices uniform buffer
-      VK_CHECK_RESULT(
-          vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                      &buffer, sizeof(UniformData)));
-      VK_CHECK_RESULT(buffer.map());
-    }
+  virtual void render() {
+    if (!prepared_)
+      return;
+    VulkanExampleBase::prepareFrame();
+    updateUniformBuffers();
+    buildCommandBuffer();
+    VulkanExampleBase::submitFrame();
   }
 
   void updateUniformBuffers() {
@@ -813,16 +799,6 @@ class VulkanExample : public VulkanExampleBase {
     uniformData_.inverseModelview = glm::inverse(camera_.matrices.view);
     memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_,
            sizeof(uniformData_));
-  }
-
-  void prepare() {
-    VulkanExampleBase::prepare();
-    loadAssets();
-    prepareUniformBuffers();
-    prepareoffscreenfer();
-    setupDescriptors();
-    preparePipelines();
-    prepared_ = true;
   }
 
   void buildCommandBuffer() {
@@ -996,13 +972,37 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
 
-  virtual void render() {
-    if (!prepared_)
-      return;
-    VulkanExampleBase::prepareFrame();
-    updateUniformBuffers();
-    buildCommandBuffer();
-    VulkanExampleBase::submitFrame();
+  ~VulkanExample() {
+    if (device_) {
+      vkDestroyPipeline(device_, pipelines_.skybox, nullptr);
+      vkDestroyPipeline(device_, pipelines_.reflect, nullptr);
+      vkDestroyPipeline(device_, pipelines_.composition, nullptr);
+      vkDestroyPipeline(device_, pipelines_.bloom[0], nullptr);
+      vkDestroyPipeline(device_, pipelines_.bloom[1], nullptr);
+      vkDestroyPipelineLayout(device_, pipelineLayouts_.models, nullptr);
+      vkDestroyPipelineLayout(device_, pipelineLayouts_.composition, nullptr);
+      vkDestroyPipelineLayout(device_, pipelineLayouts_.bloomFilter, nullptr);
+      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.models,
+                                   nullptr);
+      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.composition,
+                                   nullptr);
+      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.bloomFilter,
+                                   nullptr);
+      vkDestroyRenderPass(device_, offscreen_.renderPass, nullptr);
+      vkDestroyRenderPass(device_, filterPass_.renderPass, nullptr);
+      vkDestroyFramebuffer(device_, offscreen_.frameBuffer, nullptr);
+      vkDestroyFramebuffer(device_, filterPass_.frameBuffer, nullptr);
+      vkDestroySampler(device_, offscreen_.sampler, nullptr);
+      vkDestroySampler(device_, filterPass_.sampler, nullptr);
+      offscreen_.depth.destroy(device_);
+      offscreen_.color[0].destroy(device_);
+      offscreen_.color[1].destroy(device_);
+      filterPass_.color[0].destroy(device_);
+      textures_.envmap.destroy();
+      for (auto& buffer : uniformBuffers_) {
+        buffer.destroy();
+      }
+    }
   }
 
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {
