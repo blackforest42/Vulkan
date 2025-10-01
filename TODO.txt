@@ -1,3 +1,3 @@
 Sept 30
-	- Blackhole not working yet, expecting a simple all white screen quad with 2 triangles
-	- Need to update descriptor set and uniform buffer in preparePipelines()
+	- working screen quad render with vert and frag shader!!!
+	- still need to port uniforms and ogl blackhole frag shader code

@@ -4,13 +4,13 @@
 layout(location = 0) in vec3 position;
 
 vec2 positions[6] = vec2[](
-    vec2(-1, -1, 0),
-    vec2(-1, 1, 0),
-    vec2(1, 1, 0),
+    vec2(-1, -1),
+    vec2(-1, 1),
+    vec2(1, 1),
 
-    vec2(1, 1, 0),
-    vec2(1, -1, 0),
-    vec2(-1, -1, 0),
+    vec2(1, 1),
+    vec2(1, -1),
+    vec2(-1, -1)
 );
 
 void main() {
