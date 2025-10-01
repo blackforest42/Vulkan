@@ -1,14 +1,15 @@
 #version 450
 
 // in
+layout (location = 0) in vec2 inUV;
 
 // out
 layout (location = 0) out vec4 outFragColor;
 
-layout (binding = 2) uniform UBO
+layout (binding = 0) uniform UBO
 {
-    glm::vec3 cameraPos;
-    glm::vec2 resolution;
+    vec3 cameraPos;
+    vec2 resolution;
     float mouseX;
     float mouseY;
     float time;
@@ -17,7 +18,7 @@ layout (binding = 2) uniform UBO
 
 // Texture maps
 layout (binding = 1) uniform samplerCube galaxy_skybox;
-layout (binding = 3) uniform sampler2D colorMap;
+layout (binding = 2) uniform sampler2D colorMap;
 
 const float PI = 3.14159265359;
 const float EPSILON = 0.0001;
@@ -51,7 +52,9 @@ struct Ring {
 
 #define IN_RANGE(x, a, b) (((x) > (a)) && ((x) < (b)))
 
+mat3 lookAt(vec3 origin, vec3 target);
 
 void main() {
-	outFragColor = vec4(vec3(0.f, 0.f, 1.f), 1.f);
+	outFragColor = texture(colorMap, inUV);
 }
+

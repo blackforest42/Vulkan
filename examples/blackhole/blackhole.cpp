@@ -34,37 +34,22 @@ class VulkanExample : public VulkanExampleBase {
   } models_;
 
   struct uniformData {
-    glm::mat4 projection;
-    glm::mat4 modelView;
-    glm::mat4 inverseModelview;
-    float lodBias = 0.0f;
-  } uniformData_;
-  std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
-
-  struct blackholeUniformData {
     glm::vec3 cameraPos;
     glm::vec2 resolution;
     float mouseX;
     float mouseY;
     float time;
     bool mouseControl = true;
-  } blackholeUniformData_;
-  std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> blackholeUniformBuffers_;
+  } uniformData_;
+  std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
+  VkPipelineLayout pipelineLayout_{VK_NULL_HANDLE};
   struct {
-    VkPipeline skybox{VK_NULL_HANDLE};
-    VkPipeline reflect{VK_NULL_HANDLE};
     VkPipeline blackhole{VK_NULL_HANDLE};
   } pipelines_;
 
-  VkPipelineLayout pipelineLayout_{VK_NULL_HANDLE};
   VkDescriptorSetLayout descriptorSetLayout_{VK_NULL_HANDLE};
-
-  struct DescriptorSets {
-    VkDescriptorSet spaceship{VK_NULL_HANDLE};
-    VkDescriptorSet blackhole{VK_NULL_HANDLE};
-  };
-  std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+  std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSet_{};
 
   std::vector<std::string> objectNames_;
 
@@ -106,6 +91,7 @@ class VulkanExample : public VulkanExampleBase {
     // Cubemap texture
     loadCubemap(getAssetPath() + "textures/blackhole/skybox/cubemap.ktx",
                 VK_FORMAT_R8G8B8A8_UNORM);
+    loadTexture(getAssetPath() + "textures/blackhole/blackhole_color_map.ktx");
   }
 
   // (A.2)
@@ -117,15 +103,6 @@ class VulkanExample : public VulkanExampleBase {
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
           &buffer, sizeof(uniformData), &uniformData_));
-      VK_CHECK_RESULT(buffer.map());
-    }
-
-    for (auto& buffer : blackholeUniformBuffers_) {
-      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
-          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer, sizeof(uniformData), &blackholeUniformData_));
       VK_CHECK_RESULT(buffer.map());
     }
   }
@@ -146,27 +123,21 @@ class VulkanExample : public VulkanExampleBase {
 
     // Layout
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
-        // Binding 0 : Vertex shader uniform buffer
+        // Binding 0 : Fragment shader blackhole uniform buffer
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
             /*binding id*/ 0),
 
-        // Binding 1 : Fragment shader image sampler
+        // Binding 1 : Fragment shader cubemap
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_FRAGMENT_BIT, /*binding id*/ 1),
-
-        // Binding 2 : Fragment shader blackhole uniform buffer
-        vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT,
-            /*binding id*/ 2),
-
-        // Binding 3 : Fragment shader blackhole 2D texture
+        // Binding 2 : Fragment shader blackhole 2D texture
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_FRAGMENT_BIT,
-            /*binding id*/ 3)};
+            /*binding id*/ 2)};
 
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
@@ -177,24 +148,29 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorImageInfo textureDescriptor =
         vks::initializers::descriptorImageInfo(cubeMap_.sampler, cubeMap_.view,
                                                cubeMap_.imageLayout);
+    // Image descriptor for the blackhole color texture
+    VkDescriptorImageInfo blackholeColorTextureDescriptor =
+        vks::initializers::descriptorImageInfo(
+            colorMap_.sampler, colorMap_.view, colorMap_.imageLayout);
 
-    // Sets per frame, just like the buffers themselves
-    // Images do not need to be duplicated per frame, we reuse the same one for
-    // each frame
-    VkDescriptorSetAllocateInfo allocInfo =
-        vks::initializers::descriptorSetAllocateInfo(descriptorPool_,
-                                                     &descriptorSetLayout_, 1);
     for (auto i = 0; i < uniformBuffers_.size(); i++) {
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
-                                               &descriptorSets_[i].spaceship));
+      VkDescriptorSetAllocateInfo allocInfo =
+          vks::initializers::descriptorSetAllocateInfo(
+              descriptorPool_, &descriptorSetLayout_, 1);
+      VK_CHECK_RESULT(
+          vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSet_[i]));
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
           vks::initializers::writeDescriptorSet(
-              descriptorSets_[i].spaceship, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-              0, &uniformBuffers_[i].descriptor),
+              descriptorSet_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
+              &uniformBuffers_[i].descriptor),
           vks::initializers::writeDescriptorSet(
-              descriptorSets_[i].spaceship,
-              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textureDescriptor),
+              descriptorSet_[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1,
+              &textureDescriptor),
+          vks::initializers::writeDescriptorSet(
+              descriptorSet_[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2,
+              &blackholeColorTextureDescriptor),
       };
+
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
@@ -204,7 +180,7 @@ class VulkanExample : public VulkanExampleBase {
   // (A.4)
   void preparePipelines() {
     // Layout
-    const VkPipelineLayoutCreateInfo pipelineLayoutCI =
+    VkPipelineLayoutCreateInfo pipelineLayoutCI =
         vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout_, 1);
     VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr,
                                            &pipelineLayout_));
@@ -250,28 +226,7 @@ class VulkanExample : public VulkanExampleBase {
     pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState(
         {vkglTF::VertexComponent::Position, vkglTF::VertexComponent::Normal});
 
-    // Skybox pipeline (background cube)
-    shaderStages[0] = loadShader(getShadersPath() + "blackhole/skybox.vert.spv",
-                                 VK_SHADER_STAGE_VERTEX_BIT);
-    shaderStages[1] = loadShader(getShadersPath() + "blackhole/skybox.frag.spv",
-                                 VK_SHADER_STAGE_FRAGMENT_BIT);
-    rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-        device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.skybox));
-
-    // Cube map reflect pipeline
-    shaderStages[0] =
-        loadShader(getShadersPath() + "blackhole/reflect.vert.spv",
-                   VK_SHADER_STAGE_VERTEX_BIT);
-    shaderStages[1] =
-        loadShader(getShadersPath() + "blackhole/reflect.frag.spv",
-                   VK_SHADER_STAGE_FRAGMENT_BIT);
     // Enable depth test and write
-    depthStencilState.depthWriteEnable = VK_TRUE;
-    depthStencilState.depthTestEnable = VK_TRUE;
-    rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-        device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.reflect));
 
     // Blackhole pipeline
     shaderStages[0] =
@@ -298,25 +253,17 @@ class VulkanExample : public VulkanExampleBase {
 
   // (B.1)
   void updateUniformBuffers() {
-    uniformData_.projection = camera_.matrices.perspective;
-    // Note: Both the object and skybox use the same uniform data, the
-    // translation part of the skybox is removed in the shader (see skybox.vert)
-    uniformData_.modelView = camera_.matrices.view;
-    uniformData_.inverseModelview = glm::inverse(camera_.matrices.view);
-    memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_,
-           sizeof(uniformData_));
-
     // TODO: create a toggle in UI for toggling mouse
-    // blackholeUniformData_.mouseControl = ;
+    // uniformData_.mouseControl = ;
 
-    blackholeUniformData_.mouseX = mouseState.position.x;
-    blackholeUniformData_.mouseY = mouseState.position.y;
-    blackholeUniformData_.time =
+    uniformData_.mouseX = mouseState.position.x;
+    uniformData_.mouseY = mouseState.position.y;
+    uniformData_.time =
         std::chrono::duration_cast<std::chrono::seconds>(
             std::chrono::high_resolution_clock::now().time_since_epoch())
             .count();
-    blackholeUniformData_.resolution = glm::vec2(width_, height_);
-    blackholeUniformData_.cameraPos = camera_.position;
+    uniformData_.resolution = glm::vec2(width_, height_);
+    uniformData_.cameraPos = camera_.position;
   }
 
   // (B.2)
@@ -357,9 +304,9 @@ class VulkanExample : public VulkanExampleBase {
       VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
       vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
-      vkCmdBindDescriptorSets(
-          cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 1,
-          &descriptorSets_[currentBuffer_].blackhole, 0, nullptr);
+      vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              pipelineLayout_, 0, 1,
+                              &descriptorSet_[currentBuffer_], 0, nullptr);
 
       vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                         pipelines_.blackhole);
@@ -368,48 +315,6 @@ class VulkanExample : public VulkanExampleBase {
       vkCmdEndRenderPass(cmdBuffer);
 
     } else {
-      VkClearValue clearValues[2]{};
-      clearValues[0].color = defaultClearColor;
-      clearValues[1].depthStencil = {1.0f, 0};
-
-      VkRenderPassBeginInfo renderPassBeginInfo =
-          vks::initializers::renderPassBeginInfo();
-      renderPassBeginInfo.renderPass = renderPass_;
-      renderPassBeginInfo.renderArea.offset.x = 0;
-      renderPassBeginInfo.renderArea.offset.y = 0;
-      renderPassBeginInfo.renderArea.extent.width = width_;
-      renderPassBeginInfo.renderArea.extent.height = height_;
-      renderPassBeginInfo.clearValueCount = 2;
-      renderPassBeginInfo.pClearValues = clearValues;
-      renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
-
-      vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
-                           VK_SUBPASS_CONTENTS_INLINE);
-
-      VkViewport viewport = vks::initializers::viewport(
-          (float)width_, (float)height_, 0.0f, 1.0f);
-      vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
-
-      VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
-      vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
-
-      vkCmdBindDescriptorSets(
-          cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 1,
-          &descriptorSets_[currentBuffer_].spaceship, 0, nullptr);
-
-      // Skybox
-      if (displaySkybox_) {
-        vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          pipelines_.skybox);
-        models_.skybox.draw(cmdBuffer);
-      }
-
-      // 3D object
-      vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        pipelines_.reflect);
-      models_.objects[models_.objectIndex].draw(cmdBuffer);
-
-      vkCmdEndRenderPass(cmdBuffer);
     }
 
     drawUI(cmdBuffer);
@@ -419,16 +324,14 @@ class VulkanExample : public VulkanExampleBase {
 
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {
     if (overlay->header("Settings")) {
-      overlay->sliderFloat("LOD bias", &uniformData_.lodBias, 0.0f,
-                           (float)cubeMap_.mipLevels);
       overlay->comboBox("Object type", &models_.objectIndex, objectNames_);
       overlay->checkBox("Skybox", &displaySkybox_);
       overlay->checkBox("Blackhole", &enableBlackhole_);
     }
   }
 
-  // Loads a cubemap from a file, uploads it to the device and create all Vulkan
-  // resources required to display it
+  // Loads a cubemap from a file, uploads it to the device and create all
+  // Vulkan resources required to display it
   void loadCubemap(std::string filename, VkFormat format) {
     ktxResult result;
     ktxTexture* ktxTexture;
@@ -617,6 +520,356 @@ class VulkanExample : public VulkanExampleBase {
     ktxTexture_Destroy(ktxTexture);
   }
 
+  void loadTexture(const std::string& filename) {
+    // We use the Khronos texture format
+    // (https://www.khronos.org/opengles/sdk/tools/KTX/file_format_spec/)
+    // Texture data contains 4 channels (RGBA) with unnormalized 8-bit values,
+    // this is the most commonly supported format
+    VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+
+    ktxResult result;
+    ktxTexture* ktxTexture;
+
+    if (!vks::tools::fileExists(filename)) {
+      vks::tools::exitFatal("Could not load texture from " + filename +
+                                "\n\nMake sure the assets submodule has been "
+                                "checked out and is up-to-date.",
+                            -1);
+    }
+    result = ktxTexture_CreateFromNamedFile(
+        filename.c_str(), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &ktxTexture);
+    assert(result == KTX_SUCCESS);
+
+    // Get properties required for using and upload texture data from the ktx
+    // texture object
+    colorMap_.width = ktxTexture->baseWidth;
+    colorMap_.height = ktxTexture->baseHeight;
+    colorMap_.mipLevels = ktxTexture->numLevels;
+    ktx_uint8_t* ktxTextureData = ktxTexture_GetData(ktxTexture);
+    ktx_size_t ktxTextureSize = ktxTexture_GetSize(ktxTexture);
+
+    // We prefer using staging to copy the texture data to a device local
+    // optimal image
+    VkBool32 useStaging = true;
+
+    // Only use linear tiling if forced
+    bool forceLinearTiling = false;
+    if (forceLinearTiling) {
+      // Don't use linear if format is not supported for (linear) shader
+      // sampling Get device properties for the requested texture format
+      VkFormatProperties formatProperties;
+      vkGetPhysicalDeviceFormatProperties(physicalDevice_, format,
+                                          &formatProperties);
+      useStaging = !(formatProperties.linearTilingFeatures &
+                     VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
+    }
+
+    VkMemoryAllocateInfo memAllocInfo = vks::initializers::memoryAllocateInfo();
+    VkMemoryRequirements memReqs = {};
+
+    if (useStaging) {
+      // Copy data to an optimal tiled image
+      // This loads the texture data into a host local buffer that is copied
+      // to the optimal tiled image on the device
+
+      // Create a host-visible staging buffer that contains the raw image data
+      // This buffer will be the data source for copying texture data to the
+      // optimal tiled image on the device
+      VkBuffer stagingBuffer;
+      VkDeviceMemory stagingMemory;
+
+      VkBufferCreateInfo bufferCreateInfo =
+          vks::initializers::bufferCreateInfo();
+      bufferCreateInfo.size = ktxTextureSize;
+      // This buffer is used as a transfer source for the buffer copy
+      bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+      bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+      VK_CHECK_RESULT(
+          vkCreateBuffer(device_, &bufferCreateInfo, nullptr, &stagingBuffer));
+
+      // Get memory requirements for the staging buffer (alignment, memory
+      // type bits)
+      vkGetBufferMemoryRequirements(device_, stagingBuffer, &memReqs);
+      memAllocInfo.allocationSize = memReqs.size;
+      // Get memory type index for a host visible buffer
+      memAllocInfo.memoryTypeIndex = vulkanDevice_->getMemoryType(
+          memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+      VK_CHECK_RESULT(
+          vkAllocateMemory(device_, &memAllocInfo, nullptr, &stagingMemory));
+      VK_CHECK_RESULT(
+          vkBindBufferMemory(device_, stagingBuffer, stagingMemory, 0));
+
+      // Copy texture data into host local staging buffer
+      uint8_t* data;
+      VK_CHECK_RESULT(vkMapMemory(device_, stagingMemory, 0, memReqs.size, 0,
+                                  (void**)&data));
+      memcpy(data, ktxTextureData, ktxTextureSize);
+      vkUnmapMemory(device_, stagingMemory);
+
+      // Setup buffer copy regions for each mip level
+      std::vector<VkBufferImageCopy> bufferCopyRegions;
+      uint32_t offset = 0;
+
+      for (uint32_t i = 0; i < colorMap_.mipLevels; i++) {
+        // Calculate offset into staging buffer for the current mip level
+        ktx_size_t offset;
+        KTX_error_code ret =
+            ktxTexture_GetImageOffset(ktxTexture, i, 0, 0, &offset);
+        assert(ret == KTX_SUCCESS);
+        // Setup a buffer image copy structure for the current mip level
+        VkBufferImageCopy bufferCopyRegion = {};
+        bufferCopyRegion.imageSubresource.aspectMask =
+            VK_IMAGE_ASPECT_COLOR_BIT;
+        bufferCopyRegion.imageSubresource.mipLevel = i;
+        bufferCopyRegion.imageSubresource.baseArrayLayer = 0;
+        bufferCopyRegion.imageSubresource.layerCount = 1;
+        bufferCopyRegion.imageExtent.width = ktxTexture->baseWidth >> i;
+        bufferCopyRegion.imageExtent.height = ktxTexture->baseHeight >> i;
+        bufferCopyRegion.imageExtent.depth = 1;
+        bufferCopyRegion.bufferOffset = offset;
+        bufferCopyRegions.push_back(bufferCopyRegion);
+      }
+
+      // Create optimal tiled target image on the device
+      VkImageCreateInfo imageCreateInfo = vks::initializers::imageCreateInfo();
+      imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+      imageCreateInfo.format = format;
+      imageCreateInfo.mipLevels = colorMap_.mipLevels;
+      imageCreateInfo.arrayLayers = 1;
+      imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+      imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+      imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+      // Set initial layout of the image to undefined
+      imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+      imageCreateInfo.extent = {colorMap_.width, colorMap_.height, 1};
+      imageCreateInfo.usage =
+          VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+      VK_CHECK_RESULT(
+          vkCreateImage(device_, &imageCreateInfo, nullptr, &colorMap_.image));
+
+      vkGetImageMemoryRequirements(device_, colorMap_.image, &memReqs);
+      memAllocInfo.allocationSize = memReqs.size;
+      memAllocInfo.memoryTypeIndex = vulkanDevice_->getMemoryType(
+          memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+      VK_CHECK_RESULT(vkAllocateMemory(device_, &memAllocInfo, nullptr,
+                                       &colorMap_.deviceMemory));
+      VK_CHECK_RESULT(vkBindImageMemory(device_, colorMap_.image,
+                                        colorMap_.deviceMemory, 0));
+
+      VkCommandBuffer copyCmd = vulkanDevice_->createCommandBuffer(
+          VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+
+      // Image memory barriers for the texture image
+
+      // The sub resource range describes the regions of the image that will
+      // be transitioned using the memory barriers below
+      VkImageSubresourceRange subresourceRange = {};
+      // Image only contains color data
+      subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+      // Start at first mip level
+      subresourceRange.baseMipLevel = 0;
+      // We will transition on all mip levels
+      subresourceRange.levelCount = colorMap_.mipLevels;
+      // The 2D texture only has one layer
+      subresourceRange.layerCount = 1;
+
+      // Transition the texture image layout to transfer target, so we can
+      // safely copy our buffer data to it.
+      VkImageMemoryBarrier imageMemoryBarrier =
+          vks::initializers::imageMemoryBarrier();
+      ;
+      imageMemoryBarrier.image = colorMap_.image;
+      imageMemoryBarrier.subresourceRange = subresourceRange;
+      imageMemoryBarrier.srcAccessMask = 0;
+      imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+      imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+      imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+
+      // Insert a memory dependency at the proper pipeline stages that will
+      // execute the image layout transition Source pipeline stage is host
+      // write/read execution (VK_PIPELINE_STAGE_HOST_BIT) Destination
+      // pipeline stage is copy command execution
+      // (VK_PIPELINE_STAGE_TRANSFER_BIT)
+      vkCmdPipelineBarrier(copyCmd, VK_PIPELINE_STAGE_HOST_BIT,
+                           VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
+                           nullptr, 1, &imageMemoryBarrier);
+
+      // Copy mip levels from staging buffer
+      vkCmdCopyBufferToImage(copyCmd, stagingBuffer, colorMap_.image,
+                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                             static_cast<uint32_t>(bufferCopyRegions.size()),
+                             bufferCopyRegions.data());
+
+      // Once the data has been uploaded we transfer to the texture image to
+      // the shader read layout, so it can be sampled from
+      imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+      imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+      imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+      imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+      // Insert a memory dependency at the proper pipeline stages that will
+      // execute the image layout transition Source pipeline stage is copy
+      // command execution (VK_PIPELINE_STAGE_TRANSFER_BIT) Destination
+      // pipeline stage fragment shader access
+      // (VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
+      vkCmdPipelineBarrier(copyCmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr,
+                           0, nullptr, 1, &imageMemoryBarrier);
+
+      // Store current layout for later reuse
+      colorMap_.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+      vulkanDevice_->flushCommandBuffer(copyCmd, queue_, true);
+
+      // Clean up staging resources
+      vkFreeMemory(device_, stagingMemory, nullptr);
+      vkDestroyBuffer(device_, stagingBuffer, nullptr);
+    } else {
+      // Copy data to a linear tiled image
+
+      VkImage mappableImage;
+      VkDeviceMemory mappableMemory;
+
+      // Load mip map level 0 to linear tiling image
+      VkImageCreateInfo imageCreateInfo = vks::initializers::imageCreateInfo();
+      imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+      imageCreateInfo.format = format;
+      imageCreateInfo.mipLevels = 1;
+      imageCreateInfo.arrayLayers = 1;
+      imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+      imageCreateInfo.tiling = VK_IMAGE_TILING_LINEAR;
+      imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+      imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+      imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+      imageCreateInfo.extent = {colorMap_.width, colorMap_.height, 1};
+      VK_CHECK_RESULT(
+          vkCreateImage(device_, &imageCreateInfo, nullptr, &mappableImage));
+
+      // Get memory requirements for this image like size and alignment
+      vkGetImageMemoryRequirements(device_, mappableImage, &memReqs);
+      // Set memory allocation size to required memory size
+      memAllocInfo.allocationSize = memReqs.size;
+      // Get memory type that can be mapped to host memory
+      memAllocInfo.memoryTypeIndex = vulkanDevice_->getMemoryType(
+          memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+      VK_CHECK_RESULT(
+          vkAllocateMemory(device_, &memAllocInfo, nullptr, &mappableMemory));
+      VK_CHECK_RESULT(
+          vkBindImageMemory(device_, mappableImage, mappableMemory, 0));
+
+      // Map image memory
+      void* data;
+      VK_CHECK_RESULT(
+          vkMapMemory(device_, mappableMemory, 0, memReqs.size, 0, &data));
+      // Copy image data of the first mip level into memory
+      memcpy(data, ktxTextureData, memReqs.size);
+      vkUnmapMemory(device_, mappableMemory);
+
+      // Linear tiled images don't need to be staged and can be directly used
+      // as textures
+      colorMap_.image = mappableImage;
+      colorMap_.deviceMemory = mappableMemory;
+      colorMap_.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+      // Setup image memory barrier transfer image to shader read layout
+      VkCommandBuffer copyCmd = vulkanDevice_->createCommandBuffer(
+          VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+
+      // The sub resource range describes the regions of the image we will be
+      // transition
+      VkImageSubresourceRange subresourceRange = {};
+      subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+      subresourceRange.baseMipLevel = 0;
+      subresourceRange.levelCount = 1;
+      subresourceRange.layerCount = 1;
+
+      // Transition the texture image layout to shader read, so it can be
+      // sampled from
+      VkImageMemoryBarrier imageMemoryBarrier =
+          vks::initializers::imageMemoryBarrier();
+      ;
+      imageMemoryBarrier.image = colorMap_.image;
+      imageMemoryBarrier.subresourceRange = subresourceRange;
+      imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+      imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+      imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+      imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+      // Insert a memory dependency at the proper pipeline stages that will
+      // execute the image layout transition Source pipeline stage is host
+      // write/read execution (VK_PIPELINE_STAGE_HOST_BIT) Destination
+      // pipeline stage fragment shader access
+      // (VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
+      vkCmdPipelineBarrier(copyCmd, VK_PIPELINE_STAGE_HOST_BIT,
+                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr,
+                           0, nullptr, 1, &imageMemoryBarrier);
+
+      vulkanDevice_->flushCommandBuffer(copyCmd, queue_, true);
+    }
+
+    ktxTexture_Destroy(ktxTexture);
+
+    // Create a texture sampler
+    // In Vulkan textures are accessed by samplers
+    // This separates all the sampling information from the texture data. This
+    // means you could have multiple sampler objects for the same texture with
+    // different settings Note: Similar to the samplers available with
+    // OpenGL 3.3
+    VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
+    sampler.magFilter = VK_FILTER_LINEAR;
+    sampler.minFilter = VK_FILTER_LINEAR;
+    sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    sampler.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    sampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    sampler.mipLodBias = 0.0f;
+    sampler.compareOp = VK_COMPARE_OP_NEVER;
+    sampler.minLod = 0.0f;
+    // Set max level-of-detail to mip level count of the texture
+    sampler.maxLod = (useStaging) ? (float)colorMap_.mipLevels : 0.0f;
+    // Enable anisotropic filtering
+    // This feature is optional, so we must check if it's supported on the
+    // device
+    if (vulkanDevice_->features.samplerAnisotropy) {
+      // Use max. level of anisotropy for this example
+      sampler.maxAnisotropy =
+          vulkanDevice_->properties.limits.maxSamplerAnisotropy;
+      sampler.anisotropyEnable = VK_TRUE;
+    } else {
+      // The device does not support anisotropic filtering
+      sampler.maxAnisotropy = 1.0;
+      sampler.anisotropyEnable = VK_FALSE;
+    }
+    sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+    VK_CHECK_RESULT(
+        vkCreateSampler(device_, &sampler, nullptr, &colorMap_.sampler));
+
+    // Create image view
+    // Textures are not directly accessed by the shaders and
+    // are abstracted by image views containing additional
+    // information and sub resource ranges
+    VkImageViewCreateInfo view = vks::initializers::imageViewCreateInfo();
+    view.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    view.format = format;
+    // The subresource range describes the set of mip levels (and array
+    // layers) that can be accessed through this image view It's possible to
+    // create multiple image views for a single image referring to different
+    // (and/or overlapping) ranges of the image
+    view.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    view.subresourceRange.baseMipLevel = 0;
+    view.subresourceRange.baseArrayLayer = 0;
+    view.subresourceRange.layerCount = 1;
+    // Linear tiling usually won't support mip maps
+    // Only set mip map count if optimal tiling is used
+    view.subresourceRange.levelCount = (useStaging) ? colorMap_.mipLevels : 1;
+    // The view will be based on the texture's image
+    view.image = colorMap_.image;
+    VK_CHECK_RESULT(
+        vkCreateImageView(device_, &view, nullptr, &colorMap_.view));
+  }
+
   // Enable physical device features required for this example
   virtual void getEnabledFeatures() {
     if (deviceFeatures_.samplerAnisotropy) {
@@ -630,8 +883,7 @@ class VulkanExample : public VulkanExampleBase {
       vkDestroyImage(device_, cubeMap_.image, nullptr);
       vkDestroySampler(device_, cubeMap_.sampler, nullptr);
       vkFreeMemory(device_, cubeMap_.deviceMemory, nullptr);
-      vkDestroyPipeline(device_, pipelines_.skybox, nullptr);
-      vkDestroyPipeline(device_, pipelines_.reflect, nullptr);
+      vkDestroyPipeline(device_, pipelines_.blackhole, nullptr);
       vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
       vkDestroyDescriptorSetLayout(device_, descriptorSetLayout_, nullptr);
       for (auto& buffer : uniformBuffers_) {
