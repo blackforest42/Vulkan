@@ -63,10 +63,6 @@ vec4 quadFromAxisAngle(vec3 axis, float angle);
 vec4 quadConj(vec4 q);
 vec4 quat_mult(vec4 q1, vec4 q2);
 vec3 rotateVector(vec3 position, vec3 axis, float angle);
-void cartesianToSpherical(in vec3 xyz,
-                          out float rho,
-                          out float phi,
-                          out float theta);
 vec3 toSpherical(vec3 p);
 void ringColor(vec3 rayOrigin,
                vec3 rayDir,
@@ -74,7 +70,7 @@ void ringColor(vec3 rayOrigin,
                inout float minDistance,
                inout vec3 color);
 float sqrLength(vec3 a);
-void AccDiskColor(vec3 pos, inout vec3 color, inout float alpha);
+void accDiskColor(vec3 pos, inout vec3 color, inout float alpha);
 vec3 traceColor(vec3 pos, vec3 dir);
 
 void main() {
@@ -85,7 +81,7 @@ void main() {
     vec2 uv = gl_FragCoord.xy / ubo.resolution.xy - vec2(0.5);
 	uv.x *= ubo.resolution.x / ubo.resolution.y;
  
-	vec3 dir = normalize(vec3(-uv.x, uv.y,  1.0));
+	vec3 dir = normalize(vec3(-uv.x, -uv.y,  1.0));
 	dir = mat3(ubo.cameraView) * dir;
  
     // Tonemapping
@@ -101,6 +97,7 @@ void main() {
 vec4 permute(vec4 x) {
   return mod(((x * 34.0) + 1.0) * x, 289.0);
 }
+
 vec4 taylorInvSqrt(vec4 r) {
   return 1.79284291400159 - 0.85373472095314 * r;
 }
@@ -175,7 +172,6 @@ float snoise(vec3 v) {
          dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
 }
 
-///----
 float ringDistance(vec3 rayOrigin, vec3 rayDir, Ring ring) {
   float denominator = dot(rayDir, ring.normal);
   float constant = -dot(ring.center, ring.normal);
@@ -241,14 +237,6 @@ vec3 rotateVector(vec3 position, vec3 axis, float angle) {
 
 #define IN_RANGE(x, a, b) (((x) > (a)) && ((x) < (b)))
 
-void cartesianToSpherical(in vec3 xyz,
-                          out float rho,
-                          out float phi,
-                          out float theta) {
-  rho = sqrt((xyz.x * xyz.x) + (xyz.y * xyz.y) + (xyz.z * xyz.z));
-  phi = asin(xyz.y / rho);
-  theta = atan(xyz.z, xyz.x);
-}
 
 // Convert from Cartesian to spherical coord (rho, phi, theta)
 // https://en.wikipedia.org/wiki/Spherical_coordinate_system
@@ -302,7 +290,7 @@ float sqrLength(vec3 a) {
   return dot(a, a);
 }
 
-void AccDiskColor(vec3 pos, inout vec3 color, inout float alpha) {
+void accDiskColor(vec3 pos, inout vec3 color, inout float alpha) {
   float innerRadius = 2.6;
   float outerRadius = 12.0;
 
@@ -392,7 +380,7 @@ vec3 traceColor(vec3 pos, vec3 dir) {
         ringColor(pos, dir, ring, minDistance, color);
       } else {
         if (AccDiskEnabled > 0.5) {
-          AccDiskColor(pos, color, alpha);
+          accDiskColor(pos, color, alpha);
         }
       }
     }
