@@ -88,12 +88,13 @@ void main() {
  
 	vec3 dir = normalize(vec3(uv.x, -uv.y,  1.0));
 	dir = mat3(ubo.cameraView) * dir;
-	//outFragColor.rgb = texture(galaxyCubemap, vec3(dir)).rgb;
-    vec3 hdrColor = traceColor(ubo.cameraPos, dir).rgb;
-
-vec3 mapped = vec3(1.0) - exp(-hdrColor * exposure);
+	outFragColor.rgb = traceColor(ubo.cameraPos, dir).rgb;
+ 
+ // Janky tonemapping
+//vec3 hdrColor = traceColor(ubo.cameraPos, dir).rgb;
+//vec3 mapped = vec3(1.0) - exp(-hdrColor * exposure);
 // Gamma correction
-outFragColor.rgb = pow(mapped, vec3(1.0 / gamma));
+// outFragColor.rgb = pow(mapped, vec3(1.0 / gamma));
 }
 
 ///----
