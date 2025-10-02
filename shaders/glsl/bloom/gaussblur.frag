@@ -1,12 +1,12 @@
 #version 450
 
-layout (binding = 1) uniform sampler2D samplerColor;
-
 layout (binding = 0) uniform UBO 
 {
 	float blurScale;
 	float blurStrength;
 } ubo;
+
+layout (binding = 1) uniform sampler2D samplerColor;
 
 layout (constant_id = 0) const int blurdirection = 0;
 
