@@ -26,13 +26,6 @@ class VulkanExample : public VulkanExampleBase {
   vks::Texture cubeMap_{};
   vks::Texture colorMap_{};
 
-  struct Models {
-    vkglTF::Model skybox;
-    // The sample lets you select different models to apply the cubemap to
-    std::vector<vkglTF::Model> objects;
-    int32_t objectIndex = 0;
-  } models_;
-
   struct uniformData {
     glm::mat4 cameraView;
     alignas(16) glm::vec3 cameraPos;
@@ -51,8 +44,6 @@ class VulkanExample : public VulkanExampleBase {
 
   VkDescriptorSetLayout descriptorSetLayout_{VK_NULL_HANDLE};
   std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSet_{};
-
-  std::vector<std::string> objectNames_;
 
   VulkanExample() : VulkanExampleBase() {
     title = "Blackhole";
@@ -77,18 +68,6 @@ class VulkanExample : public VulkanExampleBase {
   void loadAssets() {
     uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices |
                                 vkglTF::FileLoadingFlags::FlipY;
-    // Skybox
-    models_.skybox.loadFromFile(getAssetPath() + "models/cube.gltf",
-                                vulkanDevice_, queue_, glTFLoadingFlags);
-    // Objects
-    std::vector<std::string> filenames = {"sphere.gltf", "teapot.gltf",
-                                          "torusknot.gltf", "venus.gltf"};
-    objectNames_ = {"Sphere", "Teapot", "Torusknot", "Venus"};
-    models_.objects.resize(filenames.size());
-    for (size_t i = 0; i < filenames.size(); i++) {
-      models_.objects[i].loadFromFile(getAssetPath() + "models/" + filenames[i],
-                                      vulkanDevice_, queue_, glTFLoadingFlags);
-    }
     // Cubemap texture
     loadCubemap(getAssetPath() + "textures/blackhole/skybox/cubemap.ktx",
                 VK_FORMAT_R8G8B8A8_UNORM);
@@ -326,7 +305,6 @@ class VulkanExample : public VulkanExampleBase {
 
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {
     if (overlay->header("Settings")) {
-      overlay->comboBox("Object type", &models_.objectIndex, objectNames_);
       overlay->checkBox("Skybox", &displaySkybox_);
       overlay->sliderFloat("Exposure", &uniformData_.exposure, 0.1, 10.0);
       overlay->sliderFloat("Gamma", &uniformData_.gamma, 1.0, 4.0);
