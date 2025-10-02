@@ -34,10 +34,8 @@ class VulkanExample : public VulkanExampleBase {
   } models_;
 
   struct uniformData {
-    glm::vec3 cameraPos;
+    glm::mat4 cameraView;
     glm::vec2 resolution;
-    float mouseX;
-    float mouseY;
     float time;
     bool mouseControl = true;
   } uniformData_;
@@ -256,14 +254,14 @@ class VulkanExample : public VulkanExampleBase {
     // TODO: create a toggle in UI for toggling mouse
     // uniformData_.mouseControl = ;
 
-    uniformData_.mouseX = mouseState.position.x;
-    uniformData_.mouseY = mouseState.position.y;
+    uniformData_.cameraView = camera_.matrices.view;
     uniformData_.time =
         std::chrono::duration_cast<std::chrono::seconds>(
             std::chrono::high_resolution_clock::now().time_since_epoch())
             .count();
     uniformData_.resolution = glm::vec2(width_, height_);
-    uniformData_.cameraPos = camera_.position;
+    memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_,
+           sizeof(uniformData_));
   }
 
   // (B.2)
