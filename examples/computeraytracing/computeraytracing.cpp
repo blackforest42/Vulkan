@@ -80,7 +80,7 @@ public:
 	{
 		title = "Compute shader ray tracing";
 		timerSpeed *= 0.25f;
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
 		camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
 		camera_.setTranslation(glm::vec3(0.0f, 0.0f, -4.0f));
@@ -428,7 +428,7 @@ public:
 		compute.uniformData.lightPos.x = 0.0f + sin(glm::radians(timer * 360.0f)) * cos(glm::radians(timer * 360.0f)) * 2.0f;
 		compute.uniformData.lightPos.y = 0.0f + sin(glm::radians(timer * 360.0f)) * 2.0f;
 		compute.uniformData.lightPos.z = 0.0f + cos(glm::radians(timer * 360.0f)) * 2.0f;
-		compute.uniformData.camera.pos = camera_.position * -1.0f;
+		compute.uniformData.camera.pos = camera_.position_ * -1.0f;
 		memcpy(compute.uniformBuffers[currentBuffer_].mapped, &compute.uniformData, sizeof(Compute::UniformDataCompute));
 	}
 

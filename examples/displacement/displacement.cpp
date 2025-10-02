@@ -44,7 +44,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Tessellation shader displacement";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -1.25f));
 		camera_.setRotation(glm::vec3(-20.0f, 45.0f, 0.0f));
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
@@ -185,8 +185,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.modelView = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.modelView = camera_.matrices_.view;
 		uniformData_.lightPos.y = -0.5f - uniformData_.tessStrength;
 		// Tessellation control
 		float savedLevel = uniformData_.tessLevel;

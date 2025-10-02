@@ -99,7 +99,7 @@ class VulkanExample : public VulkanExampleBase {
 
   VulkanExample() : VulkanExampleBase() {
     title = "High dynamic range rendering";
-    camera_.type = Camera::CameraType::lookat;
+    camera_.type_ = Camera::CameraType::lookat;
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -6.0f));
     camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
@@ -794,9 +794,9 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    uniformData_.projection = camera_.matrices.perspective;
-    uniformData_.modelview = camera_.matrices.view;
-    uniformData_.inverseModelview = glm::inverse(camera_.matrices.view);
+    uniformData_.projection = camera_.matrices_.perspective;
+    uniformData_.modelview = camera_.matrices_.view;
+    uniformData_.inverseModelview = glm::inverse(camera_.matrices_.view);
     memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_,
            sizeof(uniformData_));
   }

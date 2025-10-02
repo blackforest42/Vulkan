@@ -90,7 +90,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Multi threaded command buffer";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, -0.0f, -32.5f));
 		camera_.setRotation(glm::vec3(0.0f));
 		camera_.setRotationSpeed(0.5f);
@@ -357,8 +357,8 @@ public:
 
 	void updateMatrices()
 	{
-		matrices.projection = camera_.matrices.perspective;
-		matrices.view = camera_.matrices.view;
+		matrices.projection = camera_.matrices_.perspective;
+		matrices.view = camera_.matrices_.view;
 		frustum.update(matrices.projection * matrices.view);
 	}
 

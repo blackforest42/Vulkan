@@ -106,7 +106,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "CPU based particle system";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -75.0f));
 		camera_.setRotation(glm::vec3(-15.0f, 45.0f, 0.0f));
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 1.0f, 256.0f);
@@ -458,14 +458,14 @@ public:
 	void updateUniformBuffers()
 	{
 		// Particle system fire
-		uniformDataParticles.projection = camera_.matrices.perspective;
-		uniformDataParticles.modelView = camera_.matrices.view;
+		uniformDataParticles.projection = camera_.matrices_.perspective;
+		uniformDataParticles.modelView = camera_.matrices_.view;
 		uniformDataParticles.viewportDim = glm::vec2((float)width_, (float)height_);
 		memcpy(uniformBuffers_[currentBuffer_].particles.mapped, &uniformDataParticles, sizeof(UniformDataParticles));
 
 		// Environment
-		uniformDataEnvironment.projection = camera_.matrices.perspective;
-		uniformDataEnvironment.modelView = camera_.matrices.view;
+		uniformDataEnvironment.projection = camera_.matrices_.perspective;
+		uniformDataEnvironment.modelView = camera_.matrices_.view;
 		uniformDataEnvironment.normal = glm::inverseTranspose(uniformDataEnvironment.modelView);
 		// Update light position
 		if (!paused) {

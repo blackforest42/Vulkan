@@ -640,7 +640,7 @@ void VulkanglTFModel::draw(VkCommandBuffer commandBuffer, VkPipelineLayout pipel
 VulkanExample::VulkanExample() : VulkanExampleBase()
 {
 	title = "glTF vertex skinning";
-	camera_.type  = Camera::CameraType::lookat;
+	camera_.type_  = Camera::CameraType::lookat;
 	camera_.flipY = true;
 	camera_.setPosition(glm::vec3(0.0f, 0.75f, -2.0f));
 	camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
@@ -917,8 +917,8 @@ void VulkanExample::prepareUniformBuffers()
 
 void VulkanExample::updateUniformBuffers()
 {
-	uniformData_.projection = camera_.matrices.perspective;
-	uniformData_.model      = camera_.matrices.view;
+	uniformData_.projection = camera_.matrices_.perspective;
+	uniformData_.model      = camera_.matrices_.view;
 	memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 }
 

@@ -32,7 +32,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Fragment shader barycentrics";
-		camera_.type = Camera::CameraType::firstperson;
+		camera_.type_ = Camera::CameraType::firstperson;
 		camera_.setPosition(glm::vec3(0.0f, 0.5f, -1.0f));
 		camera_.setRotation(glm::vec3(-35.0f, 0.0f, 0.0f));
 		camera_.movementSpeed = 4.0f;
@@ -146,8 +146,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.modelview = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.modelview = camera_.matrices_.view;
 		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 

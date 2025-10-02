@@ -60,7 +60,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Occlusion queries";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -7.5f));
 		camera_.setRotation(glm::vec3(0.0f, -123.75f, 0.0f));
 		camera_.setRotationSpeed(0.5f);
@@ -214,8 +214,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.view = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.view = camera_.matrices_.view;
 
 		// Occluder
 		uniformData_.visible = 1.0f;

@@ -85,7 +85,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Distance field font rendering";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.0f));
 		camera_.setRotation(glm::vec3(0.0f));
 		camera_.setPerspective(splitScreen ? 30.0f : 45.0f, (float)width_ / (float)(height_ * ((splitScreen) ? 0.5f : 1.0f)), 1.0f, 256.0f);
@@ -357,8 +357,8 @@ public:
 	{
 		// Adjust camera perspective as we render two viewports
 		camera_.setPerspective(splitScreen ? 30.0f : 45.0f, (float)width_ / (float)(height_ * ((splitScreen) ? 0.5f : 1.0f)), 1.0f, 256.0f);
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.modelView = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.modelView = camera_.matrices_.view;
 		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 

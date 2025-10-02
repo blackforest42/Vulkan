@@ -92,7 +92,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "PBR with image based lighting";
-		camera_.type = Camera::CameraType::firstperson;
+		camera_.type_ = Camera::CameraType::firstperson;
 		camera_.movementSpeed = 4.0f;
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 		camera_.rotationSpeed = 0.25f;
@@ -1262,14 +1262,14 @@ public:
 	void updateUniformBuffers()
 	{
 		// 3D objects
-		uniformDataMatrices.projection = camera_.matrices.perspective;
-		uniformDataMatrices.view = camera_.matrices.view;
+		uniformDataMatrices.projection = camera_.matrices_.perspective;
+		uniformDataMatrices.view = camera_.matrices_.view;
 		uniformDataMatrices.model = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f + (models_.objectIndex == 1 ? 45.0f : 0.0f)), glm::vec3(0.0f, 1.0f, 0.0f));
-		uniformDataMatrices.camPos = camera_.position * -1.0f;
+		uniformDataMatrices.camPos = camera_.position_ * -1.0f;
 		memcpy(uniformBuffers_[currentBuffer_].scene.mapped, &uniformDataMatrices, sizeof(UniformDataMatrices));
 
 		// Skybox
-		uniformDataMatrices.model = glm::mat4(glm::mat3(camera_.matrices.view));
+		uniformDataMatrices.model = glm::mat4(glm::mat3(camera_.matrices_.view));
 		memcpy(uniformBuffers_[currentBuffer_].skybox.mapped, &uniformDataMatrices, sizeof(UniformDataMatrices));
 
 		// PBR parameters

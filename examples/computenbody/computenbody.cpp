@@ -85,7 +85,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Compute shader N-body system";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
 		camera_.setRotation(glm::vec3(-26.0f, 75.0f, 0.0f));
 		camera_.setTranslation(glm::vec3(0.0f, 0.0f, -14.0f));
@@ -437,8 +437,8 @@ public:
 
 	void updateGraphicsUniformBuffers()
 	{
-		graphics.uniformData.projection = camera_.matrices.perspective;
-		graphics.uniformData.view = camera_.matrices.view;
+		graphics.uniformData.projection = camera_.matrices_.perspective;
+		graphics.uniformData.view = camera_.matrices_.view;
 		graphics.uniformData.screenDim = glm::vec2((float)width_, (float)height_);
 		memcpy(graphics.uniformBuffers[currentBuffer_].mapped, &graphics.uniformData, sizeof(Graphics::UniformData));
 	}

@@ -59,7 +59,7 @@ class VulkanExample : public VulkanExampleBase {
 
   VulkanExample() : VulkanExampleBase() {
     title = "Texture loading";
-    camera_.type = Camera::CameraType::lookat;
+    camera_.type_ = Camera::CameraType::lookat;
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.5f));
     camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
@@ -711,9 +711,9 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    uniformData_.projection = camera_.matrices.perspective;
-    uniformData_.modelView = camera_.matrices.view;
-    uniformData_.viewPos = camera_.viewPos;
+    uniformData_.projection = camera_.matrices_.perspective;
+    uniformData_.modelView = camera_.matrices_.view;
+    uniformData_.viewPos = camera_.viewPos_;
     memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_,
            sizeof(uniformData_));
   }

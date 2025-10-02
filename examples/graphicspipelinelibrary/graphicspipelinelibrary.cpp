@@ -59,7 +59,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Graphics pipeline library";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.0f));
 		camera_.setRotation(glm::vec3(-25.0f, 15.0f, 0.0f));
 		camera_.setRotationSpeed(0.5f);
@@ -394,8 +394,8 @@ public:
 			rotation += frameTimer * 0.1f;
 		}
 		camera_.setPerspective(45.0f, ((float)width_ / (float)splitX) / ((float)height_ / (float)splitY), 0.1f, 256.0f);
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.modelView = camera_.matrices.view * glm::rotate(glm::mat4(1.0f), glm::radians(rotation * 360.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.modelView = camera_.matrices_.view * glm::rotate(glm::mat4(1.0f), glm::radians(rotation * 360.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 

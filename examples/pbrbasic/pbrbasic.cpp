@@ -69,7 +69,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Physical based shading basics";
-		camera_.type = Camera::CameraType::firstperson;
+		camera_.type_ = Camera::CameraType::firstperson;
 		camera_.setPosition(glm::vec3(10.0f, 13.0f, 1.8f));
 		camera_.setRotation(glm::vec3(-62.5f, 90.0f, 0.0f));
 		camera_.movementSpeed = 4.0f;
@@ -212,10 +212,10 @@ public:
 	void updateUniformBuffers()
 	{
 		// 3D object
-		uniformDataMatrices.projection = camera_.matrices.perspective;
-		uniformDataMatrices.view = camera_.matrices.view;
+		uniformDataMatrices.projection = camera_.matrices_.perspective;
+		uniformDataMatrices.view = camera_.matrices_.view;
 		uniformDataMatrices.model = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f + (models_.objectIndex == 1 ? 45.0f : 0.0f)), glm::vec3(0.0f, 1.0f, 0.0f));
-		uniformDataMatrices.camPos = camera_.position * -1.0f;
+		uniformDataMatrices.camPos = camera_.position_ * -1.0f;
 		memcpy(uniformBuffers_[currentBuffer_].scene.mapped, &uniformDataMatrices, sizeof(uniformDataMatrices));
 	}
 

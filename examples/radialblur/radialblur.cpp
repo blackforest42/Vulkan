@@ -84,7 +84,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Full screen radial blur effect";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -17.5f));
 		camera_.setRotation(glm::vec3(-16.25f, -28.75f, 0.0f));
 		camera_.setPerspective(45.0f, (float)width_ / (float)height_, 1.0f, 256.0f);
@@ -450,9 +450,9 @@ public:
 	{
 		// Update uniform buffers for rendering the 3D scene
 		uniformDataScene.projection = glm::perspective(glm::radians(45.0f), (float)width_ / (float)height_, 1.0f, 256.0f);
-		camera_.setRotation(camera_.rotation + glm::vec3(0.0f, frameTimer * 10.0f, 0.0f));
-		uniformDataScene.projection = camera_.matrices.perspective;
-		uniformDataScene.modelView = camera_.matrices.view;
+		camera_.setRotation(camera_.rotation_ + glm::vec3(0.0f, frameTimer * 10.0f, 0.0f));
+		uniformDataScene.projection = camera_.matrices_.perspective;
+		uniformDataScene.modelView = camera_.matrices_.view;
 		// Add some animation to the post processing effect by moving through a color gradient for the radial blur
 		if (!paused) {
 			uniformDataScene.gradientPos += frameTimer * 0.1f;

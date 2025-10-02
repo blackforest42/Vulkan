@@ -55,7 +55,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Multiview rendering";
-		camera_.type = Camera::CameraType::firstperson;
+		camera_.type_ = Camera::CameraType::firstperson;
 		camera_.setRotation(glm::vec3(0.0f, 90.0f, 0.0f));
 		camera_.setTranslation(glm::vec3(7.0f, 3.2f, 0.0f));
 		camera_.movementSpeed = 5.0f;
@@ -497,24 +497,24 @@ public:
 		float bottom = -wd2;
 
 		glm::vec3 camFront;
-		camFront.x = -cos(glm::radians(camera_.rotation.x)) * sin(glm::radians(camera_.rotation.y));
-		camFront.y = sin(glm::radians(camera_.rotation.x));
-		camFront.z = cos(glm::radians(camera_.rotation.x)) * cos(glm::radians(camera_.rotation.y));
+		camFront.x = -cos(glm::radians(camera_.rotation_.x)) * sin(glm::radians(camera_.rotation_.y));
+		camFront.y = sin(glm::radians(camera_.rotation_.x));
+		camFront.z = cos(glm::radians(camera_.rotation_.x)) * cos(glm::radians(camera_.rotation_.y));
 		camFront = glm::normalize(camFront);
 		glm::vec3 camRight = glm::normalize(glm::cross(camFront, glm::vec3(0.0f, 1.0f, 0.0f)));
 
 		glm::mat4 rotM = glm::mat4(1.0f);
 		glm::mat4 transM;
 
-		rotM = glm::rotate(rotM, glm::radians(camera_.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-		rotM = glm::rotate(rotM, glm::radians(camera_.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-		rotM = glm::rotate(rotM, glm::radians(camera_.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+		rotM = glm::rotate(rotM, glm::radians(camera_.rotation_.x), glm::vec3(1.0f, 0.0f, 0.0f));
+		rotM = glm::rotate(rotM, glm::radians(camera_.rotation_.y), glm::vec3(0.0f, 1.0f, 0.0f));
+		rotM = glm::rotate(rotM, glm::radians(camera_.rotation_.z), glm::vec3(0.0f, 0.0f, 1.0f));
 
 		// Left eye
 		left = -aspectRatio * wd2 - 0.5f * eyeSeparation * ndfl;
 		right = aspectRatio * wd2 - 0.5f * eyeSeparation * ndfl;
 
-		transM = glm::translate(glm::mat4(1.0f), camera_.position - camRight * (eyeSeparation / 2.0f));
+		transM = glm::translate(glm::mat4(1.0f), camera_.position_ - camRight * (eyeSeparation / 2.0f));
 
 		uniformData_.projection[0] = glm::frustum(left, right, bottom, top, zNear, zFar);
 		uniformData_.modelview[0] = rotM * transM;
@@ -523,7 +523,7 @@ public:
 		left = -aspectRatio * wd2 + 0.5f * eyeSeparation * ndfl;
 		right = aspectRatio * wd2 + 0.5f * eyeSeparation * ndfl;
 
-		transM = glm::translate(glm::mat4(1.0f), camera_.position + camRight * (eyeSeparation / 2.0f));
+		transM = glm::translate(glm::mat4(1.0f), camera_.position_ + camRight * (eyeSeparation / 2.0f));
 
 		uniformData_.projection[1] = glm::frustum(left, right, bottom, top, zNear, zFar);
 		uniformData_.modelview[1] = rotM * transM;

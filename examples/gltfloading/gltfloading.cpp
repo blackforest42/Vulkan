@@ -407,7 +407,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "glTF model rendering";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.flipY = true;
 		camera_.setPosition(glm::vec3(0.0f, -0.1f, -1.0f));
 		camera_.setRotation(glm::vec3(0.0f, 45.0f, 0.0f));
@@ -664,9 +664,9 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.model = camera_.matrices.view;
-		uniformData_.viewPos = camera_.viewPos;
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.model = camera_.matrices_.view;
+		uniformData_.viewPos = camera_.viewPos_;
 		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 

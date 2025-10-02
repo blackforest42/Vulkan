@@ -60,7 +60,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Texture arrays";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -7.5f));
 		camera_.setRotation(glm::vec3(-35.0f, 0.0f, 0.0f));
 		camera_.setPerspective(45.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
@@ -442,8 +442,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData_.matrices.projection = camera_.matrices.perspective;
-		uniformData_.matrices.view = camera_.matrices.view;
+		uniformData_.matrices.projection = camera_.matrices_.perspective;
+		uniformData_.matrices.view = camera_.matrices_.view;
 		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 

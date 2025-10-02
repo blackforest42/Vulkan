@@ -66,7 +66,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Shader objects (VK_EXT_shader_object)";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -10.5f));
 		camera_.setRotation(glm::vec3(-25.0f, 15.0f, 0.0f));
 		camera_.setRotationSpeed(0.5f);
@@ -274,8 +274,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.modelView = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.modelView = camera_.matrices_.view;
 		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 

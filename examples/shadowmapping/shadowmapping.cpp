@@ -99,7 +99,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Projected shadow mapping";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -12.5f));
 		camera_.setRotation(glm::vec3(-25.0f, -390.0f, 0.0f));
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 1.0f, 256.0f);
@@ -426,8 +426,8 @@ public:
 	void updateUniformBuffers()
 	{
 		// Uniform data for drawing the scene
-		uniformDataScene.projection = camera_.matrices.perspective;
-		uniformDataScene.view = camera_.matrices.view;
+		uniformDataScene.projection = camera_.matrices_.perspective;
+		uniformDataScene.view = camera_.matrices_.view;
 		uniformDataScene.model = glm::mat4(1.0f);
 		uniformDataScene.lightPos = glm::vec4(lightPos, 1.0f);
 		uniformDataScene.depthBiasMVP = uniformDataOffscreen.depthMVP;

@@ -83,12 +83,12 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Multi sampled deferred shading";
-		camera_.type = Camera::CameraType::firstperson;
+		camera_.type_ = Camera::CameraType::firstperson;
 		camera_.movementSpeed = 5.0f;
 #ifndef __ANDROID__
 		camera_.rotationSpeed = 0.25f;
 #endif
-		camera_.position = { 2.15f, 0.3f, -8.75f };
+		camera_.position_ = { 2.15f, 0.3f, -8.75f };
 		camera_.setRotation(glm::vec3(-0.75f, 12.5f, 0.0f));
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 	}
@@ -388,8 +388,8 @@ public:
 
 	void updateUniformBufferOffscreen()
 	{
-		uniformDataOffscreen.projection = camera_.matrices.perspective;
-		uniformDataOffscreen.view = camera_.matrices.view;
+		uniformDataOffscreen.projection = camera_.matrices_.perspective;
+		uniformDataOffscreen.view = camera_.matrices_.view;
 		uniformDataOffscreen.model = glm::mat4(1.0f);
 		memcpy(uniformBuffers_[currentBuffer_].offscreen.mapped, &uniformDataOffscreen, sizeof(UniformDataOffscreen));
 	}
@@ -423,7 +423,7 @@ public:
 		uniformDataComposition.lights[5].radius = 25.0f;
 
 		// Current view position
-		uniformDataComposition.viewPos = glm::vec4(camera_.position, 0.0f) * glm::vec4(-1.0f, 1.0f, -1.0f, 1.0f);
+		uniformDataComposition.viewPos = glm::vec4(camera_.position_, 0.0f) * glm::vec4(-1.0f, 1.0f, -1.0f, 1.0f);
 		uniformDataComposition.debugDisplayTarget = debugDisplayTarget;
 
 		memcpy(uniformBuffers_[currentBuffer_].composition.mapped, &uniformDataComposition, sizeof(UniformDataComposition));

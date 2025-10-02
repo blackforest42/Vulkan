@@ -236,7 +236,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Vulkan gears";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 2.5f, -16.0f));
 		camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.001f, 256.0f);
@@ -430,8 +430,8 @@ public:
 		float degree = timer * 360.0f;
 
 		// Camera specific global matrices
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.view = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.view = camera_.matrices_.view;
 		uniformData_.lightPos = glm::vec4(0.0f, 0.0f, 2.5f, 1.0f);
 
 		// Update the model matrix for each gear that contains it's position and rotation

@@ -49,7 +49,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Descriptor indexing";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -10.0f));
 		camera_.setRotation(glm::vec3(-35.0f, 0.0f, 0.0f));
 		camera_.setPerspective(45.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
@@ -390,8 +390,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.view = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.view = camera_.matrices_.view;
 		uniformData_.model = glm::mat4(1.0f);
 		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}

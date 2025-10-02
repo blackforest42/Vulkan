@@ -110,14 +110,14 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Deferred shading with shadows";
-		camera_.type = Camera::CameraType::firstperson;
+		camera_.type_ = Camera::CameraType::firstperson;
 #if defined(__ANDROID__)
 		camera.movementSpeed = 2.5f;
 #else
 		camera_.movementSpeed = 5.0f;
 		camera_.rotationSpeed = 0.25f;
 #endif
-		camera_.position = { 2.15f, 0.3f, -8.75f };
+		camera_.position_ = { 2.15f, 0.3f, -8.75f };
 		camera_.setRotation(glm::vec3(-0.75f, 12.5f, 0.0f));
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, zNear, zFar);
 		timerSpeed *= 0.25f;
@@ -537,15 +537,15 @@ public:
 		memcpy(uniformDataShadows.instancePos, uniformDataOffscreen.instancePos, sizeof(UniformDataOffscreen::instancePos));
 		memcpy(uniformBuffers_[currentBuffer_].shadowGeometryShader.mapped, &uniformDataShadows, sizeof(UniformDataShadows));
 
-		uniformDataComposition.viewPos = glm::vec4(camera_.position, 0.0f) * glm::vec4(-1.0f, 1.0f, -1.0f, 1.0f);;
+		uniformDataComposition.viewPos = glm::vec4(camera_.position_, 0.0f) * glm::vec4(-1.0f, 1.0f, -1.0f, 1.0f);;
 		uniformDataComposition.debugDisplayTarget = debugDisplayTarget;
 		memcpy(uniformBuffers_[currentBuffer_].composition.mapped, &uniformDataComposition, sizeof(uniformDataComposition));
 	}
 
 	void updateUniformBufferOffscreen()
 	{
-		uniformDataOffscreen.projection = camera_.matrices.perspective;
-		uniformDataOffscreen.view = camera_.matrices.view;
+		uniformDataOffscreen.projection = camera_.matrices_.perspective;
+		uniformDataOffscreen.view = camera_.matrices_.view;
 		uniformDataOffscreen.model = glm::mat4(1.0f);
 		memcpy(uniformBuffers_[currentBuffer_].offscreen.mapped, &uniformDataOffscreen, sizeof(uniformDataOffscreen));
 	}

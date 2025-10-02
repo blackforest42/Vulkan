@@ -98,7 +98,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Dynamic terrain tessellation";
-		camera_.type = Camera::CameraType::firstperson;
+		camera_.type_ = Camera::CameraType::firstperson;
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
 		camera_.setRotation(glm::vec3(-12.0f, 159.0f, 0.0f));
 		camera_.setTranslation(glm::vec3(18.0f, 22.5f, 57.5f));
@@ -548,8 +548,8 @@ public:
 	void updateUniformBuffers()
 	{
 		// Tessellation
-		uniformDataTessellation.projection = camera_.matrices.perspective;
-		uniformDataTessellation.modelview = camera_.matrices.view * glm::mat4(1.0f);
+		uniformDataTessellation.projection = camera_.matrices_.perspective;
+		uniformDataTessellation.modelview = camera_.matrices_.view * glm::mat4(1.0f);
 		uniformDataTessellation.lightPos.y = -0.5f - uniformDataTessellation.displacementFactor; // todo: Not uesed yet
 		uniformDataTessellation.viewportDim = glm::vec2((float)width_, (float)height_);
 
@@ -571,7 +571,7 @@ public:
 		}
 
 		// Vertex shader
-		uniformDataVertex.mvp = camera_.matrices.perspective * glm::mat4(glm::mat3(camera_.matrices.view));
+		uniformDataVertex.mvp = camera_.matrices_.perspective * glm::mat4(glm::mat3(camera_.matrices_.view));
 		memcpy(uniformBuffers_[currentBuffer_].skysphereVertex.mapped, &uniformDataVertex, sizeof(UniformDataVertex));
 	}
 

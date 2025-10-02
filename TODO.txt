@@ -1,2 +1,2 @@
 Oct 1st
-	- dynamic camera position w/ keyboard movement
+	- figure out camera view correction

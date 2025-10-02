@@ -87,7 +87,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Point light shadows (cubemap)";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPerspective(45.0f, (float)width_ / (float)height_, zNear, zFar);
 		camera_.setRotation(glm::vec3(-20.5f, -673.0f, 0.0f));
 		camera_.setPosition(glm::vec3(0.0f, 0.5f, -15.0f));
@@ -509,8 +509,8 @@ public:
 		memcpy(uniformBuffers_[currentBuffer_].offscreen.mapped, &uniformDataOffscreen, sizeof(UniformData));
 
 		// Scene rendering
-		uniformDataScene.projection = camera_.matrices.perspective;
-		uniformDataScene.view = camera_.matrices.view;
+		uniformDataScene.projection = camera_.matrices_.perspective;
+		uniformDataScene.view = camera_.matrices_.view;
 		uniformDataScene.model = glm::mat4(1.0f);
 		uniformDataScene.lightPos = lightPos;
 		memcpy(uniformBuffers_[currentBuffer_].scene.mapped, &uniformDataScene, sizeof(UniformData));

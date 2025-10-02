@@ -65,7 +65,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Compute shader image load/store";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.0f));
 		camera_.setRotation(glm::vec3(0.0f));
 		camera_.setPerspective(60.0f, (float)width_ * 0.5f / (float)height_, 1.0f, 256.0f);
@@ -407,8 +407,8 @@ public:
 	{
 		// We need to adjust the perspective as this sample displays two viewports side-by-side
 		camera_.setPerspective(60.0f, (float)width_ * 0.5f / (float)height_, 1.0f, 256.0f);
-		graphics.uniformData.projection = camera_.matrices.perspective;
-		graphics.uniformData.modelView = camera_.matrices.view;
+		graphics.uniformData.projection = camera_.matrices_.perspective;
+		graphics.uniformData.modelView = camera_.matrices_.view;
 		memcpy(graphics.uniformBuffers[currentBuffer_].mapped, &graphics.uniformData, sizeof(Graphics::UniformData));
 	}
 

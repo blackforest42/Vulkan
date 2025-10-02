@@ -144,7 +144,7 @@ void VulkanExample::loadSceneNode(const tinygltf::Node& inputNode, const tinyglt
 VulkanExample::VulkanExample() : VulkanExampleBase()
 {
 	title = "Separate/interleaved vertex attribute buffers";
-	camera_.type = Camera::CameraType::firstperson;
+	camera_.type_ = Camera::CameraType::firstperson;
 	camera_.flipY = true;
 	camera_.setPosition(glm::vec3(0.0f, 1.0f, 0.0f));
 	camera_.setRotation(glm::vec3(0.0f, -90.0f, 0.0f));
@@ -500,9 +500,9 @@ void VulkanExample::prepareUniformBuffers()
 
 void VulkanExample::updateUniformBuffers()
 {
-	uniformData_.projection = camera_.matrices.perspective;
-	uniformData_.view = camera_.matrices.view;
-	uniformData_.viewPos = camera_.viewPos;
+	uniformData_.projection = camera_.matrices_.perspective;
+	uniformData_.view = camera_.matrices_.view;
+	uniformData_.viewPos = camera_.viewPos_;
 	memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 }
 

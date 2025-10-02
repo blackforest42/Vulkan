@@ -106,7 +106,7 @@ public:
 		// To keep things simple, we don't use the UI overlay from the framework
 		settings_.overlay = false;
 		// Setup a default look-at camera
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.5f));
 		camera_.setRotation(glm::vec3(0.0f));
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 1.0f, 256.0f);
@@ -713,8 +713,8 @@ public:
 
 		// Update the uniform buffer for the next frame
 		ShaderData shaderData{};
-		shaderData.projectionMatrix = camera_.matrices.perspective;
-		shaderData.viewMatrix = camera_.matrices.view;
+		shaderData.projectionMatrix = camera_.matrices_.perspective;
+		shaderData.viewMatrix = camera_.matrices_.view;
 		shaderData.modelMatrix = glm::mat4(1.0f);
 		// Copy the current matrices to the current frame's uniform buffer. As we requested a host coherent memory type for the uniform buffer, the write is instantly visible to the GPU.
 		memcpy(uniformBuffers_[currentFrame].mapped, &shaderData, sizeof(ShaderData));

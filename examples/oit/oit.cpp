@@ -76,7 +76,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Order independent transparency rendering";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -6.0f));
 		camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
 		camera_.setPerspective(60.0f, (float) width_ / (float) height_, 0.1f, 256.0f);
@@ -418,8 +418,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		renderPassUniformData.projection = camera_.matrices.perspective;
-		renderPassUniformData.view = camera_.matrices.view;
+		renderPassUniformData.projection = camera_.matrices_.perspective;
+		renderPassUniformData.view = camera_.matrices_.view;
 		memcpy(renderPassUniformBuffer[currentBuffer_].mapped, &renderPassUniformData, sizeof(RenderPassUniformData));
 	}
 

@@ -96,7 +96,7 @@ class VulkanExample : public VulkanExampleBase {
   VulkanExample() : VulkanExampleBase() {
     title = "Bloom (offscreen rendering)";
     timerSpeed *= 0.5f;
-    camera_.type = Camera::CameraType::lookat;
+    camera_.type_ = Camera::CameraType::lookat;
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -10.25f));
     camera_.setRotation(glm::vec3(7.5f, -343.0f, 0.0f));
     camera_.setPerspective(45.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
@@ -656,8 +656,8 @@ class VulkanExample : public VulkanExampleBase {
   // (B.1)
   void updateUniformBuffers() {
     // UFO
-    ubos_.scene.projection = camera_.matrices.perspective;
-    ubos_.scene.view = camera_.matrices.view;
+    ubos_.scene.projection = camera_.matrices_.perspective;
+    ubos_.scene.view = camera_.matrices_.view;
     ubos_.scene.model = glm::translate(
         glm::mat4(1.0f),
         glm::vec3(sin(glm::radians(timer * 360.0f)) * 0.25f, -1.0f,
@@ -674,7 +674,7 @@ class VulkanExample : public VulkanExampleBase {
     // Skybox
     ubos_.skyBox.projection = glm::perspective(
         glm::radians(45.0f), (float)width_ / (float)height_, 0.1f, 256.0f);
-    ubos_.skyBox.view = glm::mat4(glm::mat3(camera_.matrices.view));
+    ubos_.skyBox.view = glm::mat4(glm::mat3(camera_.matrices_.view));
     ubos_.skyBox.model = glm::mat4(1.0f);
     memcpy(uniformBuffers_[currentBuffer_].skyBox.mapped, &ubos_.skyBox,
            sizeof(ubos_.skyBox));

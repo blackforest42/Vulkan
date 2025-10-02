@@ -40,7 +40,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Conditional rendering";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPerspective(45.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
 		camera_.setRotation(glm::vec3(-2.25f, -52.0f, 0.0f));
 		camera_.setTranslation(glm::vec3(1.9f, -2.05f, -18.0f));
@@ -195,8 +195,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.view = glm::scale(camera_.matrices.view, glm::vec3(0.1f , -0.1f, 0.1f));
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.view = glm::scale(camera_.matrices_.view, glm::vec3(0.1f , -0.1f, 0.1f));
 		uniformData_.model = glm::translate(glm::mat4(1.0f), scene.dimensions.min);
 		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}

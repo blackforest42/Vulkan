@@ -45,7 +45,7 @@ public:
 		title = "Ray tracing reflections";
 		timerSpeed *= 0.5f;
 		camera_.rotationSpeed *= 0.25f;
-		camera_.type = Camera::CameraType::firstperson;
+		camera_.type_ = Camera::CameraType::firstperson;
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
 		camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
 		camera_.setTranslation(glm::vec3(0.0f, 0.5f, -2.0f));
@@ -441,8 +441,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projInverse = glm::inverse(camera_.matrices.perspective);
-		uniformData_.viewInverse = glm::inverse(camera_.matrices.view);
+		uniformData_.projInverse = glm::inverse(camera_.matrices_.perspective);
+		uniformData_.viewInverse = glm::inverse(camera_.matrices_.view);
 		uniformData_.lightPos = glm::vec4(cos(glm::radians(timer * 360.0f)) * 40.0f, -20.0f + sin(glm::radians(timer * 360.0f)) * 20.0f, 25.0f + sin(glm::radians(timer * 360.0f)) * 5.0f, 0.0f);
 		// Pass the vertex size to the shader for unpacking vertices
 		uniformData_.vertexSize = sizeof(vkglTF::Vertex);

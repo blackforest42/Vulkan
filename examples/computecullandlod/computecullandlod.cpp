@@ -90,7 +90,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Compute cull and lod";
-		camera_.type = Camera::CameraType::firstperson;
+		camera_.type_ = Camera::CameraType::firstperson;
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
 		camera_.setTranslation(glm::vec3(0.5f, 0.0f, 0.0f));
 		camera_.movementSpeed = 5.0f;
@@ -499,10 +499,10 @@ public:
 
 	void updateUniformBuffer()
 	{
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.modelview = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.modelview = camera_.matrices_.view;
 		if (!fixedFrustum) {
-			uniformData_.cameraPos = glm::vec4(camera_.position, 1.0f) * -1.0f;
+			uniformData_.cameraPos = glm::vec4(camera_.position_, 1.0f) * -1.0f;
 			frustum.update(uniformData_.projection * uniformData_.modelview);
 			memcpy(uniformData_.frustumPlanes, frustum.planes.data(), sizeof(glm::vec4) * 6);
 		}

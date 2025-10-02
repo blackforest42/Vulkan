@@ -1307,10 +1307,10 @@ void VulkanExampleBase::handleMessages(HWND hWnd,
           ui_.visible = !ui_.visible;
           break;
         case KEY_F2:
-          if (camera_.type == Camera::CameraType::lookat) {
-            camera_.type = Camera::CameraType::firstperson;
+          if (camera_.type_ == Camera::CameraType::lookat) {
+            camera_.type_ = Camera::CameraType::firstperson;
           } else {
-            camera_.type = Camera::CameraType::lookat;
+            camera_.type_ = Camera::CameraType::lookat;
           }
           break;
         case KEY_ESCAPE:
@@ -1318,19 +1318,19 @@ void VulkanExampleBase::handleMessages(HWND hWnd,
           break;
       }
 
-      if (camera_.type == Camera::firstperson) {
+      if (camera_.type_ == Camera::firstperson) {
         switch (wParam) {
           case KEY_W:
-            camera_.keys.up = true;
+            camera_.keys_.up = true;
             break;
           case KEY_S:
-            camera_.keys.down = true;
+            camera_.keys_.down = true;
             break;
           case KEY_A:
-            camera_.keys.left = true;
+            camera_.keys_.left = true;
             break;
           case KEY_D:
-            camera_.keys.right = true;
+            camera_.keys_.right = true;
             break;
         }
       }
@@ -1338,19 +1338,19 @@ void VulkanExampleBase::handleMessages(HWND hWnd,
       keyPressed((uint32_t)wParam);
       break;
     case WM_KEYUP:
-      if (camera_.type == Camera::firstperson) {
+      if (camera_.type_ == Camera::firstperson) {
         switch (wParam) {
           case KEY_W:
-            camera_.keys.up = false;
+            camera_.keys_.up = false;
             break;
           case KEY_S:
-            camera_.keys.down = false;
+            camera_.keys_.down = false;
             break;
           case KEY_A:
-            camera_.keys.left = false;
+            camera_.keys_.left = false;
             break;
           case KEY_D:
-            camera_.keys.right = false;
+            camera_.keys_.right = false;
             break;
         }
       }

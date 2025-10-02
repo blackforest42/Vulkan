@@ -585,8 +585,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.model = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.model = camera_.matrices_.view;
 		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(uniformData_));
 	}
 

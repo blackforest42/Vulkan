@@ -120,11 +120,11 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Screen space ambient occlusion";
-		camera_.type = Camera::CameraType::firstperson;
+		camera_.type_ = Camera::CameraType::firstperson;
 #ifndef __ANDROID__
 		camera_.rotationSpeed = 0.25f;
 #endif
-		camera_.position = { 1.0f, 0.75f, 0.0f };
+		camera_.position_ = { 1.0f, 0.75f, 0.0f };
 		camera_.setRotation(glm::vec3(0.0f, 90.0f, 0.0f));
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, uboSceneParams.nearPlane, uboSceneParams.farPlane);
 	}
@@ -735,13 +735,13 @@ public:
 	void updateUniformBuffers()
 	{
 		// Scene
-		uboSceneParams.projection = camera_.matrices.perspective;
-		uboSceneParams.view = camera_.matrices.view;
+		uboSceneParams.projection = camera_.matrices_.perspective;
+		uboSceneParams.view = camera_.matrices_.view;
 		uboSceneParams.model = glm::mat4(1.0f);
 		uniformBuffers_[currentBuffer_].sceneParams.copyTo(&uboSceneParams, sizeof(uboSceneParams));
 
 		// SSAO parameters
-		uboSSAOParams.projection = camera_.matrices.perspective;
+		uboSSAOParams.projection = camera_.matrices_.perspective;
 		uniformBuffers_[currentBuffer_].ssaoParams.copyTo(&uboSSAOParams, sizeof(uboSSAOParams));
 	}
 

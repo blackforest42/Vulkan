@@ -61,7 +61,7 @@ public:
 	{
 		title = "Parallax Mapping";
 		timerSpeed *= 0.5f;
-		camera_.type = Camera::CameraType::firstperson;
+		camera_.type_ = Camera::CameraType::firstperson;
 		camera_.setPosition(glm::vec3(0.0f, 1.25f, -1.5f));
 		camera_.setRotation(glm::vec3(-45.0f, 0.0f, 0.0f));
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
@@ -184,8 +184,8 @@ public:
 	void updateUniformBuffers()
 	{
 		// Vertex shader
-		uniformDataVertexShader.projection = camera_.matrices.perspective;
-		uniformDataVertexShader.view = camera_.matrices.view;
+		uniformDataVertexShader.projection = camera_.matrices_.perspective;
+		uniformDataVertexShader.view = camera_.matrices_.view;
 		uniformDataVertexShader.model = glm::scale(glm::mat4(1.0f), glm::vec3(0.2f));
 
 		if (!paused) {
@@ -193,7 +193,7 @@ public:
 			uniformDataVertexShader.lightPos.z = cos(glm::radians(timer * 360.0f)) * 1.5f;
 		}
 
-		uniformDataVertexShader.cameraPos = glm::vec4(camera_.position, -1.0f) * -1.0f;
+		uniformDataVertexShader.cameraPos = glm::vec4(camera_.position_, -1.0f) * -1.0f;
 		memcpy(uniformBuffers_[currentBuffer_].vertexShader.mapped, &uniformDataVertexShader, sizeof(UniformDataVertexShader));
 
 		// Fragment shader

@@ -87,7 +87,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Indirect rendering";
-		camera_.type = Camera::CameraType::firstperson;
+		camera_.type_ = Camera::CameraType::firstperson;
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
 		camera_.setRotation(glm::vec3(-12.0f, 159.0f, 0.0f));
 		camera_.setTranslation(glm::vec3(0.4f, 1.25f, 0.0f));
@@ -365,8 +365,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.view = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.view = camera_.matrices_.view;
 		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(uniformData_));
 	}
 

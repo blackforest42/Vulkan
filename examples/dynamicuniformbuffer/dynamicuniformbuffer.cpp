@@ -88,7 +88,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Dynamic uniform buffers";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -30.0f));
 		camera_.setRotation(glm::vec3(0.0f));
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
@@ -292,8 +292,8 @@ public:
 	void updateUniformBuffers()
 	{
 		// Fixed ubo with projection and view matrices
-		uboVS.projection = camera_.matrices.perspective;
-		uboVS.view = camera_.matrices.view;
+		uboVS.projection = camera_.matrices_.perspective;
+		uboVS.view = camera_.matrices_.view;
 		memcpy(uniformBuffers_[currentBuffer_].view.mapped, &uboVS, sizeof(uboVS));
 	}
 

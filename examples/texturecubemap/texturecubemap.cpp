@@ -50,7 +50,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Cube map textures";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -4.0f));
 		camera_.setRotation(glm::vec3(0.0f));
 		camera_.setRotationSpeed(0.25f);
@@ -385,10 +385,10 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projection = camera_.matrices.perspective;
+		uniformData_.projection = camera_.matrices_.perspective;
 		// Note: Both the object and skybox use the same uniform data, the translation part of the skybox is removed in the shader (see skybox.vert)
-		uniformData_.modelView = camera_.matrices.view;
-		uniformData_.inverseModelview = glm::inverse(camera_.matrices.view);
+		uniformData_.modelView = camera_.matrices_.view;
+		uniformData_.inverseModelview = glm::inverse(camera_.matrices_.view);
 		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 
 	}

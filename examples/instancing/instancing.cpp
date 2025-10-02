@@ -70,7 +70,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Instanced mesh rendering";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(5.5f, -1.85f, -18.5f));
 		camera_.setRotation(glm::vec3(-17.2f, -4.7f, 0.0f));
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 1.0f, 256.0f);
@@ -352,8 +352,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.view = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.view = camera_.matrices_.view;
 		// Animate asteroids
 		if (!paused) {
 			uniformData_.locSpeed += frameTimer * 0.35f;

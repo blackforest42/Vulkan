@@ -523,7 +523,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "User interfaces with ImGui";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(-1.0f, 0.0f, -4.8f));
 		camera_.setRotation(glm::vec3(4.5f, -380.0f, 0.0f));
 		camera_.setPerspective(45.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
@@ -619,8 +619,8 @@ public:
 	void updateUniformBuffers()
 	{
 		// Vertex shader
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.modelview = camera_.matrices.view * glm::mat4(1.0f);
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.modelview = camera_.matrices_.view * glm::mat4(1.0f);
 		// Light source
 		if (imGui->animateLight) {
 			imGui->lightTimer += frameTimer * imGui->lightSpeed;

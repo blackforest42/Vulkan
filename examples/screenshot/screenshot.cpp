@@ -34,7 +34,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Saving framebuffer to screenshot";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
 		camera_.setRotation(glm::vec3(-25.0f, 23.75f, 0.0f));
 		camera_.setTranslation(glm::vec3(0.0f, 0.0f, -3.0f));
@@ -130,8 +130,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.view = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.view = camera_.matrices_.view;
 		uniformData_.model = glm::mat4(1.0f);
 		uniformBuffers_[currentBuffer_].copyTo(&uniformData_, sizeof(UniformData));
 	}

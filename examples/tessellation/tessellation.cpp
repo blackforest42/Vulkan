@@ -43,7 +43,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Tessellation shader (PN Triangles)";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -4.0f));
 		camera_.setRotation(glm::vec3(-350.0f, 60.0f, 0.0f));
 		camera_.setPerspective(45.0f, (float)(width_ * ((splitScreen) ? 0.5f : 1.0f)) / (float)height_, 0.1f, 256.0f);
@@ -205,8 +205,8 @@ public:
 	{
 		// Adjust camera perspective if split screen is enabled
 		camera_.setPerspective(45.0f, (float)(width_ * ((splitScreen) ? 0.5f : 1.0f)) / (float)height_, 0.1f, 256.0f);
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.modelView = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.modelView = camera_.matrices_.view;
 		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 

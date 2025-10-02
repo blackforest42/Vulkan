@@ -123,7 +123,7 @@ public:
 	{
 		title = "Cascaded shadow mapping";
 		timerSpeed *= 0.025f;
-		camera_.type = Camera::CameraType::firstperson;
+		camera_.type_ = Camera::CameraType::firstperson;
 		camera_.movementSpeed = 2.5f;
 		camera_.setPerspective(45.0f, (float)width_ / (float)height_, zNear, zFar);
 		camera_.setPosition(glm::vec3(-0.12f, 1.14f, -2.25f));
@@ -542,7 +542,7 @@ public:
 			};
 
 			// Project frustum corners into world space
-			glm::mat4 invCam = glm::inverse(camera_.matrices.perspective * camera_.matrices.view);
+			glm::mat4 invCam = glm::inverse(camera_.matrices_.perspective * camera_.matrices_.view);
 			for (uint32_t j = 0; j < 8; j++) {
 				glm::vec4 invCorner = invCam * glm::vec4(frustumCorners[j], 1.0f);
 				frustumCorners[j] = invCorner / invCorner.w;
@@ -604,15 +604,15 @@ public:
 		/*
 			Scene rendering
 		*/
-		uniformDataVertex.projection = camera_.matrices.perspective;
-		uniformDataVertex.view = camera_.matrices.view;
+		uniformDataVertex.projection = camera_.matrices_.perspective;
+		uniformDataVertex.view = camera_.matrices_.view;
 		uniformDataVertex.model = glm::mat4(1.0f);
 		uniformDataVertex.lightDir = normalize(-lightPos);
 		memcpy(uniformBuffers_[currentBuffer_].vertex.mapped, &uniformDataVertex, sizeof(UniformDataVertex));
 		for (uint32_t i = 0; i < SHADOW_MAP_CASCADE_COUNT; i++) {
 			uniformDataFragment.cascadeSplits[i] = cascades[i].splitDepth;
 		}
-		uniformDataFragment.inverseViewMat = glm::inverse(camera_.matrices.view);
+		uniformDataFragment.inverseViewMat = glm::inverse(camera_.matrices_.view);
 		uniformDataFragment.lightDir = normalize(-lightPos);
 		uniformDataFragment.colorCascades = colorCascades;
 		memcpy(uniformBuffers_[currentBuffer_].fragment.mapped, &uniformDataFragment, sizeof(UniformDataFragment));

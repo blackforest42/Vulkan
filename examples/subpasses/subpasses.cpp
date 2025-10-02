@@ -92,7 +92,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Subpasses";
-		camera_.type = Camera::CameraType::firstperson;
+		camera_.type_ = Camera::CameraType::firstperson;
 		camera_.movementSpeed = 5.0f;
 #ifndef __ANDROID__
 		camera_.rotationSpeed = 0.25f;
@@ -615,8 +615,8 @@ public:
 	void updateUniformBuffers()
 	{
 		memcpy(uniformBuffers_[currentBuffer_].lights.mapped, lights.data(), lights.size() * sizeof(Light));
-		uboGBuffer.projection = camera_.matrices.perspective;
-		uboGBuffer.view = camera_.matrices.view;
+		uboGBuffer.projection = camera_.matrices_.perspective;
+		uboGBuffer.view = camera_.matrices_.view;
 		uboGBuffer.model = glm::mat4(1.0f);
 		memcpy(uniformBuffers_[currentBuffer_].GBuffer.mapped, &uboGBuffer, sizeof(uboGBuffer));
 	}

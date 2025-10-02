@@ -82,7 +82,7 @@ class VulkanExample : public VulkanExampleBase {
   VulkanExample() : VulkanExampleBase() {
     title = "Offscreen rendering";
     timerSpeed *= 0.25f;
-    camera_.type = Camera::CameraType::lookat;
+    camera_.type_ = Camera::CameraType::lookat;
     camera_.setPosition(glm::vec3(0.0f, 1.0f, -6.0f));
     camera_.setRotation(glm::vec3(-2.5f, 0.0f, 0.0f));
     camera_.setRotationSpeed(0.5f);
@@ -568,8 +568,8 @@ class VulkanExample : public VulkanExampleBase {
       modelRotation.y += frameTimer * 10.0f;
     }
 
-    uniformData_.projection = camera_.matrices.perspective;
-    uniformData_.view = camera_.matrices.view;
+    uniformData_.projection = camera_.matrices_.perspective;
+    uniformData_.view = camera_.matrices_.view;
 
     // Model
     uniformData_.model = glm::mat4(1.0f);

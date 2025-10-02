@@ -39,7 +39,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Using descriptor Sets";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
 		camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
 		camera_.setTranslation(glm::vec3(0.0f, 0.0f, -5.0f));
@@ -283,8 +283,8 @@ public:
 		cubes[1].matrices.model = glm::translate(glm::mat4(1.0f), glm::vec3( 1.5f, 0.5f, 0.0f));
 
 		for (auto& cube : cubes) {
-			cube.matrices.projection = camera_.matrices.perspective;
-			cube.matrices.view = camera_.matrices.view;
+			cube.matrices.projection = camera_.matrices_.perspective;
+			cube.matrices.view = camera_.matrices_.view;
 			cube.matrices.model = glm::rotate(cube.matrices.model, glm::radians(cube.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
 			cube.matrices.model = glm::rotate(cube.matrices.model, glm::radians(cube.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
 			cube.matrices.model = glm::rotate(cube.matrices.model, glm::radians(cube.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));

@@ -73,7 +73,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Input attachments";
-		camera_.type = Camera::CameraType::firstperson;
+		camera_.type_ = Camera::CameraType::firstperson;
 		camera_.movementSpeed = 2.5f;
 		camera_.setPosition(glm::vec3(1.65f, 1.75f, -6.15f));
 		camera_.setRotation(glm::vec3(-12.75f, 380.0f, 0.0f));
@@ -481,8 +481,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uboMatrices.projection = camera_.matrices.perspective;
-		uboMatrices.view = camera_.matrices.view;
+		uboMatrices.projection = camera_.matrices_.perspective;
+		uboMatrices.view = camera_.matrices_.view;
 		uboMatrices.model = glm::mat4(1.0f);
 		memcpy(uniformBuffers_[currentBuffer_].matrices.mapped, &uboMatrices, sizeof(uboMatrices));
 		memcpy(uniformBuffers_[currentBuffer_].params.mapped, &uboParams, sizeof(uboParams));

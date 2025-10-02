@@ -37,7 +37,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Spherical Environment Mapping";
-		camera_.type = Camera::CameraType::lookat;
+		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -3.5f));
 		camera_.setRotation(glm::vec3(-25.0f, 23.75f, 0.0f));
 		camera_.setRotationSpeed(0.75f);
@@ -143,8 +143,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.view = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.view = camera_.matrices_.view;
 		uniformData_.model = glm::mat4(1.0f);
 		uniformData_.normal = glm::inverseTranspose(uniformData_.view * uniformData_.model);
 		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(uniformData_));

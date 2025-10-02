@@ -48,7 +48,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Pipeline statistics";
-		camera_.type = Camera::CameraType::firstperson;
+		camera_.type_ = Camera::CameraType::firstperson;
 		camera_.setPosition(glm::vec3(-3.0f, 1.0f, -2.75f));
 		camera_.setRotation(glm::vec3(-15.25f, -46.5f, 0.0f));
 		camera_.movementSpeed = 4.0f;
@@ -270,8 +270,8 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projection = camera_.matrices.perspective;
-		uniformData_.modelview = camera_.matrices.view;
+		uniformData_.projection = camera_.matrices_.perspective;
+		uniformData_.modelview = camera_.matrices_.view;
 		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
 	}
 
