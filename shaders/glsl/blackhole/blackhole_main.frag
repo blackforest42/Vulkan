@@ -85,7 +85,7 @@ void main() {
     vec2 uv = gl_FragCoord.xy / ubo.resolution.xy - vec2(0.5);
 	uv.x *= ubo.resolution.x / ubo.resolution.y;
  
-	vec3 dir = normalize(vec3(uv.x, -uv.y,  1.0));
+	vec3 dir = normalize(vec3(-uv.x, uv.y,  1.0));
 	dir = mat3(ubo.cameraView) * dir;
  
     // Tonemapping
