@@ -85,7 +85,7 @@ void main() {
 	dir = mat3(ubo.cameraView) * dir;
  
     // Tonemapping
-    vec3 hdrColor = traceColor(ubo.cameraPos, dir).rgb;
+    vec3 hdrColor = traceColor(mat3(ubo.cameraView) * ubo.cameraPos, dir).rgb;
     vec3 mapped = vec3(1.0) - exp(-hdrColor * ubo.exposure);
 	// Gamma correction
 	outFragColor.rgb = pow(mapped, vec3(1.0 / ubo.gamma));

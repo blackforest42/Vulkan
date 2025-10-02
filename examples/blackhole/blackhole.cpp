@@ -48,7 +48,7 @@ class VulkanExample : public VulkanExampleBase {
   VulkanExample() : VulkanExampleBase() {
     title = "Blackhole";
     camera_.type_ = Camera::CameraType::lookat;
-    camera_.setPosition(glm::vec3(0.0f, 4.0f, -10.0f));
+    camera_.setPosition(glm::vec3(0.0f, 0.0f, -10.0f));
     camera_.setRotation(glm::vec3(0.0f));
     camera_.setRotationSpeed(0.25f);
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
@@ -233,9 +233,6 @@ class VulkanExample : public VulkanExampleBase {
 
   // (B.1)
   void updateUniformBuffers() {
-    // TODO: create a toggle in UI for toggling mouse
-    // uniformData_.mouseControl = ;
-
     uniformData_.cameraView = camera_.matrices_.view;
     uniformData_.cameraPos = camera_.position_;
     uniformData_.time =
