@@ -11,11 +11,14 @@ layout (binding = 0) uniform UBO
     mat4 cameraView;
     vec3 cameraPos;
     vec2 resolution;
+
     float time;
+
     // Tonemapping
     float exposure;
     float gamma;
-    bool mouseControl;
+
+    int showBlackhole;
 } ubo;
 
 // Texture maps
@@ -25,13 +28,13 @@ layout (binding = 2) uniform sampler2D colorMap;
 const float PI = 3.14159265359;
 const float EPSILON = 0.0001;
 const float INFINITY = 1000000.0;
+const int SAMPLES_PER_PIXEL = 300;
 
 const bool frontView = false;
 const bool topView = false;
 const float cameraRoll = 0.0;
 
 const float gravatationalLensing = 1.0;
-const float renderBlackHole = 1.0;
 const float fovScale = 1.0;
 
 const float AccDiskEnabled = 1.0;
@@ -44,6 +47,7 @@ const float AccDiskNoiseScale = .8;
 const float AccDiskNoiseLOD = 5.0;
 const float AccDiskSpeed = 0.5;
 
+// For debugging
 struct Ring {
   vec3 center;
   vec3 normal;
@@ -83,13 +87,22 @@ void main() {
  
 	vec3 dir = normalize(vec3(-uv.x, -uv.y,  1.0));
 	dir = mat3(ubo.cameraView) * dir;
+    vec3 newCameraPos = mat3(ubo.cameraView) * ubo.cameraPos;
  
+    vec3 hdrColor;
+    if (ubo.showBlackhole == 1) {
+        hdrColor = traceColor(newCameraPos, dir).rgb;
+    } else {
+        hdrColor = texture(galaxyCubemap, dir).rgb;
+    }
     // Tonemapping
-    vec3 hdrColor = traceColor(mat3(ubo.cameraView) * ubo.cameraPos, dir).rgb;
     vec3 mapped = vec3(1.0) - exp(-hdrColor * ubo.exposure);
 	// Gamma correction
 	outFragColor.rgb = pow(mapped, vec3(1.0 / ubo.gamma));
 }
+
+
+///////////////////////////////////////////////////////////////////////
 
 ///----
 /// Simplex 3D Noise
@@ -355,8 +368,7 @@ vec3 traceColor(vec3 pos, vec3 dir) {
   vec3 h = cross(pos, dir);
   float h2 = dot(h, h);
 
-  for (int i = 0; i < 300; i++) {
-    if (renderBlackHole > 0.5) {
+  for (int i = 0; i < SAMPLES_PER_PIXEL; i++) {
       // If gravatational lensing is applied
       if (gravatationalLensing > 0.5) {
         vec3 acc = accel(h2, pos);
@@ -370,6 +382,7 @@ vec3 traceColor(vec3 pos, vec3 dir) {
 
       float minDistance = INFINITY;
 
+      // For debugging
       if (false) {
         Ring ring;
         ring.center = vec3(0.0, 0.05, 0.0);
@@ -383,8 +396,6 @@ vec3 traceColor(vec3 pos, vec3 dir) {
           accDiskColor(pos, color, alpha);
         }
       }
-    }
-
     pos += dir;
   }
 

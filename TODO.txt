@@ -1,4 +1,2 @@
 Oct 1st
-	- figure out camera view correction
-	- camera needs to lookat (0, 0, 0) at all times
-	- 
+	- add bloom
