@@ -4,6 +4,8 @@ layout (binding = 0) uniform UBO
 {
 	float blurScale;
 	float blurStrength;
+    float exposure;
+    float gamma;
 } ubo;
 
 layout (binding = 1) uniform sampler2D samplerColor;
@@ -43,5 +45,11 @@ void main()
 			result += texture(samplerColor, inUV - vec2(0.0, tex_offset.y * i)).rgb * weight[i] * ubo.blurStrength;
 		}
 	}
-	outFragColor = vec4(result, 1.0);
+
+	// Tonemapping
+	vec3 fragColor = vec3(1.0) - exp(-result * ubo.exposure);
+	// gamma correct
+	fragColor = pow(fragColor, vec3(1.0 / ubo.gamma));
+
+	outFragColor = vec4(fragColor, 1.0);
 }

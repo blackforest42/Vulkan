@@ -33,8 +33,10 @@ class VulkanExample : public VulkanExampleBase {
     glm::mat4 model;
   };
   struct UBOBlurParams {
-    float blurScale = 1.0f;
-    float blurStrength = 1.5f;
+    float blurScale{1.0f};
+    float blurStrength{1.5f};
+    float exposure{1.0f};
+    float gamma{2.2f};
   };
   struct {
     UBO scene, skyBox;
@@ -426,12 +428,8 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_FRAGMENT_BIT,
-            1),  // Binding 1 : Fragment shader image sampler
-        vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT,
-            2),  // Binding 2 : Fragment shader image sampler
+            1)  // Binding 1 : Fragment shader image sampler
     };
-
     descriptorSetLayoutCreateInfo =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
     VK_CHECK_RESULT(
@@ -833,7 +831,9 @@ class VulkanExample : public VulkanExampleBase {
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {
     if (overlay->header("Settings")) {
       overlay->checkBox("Bloom", &bloom_);
-      overlay->inputFloat("Scale", &ubos_.blurParams.blurScale, 0.1f, 2);
+      overlay->sliderFloat("Blur Scale", &ubos_.blurParams.blurScale, 0.1f, 2);
+      overlay->sliderFloat("Exposure", &ubos_.blurParams.exposure, 0.1f, 2);
+      overlay->sliderFloat("Gamma", &ubos_.blurParams.gamma, 0.1f, 5.f);
     }
   }
 
