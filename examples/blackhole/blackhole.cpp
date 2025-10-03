@@ -56,12 +56,21 @@ class VulkanExample : public VulkanExampleBase {
 
   std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
-  VkPipelineLayout pipelineLayout_{VK_NULL_HANDLE};
   struct {
-    VkPipeline blackhole{VK_NULL_HANDLE};
+    VkPipelineLayout bloom;
+    VkPipelineLayout blackhole;
+  } pipelineLayouts_;
+
+  struct {
+    VkPipeline bloom;
+    VkPipeline blackhole;
   } pipelines_;
 
-  VkDescriptorSetLayout descriptorSetLayout_{VK_NULL_HANDLE};
+  struct {
+    VkDescriptorSetLayout bloom;
+    VkDescriptorSetLayout blackhole;
+  } descriptorSetLayouts_{};
+
   std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSet_{};
 
   VulkanExample() : VulkanExampleBase() {
@@ -141,7 +150,7 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
     VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
-        device_, &descriptorLayout, nullptr, &descriptorSetLayout_));
+        device_, &descriptorLayout, nullptr, &descriptorSetLayouts_.blackhole));
 
     // Image descriptor for the cube map texture
     VkDescriptorImageInfo textureDescriptor =
@@ -155,7 +164,7 @@ class VulkanExample : public VulkanExampleBase {
     for (auto i = 0; i < uniformBuffers_.size(); i++) {
       VkDescriptorSetAllocateInfo allocInfo =
           vks::initializers::descriptorSetAllocateInfo(
-              descriptorPool_, &descriptorSetLayout_, 1);
+              descriptorPool_, &descriptorSetLayouts_.blackhole, 1);
       VK_CHECK_RESULT(
           vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSet_[i]));
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
@@ -180,9 +189,10 @@ class VulkanExample : public VulkanExampleBase {
   void preparePipelines() {
     // Layout
     VkPipelineLayoutCreateInfo pipelineLayoutCI =
-        vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout_, 1);
+        vks::initializers::pipelineLayoutCreateInfo(
+            &descriptorSetLayouts_.blackhole, 1);
     VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr,
-                                           &pipelineLayout_));
+                                           &pipelineLayouts_.blackhole));
 
     // Pipeline
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
@@ -212,7 +222,8 @@ class VulkanExample : public VulkanExampleBase {
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
     VkGraphicsPipelineCreateInfo pipelineCI =
-        vks::initializers::pipelineCreateInfo(pipelineLayout_, renderPass_, 0);
+        vks::initializers::pipelineCreateInfo(pipelineLayouts_.blackhole,
+                                              renderPass_, 0);
     pipelineCI.pInputAssemblyState = &inputAssemblyState;
     pipelineCI.pRasterizationState = &rasterizationState;
     pipelineCI.pColorBlendState = &colorBlendState;
@@ -302,7 +313,7 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            pipelineLayout_, 0, 1,
+                            pipelineLayouts_.blackhole, 0, 1,
                             &descriptorSet_[currentBuffer_], 0, nullptr);
 
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -897,8 +908,9 @@ class VulkanExample : public VulkanExampleBase {
       vkDestroySampler(device_, cubeMap_.sampler, nullptr);
       vkFreeMemory(device_, cubeMap_.deviceMemory, nullptr);
       vkDestroyPipeline(device_, pipelines_.blackhole, nullptr);
-      vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayout_, nullptr);
+      vkDestroyPipelineLayout(device_, pipelineLayouts_.blackhole, nullptr);
+      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.blackhole,
+                                   nullptr);
       for (auto& buffer : uniformBuffers_) {
         buffer.destroy();
       }
