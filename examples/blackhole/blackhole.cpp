@@ -639,8 +639,8 @@ class VulkanExample : public VulkanExampleBase {
       // renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
       renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
       renderPassBeginInfo.framebuffer = offscreenPass_.framebuffers.framebuffer;
-      renderPassBeginInfo.renderArea.extent.width = width_;
-      renderPassBeginInfo.renderArea.extent.height = height_;
+      renderPassBeginInfo.renderArea.extent.width = offscreenPass_.width;
+      renderPassBeginInfo.renderArea.extent.height = offscreenPass_.height;
       renderPassBeginInfo.clearValueCount = 2;
       renderPassBeginInfo.pClearValues = clearValues.data();
 
