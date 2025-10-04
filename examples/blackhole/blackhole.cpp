@@ -472,10 +472,9 @@ class VulkanExample : public VulkanExampleBase {
                              writeDescriptorSets.data(), 0, nullptr);
 
       // Descriptor for bloom
-      VkDescriptorSetAllocateInfo descriptorSetAllocInfo =
-          vks::initializers::descriptorSetAllocateInfo(
-              descriptorPool_, &descriptorSetLayouts_.bloom, 1);
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &descriptorSetAllocInfo,
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool_, &descriptorSetLayouts_.bloom, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
                                                &descriptorSets_[i].bloom));
       writeDescriptorSets = {
           vks::initializers::writeDescriptorSet(
@@ -558,14 +557,14 @@ class VulkanExample : public VulkanExampleBase {
     pipelineCI.layout = pipelineLayouts_.bloom;
 
     // Additive blending
-    blendAttachmentState.colorWriteMask = 0xF;
-    blendAttachmentState.blendEnable = VK_TRUE;
-    blendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-    blendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-    blendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-    blendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
-    blendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-    blendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
+    // blendAttachmentState.colorWriteMask = 0xF;
+    // blendAttachmentState.blendEnable = VK_TRUE;
+    // blendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+    // blendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    // blendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    // blendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+    // blendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    // blendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(
         device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.bloom));
 
