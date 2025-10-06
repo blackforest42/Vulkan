@@ -5,7 +5,6 @@ layout (binding = 0) uniform UBO
     // Tonemapping
 	int tonemapEnabled;
     float exposure;
-    float gamma;
 } ubo;
 
 layout (binding = 1) uniform sampler2D samplerColor;
@@ -24,10 +23,9 @@ void main() {
 		// Tonemapping
 		vec3 fragColor = texture(samplerColor, inUV).rgb;
 		fragColor = vec3(1.0) - exp(-fragColor * ubo.exposure);
-		// gamma correct
-		fragColor = pow(fragColor, vec3(1.0 / ubo.gamma));
-
-		outFragColor = vec4(fragColor, 1.0);
+		// No need to gamma correct. sRGB swapchain auto gamma corrects
+		//fragColor = pow(fragColor, vec3(1.0 / ubo.gamma));
+		outFragColor.rgb = fragColor;
 	} else {
 		outFragColor.rgb = texture(samplerColor, inUV).rgb;
 	}

@@ -20,7 +20,7 @@
 
 // Offscreen frame buffer properties
 // #define FB_COLOR_FORMAT VK_FORMAT_R8G8B8A8_UNORM
-#define FB_COLOR_FORMAT VK_FORMAT_R16G16B16A16_UNORM
+#define FB_COLOR_FORMAT VK_FORMAT_R16G16B16A16_SFLOAT
 
 class VulkanExample : public VulkanExampleBase {
  public:
@@ -61,7 +61,6 @@ class VulkanExample : public VulkanExampleBase {
     // Tonemapping
     alignas(4) int tonemappingEnabled;
     alignas(4) float exposure{1.0f};
-    alignas(4) float gamma{2.2f};
   };
 
   struct {
@@ -733,7 +732,6 @@ class VulkanExample : public VulkanExampleBase {
 
       overlay->checkBox("Tone Mapping Enabled", &toneMappingEnabled);
       overlay->sliderFloat("Exposure", &ubos_.bloom.exposure, 0.1, 10.0);
-      overlay->sliderFloat("Gamma", &ubos_.bloom.gamma, 1.0, 4.0);
     }
   }
 
