@@ -33,6 +33,7 @@ class VulkanExample : public VulkanExampleBase {
   bool gravatationalLensingEnabled = true;
   bool accDiskEnabled = true;
   bool accDiskParticleEnabled = true;
+  bool toneMappingEnabled = true;
 
   struct BlackholeUBO {
     alignas(16) glm::mat4 cameraView;
@@ -58,6 +59,7 @@ class VulkanExample : public VulkanExampleBase {
 
   struct BloomUBO {
     // Tonemapping
+    alignas(4) int tonemappingEnabled;
     alignas(4) float exposure{1.0f};
     alignas(4) float gamma{2.2f};
   };
@@ -616,6 +618,7 @@ class VulkanExample : public VulkanExampleBase {
     memcpy(uniformBuffers_[currentBuffer_].blackhole.mapped, &ubos_.blackhole,
            sizeof(BlackholeUBO));
 
+    ubos_.bloom.tonemappingEnabled = toneMappingEnabled;
     memcpy(uniformBuffers_[currentBuffer_].bloom.mapped, &ubos_.bloom,
            sizeof(BloomUBO));
   }
@@ -728,6 +731,7 @@ class VulkanExample : public VulkanExampleBase {
       overlay->sliderFloat("Accretion Disk Speed",
                            &ubos_.blackhole.accDiskSpeed, 0.0, 2.0);
 
+      overlay->checkBox("Tone Mapping Enabled", &toneMappingEnabled);
       overlay->sliderFloat("Exposure", &ubos_.bloom.exposure, 0.1, 10.0);
       overlay->sliderFloat("Gamma", &ubos_.bloom.gamma, 1.0, 4.0);
     }
