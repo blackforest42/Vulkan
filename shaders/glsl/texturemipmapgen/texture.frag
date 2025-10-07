@@ -1,5 +1,8 @@
 #version 450
 
+// This extension is required to use printf
+#extension GL_EXT_debug_printf : enable
+
 layout (set = 0, binding = 1) uniform texture2D textureColor;
 layout (set = 0, binding = 2) uniform sampler samplers[3];
 
@@ -24,6 +27,10 @@ layout (location = 0) out vec4 outFragColor;
 void main() 
 {
 	vec4 color = texture(sampler2D(textureColor, samplers[ubo.samplerIndex]), inUV, inLodBias);
+	float mipmapLevel = textureQueryLod(sampler2D(textureColor, samplers[ubo.samplerIndex]), inUV).x;
+
+	// Output the vertex position using debug printf
+	debugPrintfEXT("Mip map level = %f", mipmapLevel);
 
 	vec3 N = normalize(inNormal);
 	vec3 L = normalize(inLightVec);
