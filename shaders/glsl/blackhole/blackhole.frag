@@ -79,7 +79,7 @@ void main() {
     // Extrapolate a 3D vector.
     // Assuming camera is behind screen at (0, 0, 0) then (0, 0, 1) would be
     // center of the screen (near plane of frustum)
-	vec3 dir = normalize(vec3(uv.x, uv.y,  1.0));
+	vec3 dir = normalize(vec3(uv.x, -uv.y,  1.0));
 	dir = mat3(ubo.cameraView) * dir;
 
     // Keeps camera focal point at the center of screen

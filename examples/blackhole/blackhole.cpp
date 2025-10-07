@@ -634,7 +634,7 @@ class VulkanExample : public VulkanExampleBase {
     // Blackhole
     {
       std::array<VkClearValue, 2> clearValues{};
-      clearValues[0].color = {{0.0f, 0.0f, 0.0f, 0.0f}};
+      clearValues[0].color = {{1.0f, 0.0f, 0.0f, 0.0f}};
       clearValues[1].depthStencil = {1.0f, 0};
 
       VkRenderPassBeginInfo renderPassBeginInfo =
@@ -651,11 +651,13 @@ class VulkanExample : public VulkanExampleBase {
       vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
                            VK_SUBPASS_CONTENTS_INLINE);
 
-      VkViewport viewport = vks::initializers::viewport(
-          (float)width_, (float)height_, 0.0f, 1.0f);
+      VkViewport viewport =
+          vks::initializers::viewport((float)offscreenPass_.width,
+                                      (float)offscreenPass_.height, 0.0f, 1.0f);
       vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-      VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+      VkRect2D scissor = vks::initializers::rect2D(offscreenPass_.width,
+                                                   offscreenPass_.height, 0, 0);
       vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
       vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -673,7 +675,7 @@ class VulkanExample : public VulkanExampleBase {
     // Bloom
     {
       VkClearValue clearValues[2]{};
-      clearValues[0].color = {0.f, 0.0f, 0.0f};
+      clearValues[0].color = {0.f, 1.0f, 0.0f};
       clearValues[1].depthStencil = {1.0f, 0};
 
       VkRenderPassBeginInfo renderPassBeginInfo =
