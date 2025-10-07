@@ -70,11 +70,19 @@ vec3 traceColor(vec3 pos, vec3 dir);
 
 void main() {
 
+    // gl_FragCoord is in window/pixel coordinates where (0,0) is bottom-left
+    // uv is in NDC, where (0,0) is the center
     vec2 uv = gl_FragCoord.xy / ubo.resolution.xy - vec2(0.5);
+    // Aspect ratio correction for non-square screens
 	uv.x *= ubo.resolution.x / ubo.resolution.y;
  
-	vec3 dir = normalize(vec3(-uv.x, -uv.y,  1.0));
+    // Extrapolate a 3D vector.
+    // Assuming camera is behind screen at (0, 0, 0) then (0, 0, 1) would be
+    // center of the screen (near plane of frustum)
+	vec3 dir = normalize(vec3(uv.x, uv.y,  1.0));
 	dir = mat3(ubo.cameraView) * dir;
+
+    // Keeps camera focal point at the center of screen
     vec3 newCameraPos = mat3(ubo.cameraView) * ubo.cameraPos;
  
     vec3 hdrColor;
