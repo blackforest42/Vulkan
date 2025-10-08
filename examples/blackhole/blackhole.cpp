@@ -102,16 +102,19 @@ class VulkanExample : public VulkanExampleBase {
     VkImageView view;
   };
   struct FrameBuffer {
+    int32_t width, height;
     VkFramebuffer framebuffer;
     FrameBufferAttachment color, depth;
     VkDescriptorImageInfo descriptor;
   };
   struct OffscreenPass {
-    int32_t width, height;
     VkRenderPass renderPass;
     VkSampler sampler;
-    FrameBuffer framebuffers;
-  } offscreenPass_{};  // Handles the blend pass
+    // Number of framebuffers will change based on screen dimensions
+    // ie log2(width) + 1
+    // The 0th framebuffer
+    std::vector<FrameBuffer> framebuffers;
+  } offscreenPass_{};  // Handles the down/up sampling pass
 
   VulkanExample() : VulkanExampleBase() {
     title = "Blackhole";
@@ -165,12 +168,8 @@ class VulkanExample : public VulkanExampleBase {
     }
   }
 
-  // (A.3) Prepare the offscreen framebuffers used for the vertical- and
-  // horizontal blur
+  // (A.3) Prepare the offscreen framebuffers used for up/down sampling
   void prepareOffscreen() {
-    offscreenPass_.width = width_;
-    offscreenPass_.height = height_;
-
     // Find a suitable depth format
     VkFormat fbDepthFormat;
     VkBool32 validDepthFormat =
@@ -276,9 +275,20 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(
         vkCreateSampler(device_, &sampler, nullptr, &offscreenPass_.sampler));
 
-    // Create one frame buffer
-    prepareOffscreenFramebuffer(&offscreenPass_.framebuffers, FB_COLOR_FORMAT,
-                                fbDepthFormat);
+    // Calculate number of levels needed to downsample the current screen size
+    int mipLevels =
+        static_cast<uint32_t>(floor(log2(std::max(width_, height_))) + 1);
+    offscreenPass_.framebuffers.resize(mipLevels);
+
+    // Generate fb's for each level using mipmap scaling (1/2).
+    for (int i = 0; i < mipLevels; i++) {
+      offscreenPass_.framebuffers[i].height =
+          static_cast<uint32_t>(height_ * pow(0.5, i));
+      offscreenPass_.framebuffers[i].width =
+          static_cast<uint32_t>(width_ * pow(0.5, i));
+      prepareOffscreenFramebuffer(&offscreenPass_.framebuffers[i],
+                                  FB_COLOR_FORMAT, fbDepthFormat);
+    }
   }
 
   void prepareOffscreenFramebuffer(FrameBuffer* frameBuf,
@@ -288,8 +298,8 @@ class VulkanExample : public VulkanExampleBase {
     VkImageCreateInfo imageCI = vks::initializers::imageCreateInfo();
     imageCI.imageType = VK_IMAGE_TYPE_2D;
     imageCI.format = colorFormat;
-    imageCI.extent.width = width_;
-    imageCI.extent.height = height_;
+    imageCI.extent.width = frameBuf->width;
+    imageCI.extent.height = frameBuf->height;
     imageCI.extent.depth = 1;
     imageCI.mipLevels = 1;
     imageCI.arrayLayers = 1;
@@ -371,8 +381,8 @@ class VulkanExample : public VulkanExampleBase {
     fbufCreateInfo.renderPass = offscreenPass_.renderPass;
     fbufCreateInfo.attachmentCount = 2;
     fbufCreateInfo.pAttachments = attachments;
-    fbufCreateInfo.width = width_;
-    fbufCreateInfo.height = height_;
+    fbufCreateInfo.width = frameBuf->width;
+    fbufCreateInfo.height = frameBuf->height;
     fbufCreateInfo.layers = 1;
 
     VK_CHECK_RESULT(vkCreateFramebuffer(device_, &fbufCreateInfo, nullptr,
@@ -487,7 +497,7 @@ class VulkanExample : public VulkanExampleBase {
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i].blend,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, /*binding id*/ 1,
-              &offscreenPass_.framebuffers.descriptor),
+              &offscreenPass_.framebuffers[0].descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -611,7 +621,8 @@ class VulkanExample : public VulkanExampleBase {
             std::chrono::high_resolution_clock::now().time_since_epoch())
             .count();
     ubos_.blackhole.resolution =
-        glm::vec2(offscreenPass_.width, offscreenPass_.height);
+        glm::vec2(offscreenPass_.framebuffers[0].width,
+                  offscreenPass_.framebuffers[0].height);
     ubos_.blackhole.showBlackhole = showBlackholeUI;
     ubos_.blackhole.gravatationalLensingEnabled = gravatationalLensingEnabled;
     ubos_.blackhole.accDiskEnabled = accDiskEnabled;
@@ -643,22 +654,23 @@ class VulkanExample : public VulkanExampleBase {
       // renderPassBeginInfo.renderPass = renderPass_;
       // renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
       renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
-      renderPassBeginInfo.framebuffer = offscreenPass_.framebuffers.framebuffer;
-      renderPassBeginInfo.renderArea.extent.width = offscreenPass_.width;
-      renderPassBeginInfo.renderArea.extent.height = offscreenPass_.height;
+
+      // 0th fb is the largest and will be the one presented.
+      const VulkanExample::FrameBuffer& fb = offscreenPass_.framebuffers[0];
+      renderPassBeginInfo.framebuffer = fb.framebuffer;
+      renderPassBeginInfo.renderArea.extent.width = fb.width;
+      renderPassBeginInfo.renderArea.extent.height = fb.height;
       renderPassBeginInfo.clearValueCount = 2;
       renderPassBeginInfo.pClearValues = clearValues.data();
 
       vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
                            VK_SUBPASS_CONTENTS_INLINE);
 
-      VkViewport viewport =
-          vks::initializers::viewport((float)offscreenPass_.width,
-                                      (float)offscreenPass_.height, 0.0f, 1.0f);
+      VkViewport viewport = vks::initializers::viewport(
+          (float)fb.width, (float)fb.height, 0.0f, 1.0f);
       vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-      VkRect2D scissor = vks::initializers::rect2D(offscreenPass_.width,
-                                                   offscreenPass_.height, 0, 0);
+      VkRect2D scissor = vks::initializers::rect2D(fb.width, fb.height, 0, 0);
       vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
       vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -1297,8 +1309,9 @@ class VulkanExample : public VulkanExampleBase {
 
   void destroyOffscreenPass() {
     vkDestroyRenderPass(device_, offscreenPass_.renderPass, nullptr);
-    vkDestroyFramebuffer(device_, offscreenPass_.framebuffers.framebuffer,
-                         nullptr);
+    for (FrameBuffer framebuffer : offscreenPass_.framebuffers) {
+      vkDestroyFramebuffer(device_, framebuffer.framebuffer, nullptr);
+    }
   }
 
   void windowResized() override {
@@ -1323,6 +1336,15 @@ class VulkanExample : public VulkanExampleBase {
                                    nullptr);
       vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.blend,
                                    nullptr);
+      for (auto& framebuffer : offscreenPass_.framebuffers) {
+        vkDestroyImageView(device_, framebuffer.color.view, nullptr);
+        vkDestroyImage(device_, framebuffer.color.image, nullptr);
+        vkFreeMemory(device_, framebuffer.color.mem, nullptr);
+        vkDestroyImageView(device_, framebuffer.depth.view, nullptr);
+        vkDestroyImage(device_, framebuffer.depth.image, nullptr);
+        vkFreeMemory(device_, framebuffer.depth.mem, nullptr);
+        vkDestroyFramebuffer(device_, framebuffer.framebuffer, nullptr);
+      }
       for (auto& buffer : uniformBuffers_) {
         buffer.blackhole.destroy();
       }

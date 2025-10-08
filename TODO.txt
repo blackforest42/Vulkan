@@ -1,4 +1,8 @@
 Oct 6
-- create mipmap chain, render it to screen
-- bloom chain
+	- Finish downsampling pipeline:
+		- Create pipeline and layout
+		- Create descriptor set and layout
+		- Create uniforms and buffer
+		- Write vert and frag shaders (port from opengl)
 
+	- Start upsampling pipeline
