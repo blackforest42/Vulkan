@@ -2,9 +2,15 @@
 
 glslc blackhole.vert -o blackhole.vert.spv
 glslc blackhole.frag -o blackhole.frag.spv
+glslc blend.vert -o blend.vert.spv
+glslc blend.frag -o blend.frag.spv
 
-glslc bloom.vert -o bloom.vert.spv
-glslc bloom.frag -o bloom.frag.spv
+
+
+##################
+glslc texture.vert -o texture.vert.spv
+glslc texture.frag -o texture.frag.spv
+
 
 
 # Use `toktx` to create a .ktx cubemap from 6 .png files

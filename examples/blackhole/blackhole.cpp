@@ -21,6 +21,7 @@
 // Offscreen frame buffer properties
 // #define FB_COLOR_FORMAT VK_FORMAT_R8G8B8A8_UNORM
 #define FB_COLOR_FORMAT VK_FORMAT_R16G16B16A16_SFLOAT
+constexpr int NUM_SAMPLE_SIZES = 6;
 
 class VulkanExample : public VulkanExampleBase {
  public:
@@ -110,10 +111,7 @@ class VulkanExample : public VulkanExampleBase {
   struct OffscreenPass {
     VkRenderPass renderPass;
     VkSampler sampler;
-    // Number of framebuffers will change based on screen dimensions
-    // ie log2(width) + 1
-    // The 0th framebuffer
-    std::vector<FrameBuffer> framebuffers;
+    std::array<FrameBuffer, NUM_SAMPLE_SIZES> framebuffers;
   } offscreenPass_{};  // Handles the down/up sampling pass
 
   VulkanExample() : VulkanExampleBase() {
@@ -275,13 +273,8 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(
         vkCreateSampler(device_, &sampler, nullptr, &offscreenPass_.sampler));
 
-    // Calculate number of levels needed to downsample the current screen size
-    int mipLevels =
-        static_cast<uint32_t>(floor(log2(std::max(width_, height_))) + 1);
-    offscreenPass_.framebuffers.resize(mipLevels);
-
     // Generate fb's for each level using mipmap scaling (1/2).
-    for (int i = 0; i < mipLevels; i++) {
+    for (int i = 0; i < NUM_SAMPLE_SIZES; i++) {
       offscreenPass_.framebuffers[i].height =
           static_cast<uint32_t>(height_ * pow(0.5, i));
       offscreenPass_.framebuffers[i].width =
