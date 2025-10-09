@@ -62,7 +62,7 @@ class VulkanExample : public VulkanExampleBase {
 
   struct DownsampleUBO {
     glm::vec2 srcResolution;
-    int currentMipLevel;
+    int currentSampleLevel;
     int karisAverageEnabled;
   };
 
@@ -177,6 +177,14 @@ class VulkanExample : public VulkanExampleBase {
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
           &buffer.blackhole, sizeof(BlackholeUBO), &ubos_.blackhole));
       VK_CHECK_RESULT(buffer.blackhole.map());
+
+      // Downsample
+      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.downsample, sizeof(DownsampleUBO), &ubos_.downsample));
+      VK_CHECK_RESULT(buffer.downsample.map());
 
       // Blend
       VK_CHECK_RESULT(vulkanDevice_->createBuffer(
@@ -304,9 +312,9 @@ class VulkanExample : public VulkanExampleBase {
     // Generate fb's for each level using mipmap scaling (1/2).
     for (int i = 0; i < NUM_SAMPLE_SIZES; i++) {
       offscreenPass_.samples[i].height =
-          static_cast<uint32_t>(height_ * pow(0.5, i));
+          static_cast<uint32_t>(height_ * pow(0.5, i + 1));
       offscreenPass_.samples[i].width =
-          static_cast<uint32_t>(width_ * pow(0.5, i));
+          static_cast<uint32_t>(width_ * pow(0.5, i + 1));
       prepareOffscreenFramebuffer(&offscreenPass_.samples[i], FB_COLOR_FORMAT,
                                   fbDepthFormat);
     }
@@ -753,6 +761,9 @@ class VulkanExample : public VulkanExampleBase {
       vkCmdEndRenderPass(cmdBuffer);
     }
 
+    // Down sampling
+    downSamplingCmdBuffer(cmdBuffer);
+
     // Blend
     {
       VkClearValue clearValues[2]{};
@@ -790,6 +801,66 @@ class VulkanExample : public VulkanExampleBase {
       vkCmdEndRenderPass(cmdBuffer);
     }
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
+  }
+
+  void downSamplingCmdBuffer(VkCommandBuffer& cmdBuffer) {
+    std::array<VkClearValue, 2> clearValues{};
+    clearValues[0].color = {0.f, 0.0f, 1.0f};
+    clearValues[1].depthStencil = {1.0f, 0};
+
+    VkRenderPassBeginInfo renderPassBeginInfo =
+        vks::initializers::renderPassBeginInfo();
+    renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
+
+    for (int sample_level = 0; sample_level < NUM_SAMPLE_SIZES;
+         sample_level++) {
+      // (1) Update and copy uniforms
+      if (sample_level == 0) {
+        // for first downsample, use the source texture
+        ubos_.downsample.srcResolution = glm::vec2(
+            offscreenPass_.original.width, offscreenPass_.original.height);
+        // Karis average enabled only on first pass
+        ubos_.downsample.karisAverageEnabled = 1;
+      } else {
+        ubos_.downsample.srcResolution =
+            glm::vec2(offscreenPass_.samples[sample_level - 1].width,
+                      offscreenPass_.samples[sample_level - 1].height);
+        ubos_.downsample.karisAverageEnabled = 0;
+      }
+      memcpy(uniformBuffers_[currentBuffer_].downsample.mapped,
+             &ubos_.downsample, sizeof(DownsampleUBO));
+
+      // (2) Set render fb target
+      const VulkanExample::FrameBuffer& fb =
+          offscreenPass_.samples[sample_level];
+      renderPassBeginInfo.framebuffer = fb.framebuffer;
+      renderPassBeginInfo.renderArea.extent.width = fb.width;
+      renderPassBeginInfo.renderArea.extent.height = fb.height;
+      renderPassBeginInfo.clearValueCount = 2;
+      renderPassBeginInfo.pClearValues = clearValues.data();
+
+      // (3) Render
+      vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
+                           VK_SUBPASS_CONTENTS_INLINE);
+
+      VkViewport viewport = vks::initializers::viewport(
+          (float)fb.width, (float)fb.height, 0.0f, 1.0f);
+      vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+
+      VkRect2D scissor = vks::initializers::rect2D(fb.width, fb.height, 0, 0);
+      vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+
+      vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              pipelineLayouts_.downsample, 0, 1,
+                              &descriptorSets_[currentBuffer_].downsample, 0,
+                              nullptr);
+
+      vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        pipelines_.downsample);
+      vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
+
+      vkCmdEndRenderPass(cmdBuffer);
+    }
   }
 
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {

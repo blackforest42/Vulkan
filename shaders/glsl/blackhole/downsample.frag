@@ -95,7 +95,7 @@ void main() {
 
   // Check if we need to perform Karis average on each block of 4 samples
   vec3 groups[5];
-  if (ubo.karisAverageEnabled == 0) {
+  if (ubo.karisAverageEnabled >= 1) {
     // We are writing to mip 0, so we need to apply Karis average to each
     // block of 4 samples to prevent fireflies (very bright subpixels, leads
     // to pulsating artifacts).
