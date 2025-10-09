@@ -477,7 +477,7 @@ class VulkanExample : public VulkanExampleBase {
         // Binding 1: array of down sized maps
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_FRAGMENT_BIT, /*binding id*/ 1)};
+            VK_SHADER_STAGE_FRAGMENT_BIT, /*binding id*/ 1, NUM_SAMPLE_SIZES)};
 
     descriptorSetLayoutCI =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
@@ -546,15 +546,15 @@ class VulkanExample : public VulkanExampleBase {
         downsample_descriptor_infos_[j] =
             offscreenPass_.samples[j - 1].descriptor;
       }
-      writeDescriptorSets = {
-          vks::initializers::writeDescriptorSet(
-              descriptorSets_[i].downsample, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-              /*binding id*/ 0, &uniformBuffers_[i].downsample.descriptor),
-          vks::initializers::writeDescriptorSet(
-              descriptorSets_[i].downsample,
-              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, /*binding id*/ 1,
-              downsample_descriptor_infos_.data(), NUM_SAMPLE_SIZES),
-      };
+      writeDescriptorSets.resize(2);
+      writeDescriptorSets[0] = vks::initializers::writeDescriptorSet(
+          descriptorSets_[i].downsample, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+          /*binding id*/ 0, &uniformBuffers_[i].downsample.descriptor);
+      VkWriteDescriptorSet textureArray = vks::initializers::writeDescriptorSet(
+          descriptorSets_[i].downsample,
+          VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, /*binding id*/ 1,
+          downsample_descriptor_infos_.data(), NUM_SAMPLE_SIZES);
+      writeDescriptorSets[1] = textureArray;
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
@@ -570,8 +570,8 @@ class VulkanExample : public VulkanExampleBase {
               /*binding id*/ 0, &uniformBuffers_[i].blend.descriptor),
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i].blend,
-              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, /*binding id*/ 1,
-              &offscreenPass_.original.descriptor),
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              /*binding id*/ 1, &offscreenPass_.original.descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
