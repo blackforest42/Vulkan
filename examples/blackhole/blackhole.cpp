@@ -22,7 +22,7 @@
 // #define FB_COLOR_FORMAT VK_FORMAT_R8G8B8A8_UNORM
 #define FB_COLOR_FORMAT VK_FORMAT_R16G16B16A16_SFLOAT
 // Number of down/up samples during bloom
-constexpr int NUM_SAMPLE_SIZES = 1;
+constexpr int NUM_SAMPLE_SIZES = 2;
 
 class VulkanExample : public VulkanExampleBase {
  public:
@@ -51,13 +51,13 @@ class VulkanExample : public VulkanExampleBase {
     int accDiskEnabled;
     int accDiskParticleEnabled;
 
-    float accDiskHeight{0.55};
-    float accDiskLit{0.25};
-    float accDiskDensityV{2.0};
-    float accDiskDensityH{4.0};
-    float accDiskNoiseScale{.8};
+    float accDiskHeight{0.55f};
+    float accDiskLit{0.25f};
+    float accDiskDensityV{2.0f};
+    float accDiskDensityH{4.0f};
+    float accDiskNoiseScale{.8f};
     int accDiskNoiseLOD{5};
-    float accDiskSpeed{0.5};
+    float accDiskSpeed{0.5f};
   };
 
   struct DownsampleUBO {
@@ -136,14 +136,6 @@ class VulkanExample : public VulkanExampleBase {
   std::array<VkDescriptorImageInfo, NUM_SAMPLE_SIZES>
       downsample_descriptor_infos_{};
 
-  VulkanExample() : VulkanExampleBase() {
-    title = "Blackhole";
-    camera_.type_ = Camera::CameraType::lookat;
-    camera_.setPosition(glm::vec3(0.0f, 0.0f, -15.0f));
-    camera_.setRotation(glm::vec3(0.0f));
-    camera_.setRotationSpeed(0.25f);
-    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
-  }
   // (A.2)
   // Prepare and initialize uniform buffer containing shader uniforms
   void prepareUniformBuffers() {
@@ -489,7 +481,8 @@ class VulkanExample : public VulkanExampleBase {
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i].blend,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-              /*binding id*/ 1, &offscreenPass_.original.descriptor),
+              /*binding id*/ 1,
+              &offscreenPass_.samples[NUM_SAMPLE_SIZES - 1].descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -612,7 +605,7 @@ class VulkanExample : public VulkanExampleBase {
     ubos_.blackhole.cameraView = camera_.matrices_.view;
     ubos_.blackhole.cameraPos = camera_.position_;
     ubos_.blackhole.time =
-        std::chrono::duration<double>(
+        std::chrono::duration<float>(
             std::chrono::high_resolution_clock::now().time_since_epoch())
             .count();
     ubos_.blackhole.resolution = glm::vec2(offscreenPass_.original.width,
@@ -794,14 +787,14 @@ class VulkanExample : public VulkanExampleBase {
       overlay->sliderFloat("Accretion Disk Density H",
                            &ubos_.blackhole.accDiskDensityH, 0.0, 5.0);
       overlay->sliderFloat("Accretion Disk Noise Scale",
-                           &ubos_.blackhole.accDiskNoiseScale, 0.1, 5.0);
+                           &ubos_.blackhole.accDiskNoiseScale, 0.0f, 5.0f);
       overlay->sliderInt("Accretion Disk LOD", &ubos_.blackhole.accDiskNoiseLOD,
                          0, 10);
       overlay->sliderFloat("Accretion Disk Speed",
                            &ubos_.blackhole.accDiskSpeed, 0.0, 2.0);
 
       overlay->checkBox("Tone Mapping Enabled", &toneMappingEnabled);
-      overlay->sliderFloat("Exposure", &ubos_.blend.exposure, 0.1, 10.0);
+      overlay->sliderFloat("Exposure", &ubos_.blend.exposure, 0.1f, 10.0f);
     }
   }
 
@@ -1363,6 +1356,15 @@ class VulkanExample : public VulkanExampleBase {
     vkResetDescriptorPool(device_, descriptorPool_, 0);
     setupDescriptors();
     resized_ = false;
+  }
+
+  VulkanExample() : VulkanExampleBase() {
+    title = "Blackhole";
+    camera_.type_ = Camera::CameraType::lookat;
+    camera_.setPosition(glm::vec3(0.0f, 0.0f, -15.0f));
+    camera_.setRotation(glm::vec3(0.0f));
+    camera_.setRotationSpeed(0.25f);
+    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
   }
 
   // (Part A.0) Called once in main() before renderLoop()
