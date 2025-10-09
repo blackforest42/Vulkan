@@ -15,7 +15,7 @@ uniform int karisAverageEnabled;
 } ubo;
 
 // Texture maps
-layout (binding = 1) uniform sampler2D srcTextures[6];
+layout (binding = 1) uniform sampler2D srcTextures;
 
 // in
 layout (location = 0) in vec2 uv;
@@ -56,25 +56,25 @@ void main() {
   // g - h - i
   // === ('e' is the current texel) ===
   vec3 a =
-      texture(srcTextures[ubo.currentSampleLevel], vec2(uv.x - 2 * x, uv.y + 2 * y)).rgb;
-  vec3 b = texture(srcTextures[ubo.currentSampleLevel], vec2(uv.x, uv.y + 2 * y)).rgb;
+      texture(srcTextures, vec2(uv.x - 2 * x, uv.y + 2 * y)).rgb;
+  vec3 b = texture(srcTextures, vec2(uv.x, uv.y + 2 * y)).rgb;
   vec3 c =
-      texture(srcTextures[ubo.currentSampleLevel], vec2(uv.x + 2 * x, uv.y + 2 * y)).rgb;
+      texture(srcTextures, vec2(uv.x + 2 * x, uv.y + 2 * y)).rgb;
 
-  vec3 d = texture(srcTextures[ubo.currentSampleLevel], vec2(uv.x - 2 * x, uv.y)).rgb;
-  vec3 e = texture(srcTextures[ubo.currentSampleLevel], vec2(uv.x, uv.y)).rgb;
-  vec3 f = texture(srcTextures[ubo.currentSampleLevel], vec2(uv.x + 2 * x, uv.y)).rgb;
+  vec3 d = texture(srcTextures, vec2(uv.x - 2 * x, uv.y)).rgb;
+  vec3 e = texture(srcTextures, vec2(uv.x, uv.y)).rgb;
+  vec3 f = texture(srcTextures, vec2(uv.x + 2 * x, uv.y)).rgb;
 
   vec3 g =
-      texture(srcTextures[ubo.currentSampleLevel], vec2(uv.x - 2 * x, uv.y - 2 * y)).rgb;
-  vec3 h = texture(srcTextures[ubo.currentSampleLevel], vec2(uv.x, uv.y - 2 * y)).rgb;
+      texture(srcTextures, vec2(uv.x - 2 * x, uv.y - 2 * y)).rgb;
+  vec3 h = texture(srcTextures, vec2(uv.x, uv.y - 2 * y)).rgb;
   vec3 i =
-      texture(srcTextures[ubo.currentSampleLevel], vec2(uv.x + 2 * x, uv.y - 2 * y)).rgb;
+      texture(srcTextures, vec2(uv.x + 2 * x, uv.y - 2 * y)).rgb;
 
-  vec3 j = texture(srcTextures[ubo.currentSampleLevel], vec2(uv.x - x, uv.y + y)).rgb;
-  vec3 k = texture(srcTextures[ubo.currentSampleLevel], vec2(uv.x + x, uv.y + y)).rgb;
-  vec3 l = texture(srcTextures[ubo.currentSampleLevel], vec2(uv.x - x, uv.y - y)).rgb;
-  vec3 m = texture(srcTextures[ubo.currentSampleLevel], vec2(uv.x + x, uv.y - y)).rgb;
+  vec3 j = texture(srcTextures, vec2(uv.x - x, uv.y + y)).rgb;
+  vec3 k = texture(srcTextures, vec2(uv.x + x, uv.y + y)).rgb;
+  vec3 l = texture(srcTextures, vec2(uv.x - x, uv.y - y)).rgb;
+  vec3 m = texture(srcTextures, vec2(uv.x + x, uv.y - y)).rgb;
 
   // Apply weighted distribution:
   // 0.5 + 0.125 + 0.125 + 0.125 + 0.125 = 1

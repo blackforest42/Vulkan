@@ -22,7 +22,8 @@
 // #define FB_COLOR_FORMAT VK_FORMAT_R8G8B8A8_UNORM
 #define FB_COLOR_FORMAT VK_FORMAT_R16G16B16A16_SFLOAT
 // Number of down/up samples during bloom
-constexpr int NUM_SAMPLE_SIZES = 2;
+// Higher than 6 will cause a greyed out screen
+constexpr int NUM_SAMPLE_SIZES = 6;
 
 class VulkanExample : public VulkanExampleBase {
  public:
@@ -105,7 +106,7 @@ class VulkanExample : public VulkanExampleBase {
 
   struct DescriptorSets {
     VkDescriptorSet blackhole;
-    VkDescriptorSet downsample;
+    std::array<VkDescriptorSet, NUM_SAMPLE_SIZES> downsamples{};
     VkDescriptorSet blend;
   };
   std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
@@ -130,11 +131,6 @@ class VulkanExample : public VulkanExampleBase {
     // Holds all downsampled framebuffers
     std::array<FrameBuffer, NUM_SAMPLE_SIZES> samples;
   } offscreenPass_{};
-
-  // Need to store the image descriptors for each down sampled image in its own
-  // array to pass to descriptor
-  std::array<VkDescriptorImageInfo, NUM_SAMPLE_SIZES>
-      downsample_descriptor_infos_{};
 
   // (A.2)
   // Prepare and initialize uniform buffer containing shader uniforms
@@ -341,13 +337,14 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            /* descriptorCount */ MAX_CONCURRENT_FRAMES * 8),
+            /* descriptorCount */ MAX_CONCURRENT_FRAMES * 8 * NUM_SAMPLE_SIZES),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            /* descriptorCount */ MAX_CONCURRENT_FRAMES * 6)};
+            /* descriptorCount */ MAX_CONCURRENT_FRAMES * 6 *
+                NUM_SAMPLE_SIZES)};
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
-        vks::initializers::descriptorPoolCreateInfo(poolSizes,
-                                                    MAX_CONCURRENT_FRAMES * 4);
+        vks::initializers::descriptorPoolCreateInfo(
+            poolSizes, MAX_CONCURRENT_FRAMES * 4 * NUM_SAMPLE_SIZES);
     VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
                                            nullptr, &descriptorPool_));
 
@@ -388,7 +385,7 @@ class VulkanExample : public VulkanExampleBase {
         // Binding 1: array of down sized maps
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_FRAGMENT_BIT, /*binding id*/ 1, NUM_SAMPLE_SIZES)};
+            VK_SHADER_STAGE_FRAGMENT_BIT, /*binding id*/ 1, 1)};
 
     descriptorSetLayoutCI =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
@@ -446,28 +443,29 @@ class VulkanExample : public VulkanExampleBase {
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
 
-      // Down sampling descriptor
-      allocInfo = vks::initializers::descriptorSetAllocateInfo(
-          descriptorPool_, &descriptorSetLayouts_.downsample, 1);
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
-                                               &descriptorSets_[i].downsample));
-      // Get descriptor for downsampled images
-      downsample_descriptor_infos_[0] = offscreenPass_.original.descriptor;
-      for (int j = 1; j < NUM_SAMPLE_SIZES; j++) {
-        downsample_descriptor_infos_[j] = offscreenPass_.original.descriptor;
+      // Descriptor for downsample
+      for (int sample_level = 0; sample_level < NUM_SAMPLE_SIZES;
+           sample_level++) {
+        allocInfo = vks::initializers::descriptorSetAllocateInfo(
+            descriptorPool_, &descriptorSetLayouts_.downsample, 1);
+        VK_CHECK_RESULT(vkAllocateDescriptorSets(
+            device_, &allocInfo,
+            &descriptorSets_[i].downsamples[sample_level]));
+        writeDescriptorSets = {
+            vks::initializers::writeDescriptorSet(
+                descriptorSets_[i].downsamples[sample_level],
+                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                /*binding id*/ 0, &uniformBuffers_[i].downsample.descriptor),
+            vks::initializers::writeDescriptorSet(
+                descriptorSets_[i].downsamples[sample_level],
+                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, /*binding id*/ 1,
+                sample_level == 0
+                    ? &offscreenPass_.original.descriptor
+                    : &offscreenPass_.samples[sample_level - 1].descriptor)};
+        vkUpdateDescriptorSets(
+            device_, static_cast<uint32_t>(writeDescriptorSets.size()),
+            writeDescriptorSets.data(), 0, nullptr);
       }
-      writeDescriptorSets.resize(2);
-      writeDescriptorSets[0] = vks::initializers::writeDescriptorSet(
-          descriptorSets_[i].downsample, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-          /*binding id*/ 0, &uniformBuffers_[i].downsample.descriptor);
-      VkWriteDescriptorSet textureArray = vks::initializers::writeDescriptorSet(
-          descriptorSets_[i].downsample,
-          VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, /*binding id*/ 1,
-          downsample_descriptor_infos_.data(), NUM_SAMPLE_SIZES);
-      writeDescriptorSets[1] = textureArray;
-      vkUpdateDescriptorSets(device_,
-                             static_cast<uint32_t>(writeDescriptorSets.size()),
-                             writeDescriptorSets.data(), 0, nullptr);
 
       // Descriptor for blend
       allocInfo = vks::initializers::descriptorSetAllocateInfo(
@@ -481,8 +479,8 @@ class VulkanExample : public VulkanExampleBase {
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i].blend,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-              /*binding id*/ 1,
-              &offscreenPass_.samples[NUM_SAMPLE_SIZES - 1].descriptor),
+              /*binding id*/ 1, &offscreenPass_.original.descriptor)
+          //&offscreenPass_.samples[0].descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -633,7 +631,7 @@ class VulkanExample : public VulkanExampleBase {
     // Blackhole
     {
       VkClearValue clearValues{};
-      clearValues.color = {1.0f, 0.0f, 0.0f, 0.0f};
+      clearValues.color = {0.0f, 1.0f, 1.0f};
 
       VkRenderPassBeginInfo renderPassBeginInfo =
           vks::initializers::renderPassBeginInfo();
@@ -758,10 +756,11 @@ class VulkanExample : public VulkanExampleBase {
       VkRect2D scissor = vks::initializers::rect2D(fb.width, fb.height, 0, 0);
       vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
-      vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                              pipelineLayouts_.downsample, 0, 1,
-                              &descriptorSets_[currentBuffer_].downsample, 0,
-                              nullptr);
+      vkCmdBindDescriptorSets(
+          cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+          pipelineLayouts_.downsample, 0, 1,
+          &descriptorSets_[currentBuffer_].downsamples[sample_level], 0,
+          nullptr);
 
       vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                         pipelines_.downsample);
