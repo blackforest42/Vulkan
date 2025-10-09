@@ -22,7 +22,7 @@
 // #define FB_COLOR_FORMAT VK_FORMAT_R8G8B8A8_UNORM
 #define FB_COLOR_FORMAT VK_FORMAT_R16G16B16A16_SFLOAT
 // Number of down/up samples during bloom
-constexpr int NUM_SAMPLE_SIZES = 1;
+constexpr int NUM_SAMPLE_SIZES = 2;
 
 class VulkanExample : public VulkanExampleBase {
  public:
@@ -68,7 +68,7 @@ class VulkanExample : public VulkanExampleBase {
 
   struct BlendUBO {
     // Tonemapping
-    alignas(4) int tonemappingEnabled;
+    alignas(4) int tonemappingEnabled{1};
     alignas(4) float exposure{1.0f};
   };
 
@@ -89,13 +89,13 @@ class VulkanExample : public VulkanExampleBase {
     VkPipelineLayout blackhole;
     VkPipelineLayout downsample;
     VkPipelineLayout blend;
-  } pipelineLayouts_;
+  } pipelineLayouts_{};
 
   struct {
     VkPipeline blackhole;
     VkPipeline downsample;
     VkPipeline blend;
-  } pipelines_;
+  } pipelines_{};
 
   struct {
     VkDescriptorSetLayout blackhole;
@@ -119,7 +119,7 @@ class VulkanExample : public VulkanExampleBase {
   struct FrameBuffer {
     int32_t width, height;
     VkFramebuffer framebuffer;
-    FrameBufferAttachment color, depth;
+    FrameBufferAttachment color;
     VkDescriptorImageInfo descriptor;
   };
   struct OffscreenPass {
@@ -144,28 +144,6 @@ class VulkanExample : public VulkanExampleBase {
     camera_.setRotationSpeed(0.25f);
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
   }
-
-  // (Part A.0) Called once in main() before renderLoop()
-  void prepare() {
-    VulkanExampleBase::prepare();
-    loadAssets();
-    prepareUniformBuffers();
-    prepareOffscreen();
-    setupDescriptors();
-    preparePipelines();
-    prepared_ = true;
-  }
-
-  // (A.1)
-  void loadAssets() {
-    uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices |
-                                vkglTF::FileLoadingFlags::FlipY;
-    // Cubemap texture
-    loadCubemap(getAssetPath() + "textures/blackhole/skybox/cubemap.ktx",
-                VK_FORMAT_R8G8B8A8_UNORM);
-    loadTexture(getAssetPath() + "textures/blackhole/blackhole_color_map.ktx");
-  }
-
   // (A.2)
   // Prepare and initialize uniform buffer containing shader uniforms
   void prepareUniformBuffers() {
@@ -198,47 +176,27 @@ class VulkanExample : public VulkanExampleBase {
 
   // (A.3) Prepare the offscreen framebuffers used for up/down sampling
   void prepareOffscreen() {
-    // Find a suitable depth format
-    VkFormat fbDepthFormat;
-    VkBool32 validDepthFormat =
-        vks::tools::getSupportedDepthFormat(physicalDevice_, &fbDepthFormat);
-    assert(validDepthFormat);
-
     // Create a separate render pass for the offscreen rendering as it may
     // differ from the one used for scene rendering
-
-    std::array<VkAttachmentDescription, 2> attchmentDescriptions = {};
+    VkAttachmentDescription attchmentDescriptions;
     // Color attachment
-    attchmentDescriptions[0].format = FB_COLOR_FORMAT;
-    attchmentDescriptions[0].samples = VK_SAMPLE_COUNT_1_BIT;
-    attchmentDescriptions[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attchmentDescriptions[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attchmentDescriptions[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attchmentDescriptions[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attchmentDescriptions[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attchmentDescriptions[0].finalLayout =
+    attchmentDescriptions.format = FB_COLOR_FORMAT;
+    attchmentDescriptions.samples = VK_SAMPLE_COUNT_1_BIT;
+    attchmentDescriptions.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attchmentDescriptions.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attchmentDescriptions.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attchmentDescriptions.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attchmentDescriptions.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attchmentDescriptions.finalLayout =
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    // Depth attachment
-    attchmentDescriptions[1].format = fbDepthFormat;
-    attchmentDescriptions[1].samples = VK_SAMPLE_COUNT_1_BIT;
-    attchmentDescriptions[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attchmentDescriptions[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attchmentDescriptions[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attchmentDescriptions[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attchmentDescriptions[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attchmentDescriptions[1].finalLayout =
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkAttachmentReference colorReference = {
         0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-    VkAttachmentReference depthReference = {
-        1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
 
     VkSubpassDescription subpassDescription = {};
     subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpassDescription.colorAttachmentCount = 1;
     subpassDescription.pColorAttachments = &colorReference;
-    subpassDescription.pDepthStencilAttachment = &depthReference;
 
     // Use subpass dependencies for layout transitions
     std::array<VkSubpassDependency, 3> dependencies{};
@@ -277,9 +235,8 @@ class VulkanExample : public VulkanExampleBase {
     // Create the actual renderpass
     VkRenderPassCreateInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount =
-        static_cast<uint32_t>(attchmentDescriptions.size());
-    renderPassInfo.pAttachments = attchmentDescriptions.data();
+    renderPassInfo.attachmentCount = 1;
+    renderPassInfo.pAttachments = &attchmentDescriptions;
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpassDescription;
     renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
@@ -306,8 +263,7 @@ class VulkanExample : public VulkanExampleBase {
     // Generate framebuffer for first renderpass
     offscreenPass_.original.height = height_;
     offscreenPass_.original.width = width_;
-    prepareOffscreenFramebuffer(&offscreenPass_.original, FB_COLOR_FORMAT,
-                                fbDepthFormat);
+    prepareOffscreenFramebuffer(&offscreenPass_.original, FB_COLOR_FORMAT);
 
     // Generate fb's for each level using mipmap scaling (1/2).
     for (int i = 0; i < NUM_SAMPLE_SIZES; i++) {
@@ -315,14 +271,12 @@ class VulkanExample : public VulkanExampleBase {
           static_cast<uint32_t>(height_ * pow(0.5, i + 1));
       offscreenPass_.samples[i].width =
           static_cast<uint32_t>(width_ * pow(0.5, i + 1));
-      prepareOffscreenFramebuffer(&offscreenPass_.samples[i], FB_COLOR_FORMAT,
-                                  fbDepthFormat);
+      prepareOffscreenFramebuffer(&offscreenPass_.samples[i], FB_COLOR_FORMAT);
     }
   }
 
   void prepareOffscreenFramebuffer(FrameBuffer* frameBuf,
-                                   VkFormat colorFormat,
-                                   VkFormat depthFormat) {
+                                   VkFormat colorFormat) {
     // Color attachment
     VkImageCreateInfo imageCI = vks::initializers::imageCreateInfo();
     imageCI.imageType = VK_IMAGE_TYPE_2D;
@@ -368,47 +322,12 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateImageView(device_, &colorImageView, nullptr,
                                       &frameBuf->color.view));
 
-    // Depth stencil attachment
-    imageCI.format = depthFormat;
-    imageCI.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-
-    VkImageViewCreateInfo depthStencilView =
-        vks::initializers::imageViewCreateInfo();
-    depthStencilView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    depthStencilView.format = depthFormat;
-    depthStencilView.flags = 0;
-    depthStencilView.subresourceRange = {};
-    depthStencilView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    if (vks::tools::formatHasStencil(depthFormat)) {
-      depthStencilView.subresourceRange.aspectMask |=
-          VK_IMAGE_ASPECT_STENCIL_BIT;
-    }
-    depthStencilView.subresourceRange.baseMipLevel = 0;
-    depthStencilView.subresourceRange.levelCount = 1;
-    depthStencilView.subresourceRange.baseArrayLayer = 0;
-    depthStencilView.subresourceRange.layerCount = 1;
-
-    VK_CHECK_RESULT(
-        vkCreateImage(device_, &imageCI, nullptr, &frameBuf->depth.image));
-    vkGetImageMemoryRequirements(device_, frameBuf->depth.image, &memReqs);
-    memAlloc.allocationSize = memReqs.size;
-    memAlloc.memoryTypeIndex = vulkanDevice_->getMemoryType(
-        memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VK_CHECK_RESULT(
-        vkAllocateMemory(device_, &memAlloc, nullptr, &frameBuf->depth.mem));
-    VK_CHECK_RESULT(vkBindImageMemory(device_, frameBuf->depth.image,
-                                      frameBuf->depth.mem, 0));
-
-    depthStencilView.image = frameBuf->depth.image;
-    VK_CHECK_RESULT(vkCreateImageView(device_, &depthStencilView, nullptr,
-                                      &frameBuf->depth.view));
-
-    VkImageView attachments[2]{frameBuf->color.view, frameBuf->depth.view};
+    VkImageView attachments[1]{frameBuf->color.view};
 
     VkFramebufferCreateInfo fbufCreateInfo =
         vks::initializers::framebufferCreateInfo();
     fbufCreateInfo.renderPass = offscreenPass_.renderPass;
-    fbufCreateInfo.attachmentCount = 2;
+    fbufCreateInfo.attachmentCount = 1;
     fbufCreateInfo.pAttachments = attachments;
     fbufCreateInfo.width = frameBuf->width;
     fbufCreateInfo.height = frameBuf->height;
@@ -660,7 +579,7 @@ class VulkanExample : public VulkanExampleBase {
         loadShader(getShadersPath() + "blackhole/blackhole.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
     blendAttachmentState.blendEnable = VK_FALSE;
-    depthStencilState.depthWriteEnable = VK_TRUE;
+    // depthStencilState.depthWriteEnable = VK_TRUE;
     rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCI, nullptr,
@@ -676,7 +595,7 @@ class VulkanExample : public VulkanExampleBase {
         loadShader(getShadersPath() + "blackhole/downsample.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
     blendAttachmentState.blendEnable = VK_FALSE;
-    depthStencilState.depthWriteEnable = VK_TRUE;
+    // depthStencilState.depthWriteEnable = VK_TRUE;
     rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCI, nullptr,
@@ -725,9 +644,8 @@ class VulkanExample : public VulkanExampleBase {
 
     // Blackhole
     {
-      std::array<VkClearValue, 2> clearValues{};
-      clearValues[0].color = {{1.0f, 0.0f, 0.0f, 0.0f}};
-      clearValues[1].depthStencil = {1.0f, 0};
+      VkClearValue clearValues{};
+      clearValues.color = {1.0f, 0.0f, 0.0f, 0.0f};
 
       VkRenderPassBeginInfo renderPassBeginInfo =
           vks::initializers::renderPassBeginInfo();
@@ -739,8 +657,8 @@ class VulkanExample : public VulkanExampleBase {
       renderPassBeginInfo.framebuffer = fb.framebuffer;
       renderPassBeginInfo.renderArea.extent.width = fb.width;
       renderPassBeginInfo.renderArea.extent.height = fb.height;
-      renderPassBeginInfo.clearValueCount = 2;
-      renderPassBeginInfo.pClearValues = clearValues.data();
+      renderPassBeginInfo.clearValueCount = 1;
+      renderPassBeginInfo.pClearValues = &clearValues;
 
       vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
                            VK_SUBPASS_CONTENTS_INLINE);
@@ -769,9 +687,8 @@ class VulkanExample : public VulkanExampleBase {
 
     // Blend
     {
-      VkClearValue clearValues[2]{};
-      clearValues[0].color = {0.f, 1.0f, 0.0f};
-      clearValues[1].depthStencil = {1.0f, 0};
+      VkClearValue clearValues{};
+      clearValues.color = {0.f, 1.0f, 0.0f};
 
       VkRenderPassBeginInfo renderPassBeginInfo =
           vks::initializers::renderPassBeginInfo();
@@ -781,8 +698,8 @@ class VulkanExample : public VulkanExampleBase {
       renderPassBeginInfo.renderArea.offset.y = 0;
       renderPassBeginInfo.renderArea.extent.width = width_;
       renderPassBeginInfo.renderArea.extent.height = height_;
-      renderPassBeginInfo.clearValueCount = 2;
-      renderPassBeginInfo.pClearValues = clearValues;
+      renderPassBeginInfo.clearValueCount = 1;
+      renderPassBeginInfo.pClearValues = &clearValues;
 
       vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
                            VK_SUBPASS_CONTENTS_INLINE);
@@ -807,9 +724,8 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void downSamplingCmdBuffer(VkCommandBuffer& cmdBuffer) {
-    std::array<VkClearValue, 2> clearValues{};
-    clearValues[0].color = {0.f, 0.0f, 1.0f};
-    clearValues[1].depthStencil = {1.0f, 0};
+    VkClearValue clearValues{};
+    clearValues.color = {0.f, 0.0f, 1.0f};
 
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();
@@ -840,8 +756,8 @@ class VulkanExample : public VulkanExampleBase {
       renderPassBeginInfo.framebuffer = fb.framebuffer;
       renderPassBeginInfo.renderArea.extent.width = fb.width;
       renderPassBeginInfo.renderArea.extent.height = fb.height;
-      renderPassBeginInfo.clearValueCount = 2;
-      renderPassBeginInfo.pClearValues = clearValues.data();
+      renderPassBeginInfo.clearValueCount = 1;
+      renderPassBeginInfo.pClearValues = &clearValues;
 
       // (3) Render
       vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
@@ -1466,6 +1382,27 @@ class VulkanExample : public VulkanExampleBase {
     resized_ = false;
   }
 
+  // (Part A.0) Called once in main() before renderLoop()
+  void prepare() {
+    VulkanExampleBase::prepare();
+    loadAssets();
+    prepareUniformBuffers();
+    prepareOffscreen();
+    setupDescriptors();
+    preparePipelines();
+    prepared_ = true;
+  }
+
+  // (A.1)
+  void loadAssets() {
+    uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices |
+                                vkglTF::FileLoadingFlags::FlipY;
+    // Cubemap texture
+    loadCubemap(getAssetPath() + "textures/blackhole/skybox/cubemap.ktx",
+                VK_FORMAT_R8G8B8A8_UNORM);
+    loadTexture(getAssetPath() + "textures/blackhole/blackhole_color_map.ktx");
+  }
+
   ~VulkanExample() {
     if (device_) {
       vkDestroyImageView(device_, cubeMap_.view, nullptr);
@@ -1485,18 +1422,12 @@ class VulkanExample : public VulkanExampleBase {
       vkDestroyImageView(device_, offscreenPass_.original.color.view, nullptr);
       vkDestroyImage(device_, offscreenPass_.original.color.image, nullptr);
       vkFreeMemory(device_, offscreenPass_.original.color.mem, nullptr);
-      vkDestroyImageView(device_, offscreenPass_.original.depth.view, nullptr);
-      vkDestroyImage(device_, offscreenPass_.original.depth.image, nullptr);
-      vkFreeMemory(device_, offscreenPass_.original.depth.mem, nullptr);
       vkDestroyFramebuffer(device_, offscreenPass_.original.framebuffer,
                            nullptr);
       for (auto& sample : offscreenPass_.samples) {
         vkDestroyImageView(device_, sample.color.view, nullptr);
         vkDestroyImage(device_, sample.color.image, nullptr);
         vkFreeMemory(device_, sample.color.mem, nullptr);
-        vkDestroyImageView(device_, sample.depth.view, nullptr);
-        vkDestroyImage(device_, sample.depth.image, nullptr);
-        vkFreeMemory(device_, sample.depth.mem, nullptr);
         vkDestroyFramebuffer(device_, sample.framebuffer, nullptr);
       }
       for (auto& buffer : uniformBuffers_) {
