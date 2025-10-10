@@ -1,5 +1,3 @@
 Oct 9
-	- up sampling done!
-	- Flickering squares bug!!
-		- happens when increasing bloom strength
-		- fewer NUM_SAMPLE_SIZES causes smaller squares, means it's proportional to sample resolution
+	- unrendered squares leaving visible artifacts in down sample
+	- switch to down/up sampling bloom in original Blackhole OpenGL version

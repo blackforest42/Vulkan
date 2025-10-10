@@ -23,7 +23,7 @@
 #define FB_COLOR_FORMAT VK_FORMAT_R16G16B16A16_SFLOAT
 // Number of down/up samples during bloom
 // Higher than 6 will cause a greyed out screen
-constexpr int NUM_SAMPLE_SIZES = 2;
+constexpr int NUM_SAMPLE_SIZES = 1;
 
 class VulkanExample : public VulkanExampleBase {
  public:
@@ -558,9 +558,8 @@ class VulkanExample : public VulkanExampleBase {
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i].blend,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-              /*binding id*/ 2, &offscreenPass_.final.descriptor)
-          // offscreenPass_.samples[0].descriptor),
-      };
+              /*binding id*/ 2,  // &offscreenPass_.final.descriptor)};
+              &offscreenPass_.samples[0].descriptor)};
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
@@ -740,7 +739,7 @@ class VulkanExample : public VulkanExampleBase {
     // Blackhole
     {
       VkClearValue clearValues{};
-      clearValues.color = {0.0f, 0.0f, 0.0f, 1.f};
+      clearValues.color = {0.0f, 1.0f, 0.0f, 1.f};
 
       VkRenderPassBeginInfo renderPassBeginInfo =
           vks::initializers::renderPassBeginInfo();
@@ -781,7 +780,7 @@ class VulkanExample : public VulkanExampleBase {
     downSamplingCmdBuffer(cmdBuffer);
 
     // Up sampling
-    upSamplingCmdBuffer(cmdBuffer);
+    // upSamplingCmdBuffer(cmdBuffer);
 
     // Blend
     {
@@ -823,7 +822,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void downSamplingCmdBuffer(VkCommandBuffer& cmdBuffer) {
     VkClearValue clearValues{};
-    clearValues.color = {0.f, 0.0f, 0.0f, 1.f};
+    clearValues.color = {1.f, 0.0f, 0.0f, 1.f};
 
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();

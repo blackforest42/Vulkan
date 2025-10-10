@@ -26,6 +26,9 @@ void main() {
 	vec3 srcColor = texture(srcTexture, inUV).rgb;
 	vec3 bloomColor = texture(bloomTexture, inUV).rgb;
 
+	outFragColor.rgb = bloomColor;
+	return;
+
 	// linear interpolation
 	vec3 result = mix(srcColor, bloomColor, ubo.bloomStrength);
 
