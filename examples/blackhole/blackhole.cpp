@@ -23,7 +23,7 @@
 #define FB_COLOR_FORMAT VK_FORMAT_R16G16B16A16_SFLOAT
 // Number of down/up samples during bloom
 // Higher than 6 will cause a greyed out screen
-constexpr int NUM_SAMPLE_SIZES = 3;
+constexpr int NUM_SAMPLE_SIZES = 6;
 
 class VulkanExample : public VulkanExampleBase {
  public:
@@ -531,7 +531,7 @@ class VulkanExample : public VulkanExampleBase {
             vks::initializers::writeDescriptorSet(
                 descriptorSets_[i].upsamples[sample_level],
                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                /*binding id*/ 0, &uniformBuffers_[i].downsample.descriptor),
+                /*binding id*/ 0, &uniformBuffers_[i].upsample.descriptor),
             vks::initializers::writeDescriptorSet(
                 descriptorSets_[i].upsamples[sample_level],
                 VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, /*binding id*/ 1,
@@ -949,7 +949,7 @@ class VulkanExample : public VulkanExampleBase {
       overlay->checkBox("Tone Mapping Enabled", &toneMappingEnabled);
       overlay->sliderFloat("Exposure", &ubos_.blend.exposure, 0.1f, 10.0f);
       overlay->sliderFloat("Bloom Radius", &ubos_.upsample.filterRadius, 0.0f,
-                           0.1f);
+                           1.0f);
       overlay->sliderFloat("Bloom Strength", &ubos_.blend.bloomStrength, 0.0f,
                            0.5f);
     }
