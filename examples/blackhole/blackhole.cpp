@@ -23,7 +23,7 @@
 #define FB_COLOR_FORMAT VK_FORMAT_R16G16B16A16_SFLOAT
 // Number of down/up samples during bloom
 // Higher than 6 will cause a greyed out screen
-constexpr int NUM_SAMPLE_SIZES = 6;
+constexpr int NUM_SAMPLE_SIZES = 2;
 
 class VulkanExample : public VulkanExampleBase {
  public:
@@ -823,7 +823,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void downSamplingCmdBuffer(VkCommandBuffer& cmdBuffer) {
     VkClearValue clearValues{};
-    clearValues.color = {0.f, 0.0f, 0.0f, 1.f};
+    clearValues.color = {0.f, 1.0f, 0.0f, 1.f};
 
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();
@@ -884,7 +884,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void upSamplingCmdBuffer(VkCommandBuffer& cmdBuffer) {
     VkClearValue clearValues{};
-    clearValues.color = {0.f, 0.0f, 0.0f, 1.0f};
+    clearValues.color = {1.f, 0.0f, 0.0f, 1.0f};
 
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();

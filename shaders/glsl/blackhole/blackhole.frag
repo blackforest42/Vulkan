@@ -69,6 +69,10 @@ vec3 traceColor(vec3 pos, vec3 dir);
 ////////////////////// main /////////////////////////////////////////////////
 
 void main() {
+    // debug
+	outFragColor = vec4(1.0);
+    return;
+
 
     // gl_FragCoord is in window/pixel coordinates where (0,0) is bottom-left
     // uv is in NDC, where (0,0) is the center
