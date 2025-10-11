@@ -155,7 +155,8 @@ class VulkanExample : public VulkanExampleBase {
     FrameBuffer original;
     FrameBuffer brightness;
     // Holds all downsampled framebuffers
-    std::array<FrameBuffer, NUM_SAMPLE_SIZES> samples;
+    std::array<FrameBuffer, NUM_SAMPLE_SIZES> down_samples;
+    std::array<FrameBuffer, NUM_SAMPLE_SIZES> up_samples;
     // Holds final bloom framebuffer
     // used by last up sample pass
     FrameBuffer final;
@@ -303,13 +304,21 @@ class VulkanExample : public VulkanExampleBase {
     offscreenPass_.brightness.width = width_;
     prepareOffscreenFramebuffer(&offscreenPass_.brightness, FB_COLOR_FORMAT);
 
-    // Generate fb's for each level using mipmap scaling (1/2).
+    // Generate fb's for each down sample using mipmap scaling (1/2).
     for (int i = 0; i < NUM_SAMPLE_SIZES; i++) {
-      offscreenPass_.samples[i].height =
+      offscreenPass_.down_samples[i].height =
           static_cast<uint32_t>(height_ * pow(0.5, i + 1));
-      offscreenPass_.samples[i].width =
+      offscreenPass_.down_samples[i].width =
           static_cast<uint32_t>(width_ * pow(0.5, i + 1));
-      prepareOffscreenFramebuffer(&offscreenPass_.samples[i], FB_COLOR_FORMAT);
+      prepareOffscreenFramebuffer(&offscreenPass_.down_samples[i],
+                                  FB_COLOR_FORMAT);
+
+      offscreenPass_.up_samples[i].height =
+          static_cast<uint32_t>(height_ * pow(0.5, i));
+      offscreenPass_.up_samples[i].width =
+          static_cast<uint32_t>(width_ * pow(0.5, i));
+      prepareOffscreenFramebuffer(&offscreenPass_.up_samples[i],
+                                  FB_COLOR_FORMAT);
     }
 
     // Generate framebuffer for last renderpass
@@ -578,7 +587,8 @@ class VulkanExample : public VulkanExampleBase {
                 VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, /*binding id*/ 1,
                 sample_level == 0
                     ? &offscreenPass_.original.descriptor
-                    : &offscreenPass_.samples[sample_level - 1].descriptor)};
+                    : &offscreenPass_.down_samples[sample_level - 1]
+                           .descriptor)};
         vkUpdateDescriptorSets(
             device_, static_cast<uint32_t>(writeDescriptorSets.size()),
             writeDescriptorSets.data(), 0, nullptr);
@@ -599,7 +609,7 @@ class VulkanExample : public VulkanExampleBase {
             vks::initializers::writeDescriptorSet(
                 descriptorSets_[i].upsamples[sample_level],
                 VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, /*binding id*/ 1,
-                &offscreenPass_.samples[sample_level].descriptor)};
+                &offscreenPass_.down_samples[sample_level].descriptor)};
         vkUpdateDescriptorSets(
             device_, static_cast<uint32_t>(writeDescriptorSets.size()),
             writeDescriptorSets.data(), 0, nullptr);
@@ -849,6 +859,7 @@ class VulkanExample : public VulkanExampleBase {
 
       vkCmdEndRenderPass(cmdBuffer);
     }
+
     // Brightness
     {
       VkClearValue clearValues{};
@@ -950,8 +961,8 @@ class VulkanExample : public VulkanExampleBase {
         ubos_.downsample.karisAverageEnabled = 1;
       } else {
         ubos_.downsample.srcResolution =
-            glm::vec2(offscreenPass_.samples[sample_level - 1].width,
-                      offscreenPass_.samples[sample_level - 1].height);
+            glm::vec2(offscreenPass_.down_samples[sample_level - 1].width,
+                      offscreenPass_.down_samples[sample_level - 1].height);
         ubos_.downsample.karisAverageEnabled = 0;
       }
       ubos_.downsample.currentSampleLevel = sample_level;
@@ -960,7 +971,7 @@ class VulkanExample : public VulkanExampleBase {
 
       // (2) Set render fb target
       const VulkanExample::FrameBuffer& fb =
-          offscreenPass_.samples[sample_level];
+          offscreenPass_.down_samples[sample_level];
       renderPassBeginInfo.framebuffer = fb.framebuffer;
       renderPassBeginInfo.renderArea.extent.width = fb.width;
       renderPassBeginInfo.renderArea.extent.height = fb.height;
@@ -1005,7 +1016,7 @@ class VulkanExample : public VulkanExampleBase {
       // Set render fb target
       const VulkanExample::FrameBuffer& fb =
           sample_level == 0 ? offscreenPass_.final
-                            : offscreenPass_.samples[sample_level - 1];
+                            : offscreenPass_.down_samples[sample_level - 1];
       renderPassBeginInfo.framebuffer = fb.framebuffer;
       renderPassBeginInfo.renderArea.extent.width = fb.width;
       renderPassBeginInfo.renderArea.extent.height = fb.height;
@@ -1616,7 +1627,7 @@ class VulkanExample : public VulkanExampleBase {
     vkDestroyFramebuffer(device_, offscreenPass_.brightness.framebuffer,
                          nullptr);
     vkDestroyFramebuffer(device_, offscreenPass_.final.framebuffer, nullptr);
-    for (FrameBuffer sample : offscreenPass_.samples) {
+    for (FrameBuffer sample : offscreenPass_.down_samples) {
       vkDestroyFramebuffer(device_, sample.framebuffer, nullptr);
     }
   }
@@ -1692,7 +1703,7 @@ class VulkanExample : public VulkanExampleBase {
       vkDestroyImage(device_, offscreenPass_.final.color.image, nullptr);
       vkFreeMemory(device_, offscreenPass_.final.color.mem, nullptr);
       vkDestroyFramebuffer(device_, offscreenPass_.final.framebuffer, nullptr);
-      for (auto& sample : offscreenPass_.samples) {
+      for (auto& sample : offscreenPass_.down_samples) {
         vkDestroyImageView(device_, sample.color.view, nullptr);
         vkDestroyImage(device_, sample.color.image, nullptr);
         vkFreeMemory(device_, sample.color.mem, nullptr);
