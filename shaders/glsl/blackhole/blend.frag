@@ -8,10 +8,14 @@ layout (binding = 0) uniform UBO
 
 	// Bloom
 	float bloomStrength;
+
+	// debug
+	int debug;
 } ubo;
 
 layout (binding = 1) uniform sampler2D blackholeTex;
 layout (binding = 2) uniform sampler2D upSampledTex;
+layout (binding = 3) uniform sampler2D debugTex;
 
 // in 
 layout (location = 0) in vec2 inUV;
@@ -27,8 +31,10 @@ void main() {
 	vec3 upSampledColor = texture(upSampledTex, inUV).rgb;
 
 	// Debug
-	// outFragColor = vec4(upSampledColor, 1.);
-	// return;
+	if (ubo.debug == 1) {
+		outFragColor.rgb = texture(debugTex, inUV).rgb;
+		return;
+	}
 
 	// linear interpolation
 	// vec3 result = mix(blackholeColor, upSampledColor, ubo.bloomStrength);

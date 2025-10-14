@@ -24,7 +24,6 @@
 #define FB_COLOR_FORMAT VK_FORMAT_R32G32B32A32_SFLOAT
 // Number of down/up samples during bloom
 constexpr int NUM_SAMPLE_SIZES = 8;
-constexpr int DOWN_SAMPLE_IDX = 1;
 
 class VulkanExample : public VulkanExampleBase {
  public:
@@ -39,6 +38,10 @@ class VulkanExample : public VulkanExampleBase {
   bool accDiskParticleEnabled = true;
   bool toneMappingEnabled = true;
   bool karisAverageEnabled = true;
+
+  // Debugging
+  int DOWN_SAMPLE_IDX = 3;
+  bool DEBUG_BLACKHOLE = true;
 
   struct BlackholeUBO {
     alignas(16) glm::mat4 cameraView;
@@ -82,6 +85,8 @@ class VulkanExample : public VulkanExampleBase {
     // Bloom
     // Linear interpolation b/w source tex and bloom tex
     alignas(4) float bloomStrength{0.1f};
+
+    alignas(4) int debug;
   };
 
   struct {
@@ -507,7 +512,13 @@ class VulkanExample : public VulkanExampleBase {
         // Binding 2 : down sample texture map
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_FRAGMENT_BIT, /*binding id*/ 2)};
+            VK_SHADER_STAGE_FRAGMENT_BIT, /*binding id*/ 2),
+
+        // Binding 3 : Texture map for debugging
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT, /*binding id*/ 3)};
+
     descriptorSetLayoutCI =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
     VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI,
@@ -641,8 +652,13 @@ class VulkanExample : public VulkanExampleBase {
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i].blend,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-              /*binding id*/ 2, &offscreenPass_.up_samples[0].descriptor)};
-      // &offscreenPass_.down_samples[DOWN_SAMPLE_IDX].descriptor)};
+              /*binding id*/ 2, &offscreenPass_.up_samples[0].descriptor),
+          vks::initializers::writeDescriptorSet(
+              descriptorSets_[i].blend,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              /*binding id*/ 3,
+              &offscreenPass_.down_samples[DOWN_SAMPLE_IDX].descriptor)};
+
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
@@ -815,6 +831,7 @@ class VulkanExample : public VulkanExampleBase {
            sizeof(BrightnessUBO));
 
     ubos_.blend.tonemappingEnabled = toneMappingEnabled;
+    ubos_.blend.debug = DEBUG_BLACKHOLE;
     memcpy(uniformBuffers_[currentBuffer_].blend.mapped, &ubos_.blend,
            sizeof(BlendUBO));
   }
@@ -1074,6 +1091,7 @@ class VulkanExample : public VulkanExampleBase {
       overlay->sliderFloat("Exposure", &ubos_.blend.exposure, 0.1f, 4.0f);
       overlay->sliderFloat("Bloom Strength", &ubos_.blend.bloomStrength, 0.0f,
                            1.0f);
+      overlay->checkBox("DEBUG MODE", &DEBUG_BLACKHOLE);
     }
   }
 
