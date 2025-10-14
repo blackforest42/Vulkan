@@ -20,9 +20,11 @@
 
 // Offscreen frame buffer properties
 // #define FB_COLOR_FORMAT VK_FORMAT_R8G8B8A8_UNORM
-#define FB_COLOR_FORMAT VK_FORMAT_R16G16B16A16_SFLOAT
+// #define FB_COLOR_FORMAT VK_FORMAT_R16G16B16A16_SFLOAT
+#define FB_COLOR_FORMAT VK_FORMAT_R32G32B32A32_SFLOAT
 // Number of down/up samples during bloom
 constexpr int NUM_SAMPLE_SIZES = 8;
+constexpr int DOWN_SAMPLE_IDX = 1;
 
 class VulkanExample : public VulkanExampleBase {
  public:
@@ -65,7 +67,7 @@ class VulkanExample : public VulkanExampleBase {
   };
 
   struct DownsampleUBO {
-    alignas(8) glm::vec2 srcResolution;
+    alignas(8) glm::vec2 dstResolution;
   };
 
   struct UpsampleUBO {
@@ -154,9 +156,6 @@ class VulkanExample : public VulkanExampleBase {
     // Holds all downsampled framebuffers
     std::array<FrameBuffer, NUM_SAMPLE_SIZES> down_samples;
     std::array<FrameBuffer, NUM_SAMPLE_SIZES> up_samples;
-    // Holds final bloom framebuffer
-    // used by last up sample pass
-    FrameBuffer final;
   } offscreenPass_{};
 
   // (A.2)
@@ -319,11 +318,6 @@ class VulkanExample : public VulkanExampleBase {
       prepareOffscreenFramebuffer(&offscreenPass_.up_samples[i],
                                   FB_COLOR_FORMAT);
     }
-
-    // Generate framebuffer for last renderpass
-    offscreenPass_.final.height = height_;
-    offscreenPass_.final.width = width_;
-    prepareOffscreenFramebuffer(&offscreenPass_.final, FB_COLOR_FORMAT);
   }
 
   void prepareOffscreenFramebuffer(FrameBuffer* frameBuf,
@@ -647,8 +641,8 @@ class VulkanExample : public VulkanExampleBase {
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i].blend,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-              /*binding id*/ 2,  // &offscreenPass_.final.descriptor)};
-              &offscreenPass_.up_samples[0].descriptor)};
+              /*binding id*/ 2, &offscreenPass_.up_samples[0].descriptor)};
+      // &offscreenPass_.down_samples[DOWN_SAMPLE_IDX].descriptor)};
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
@@ -966,7 +960,7 @@ class VulkanExample : public VulkanExampleBase {
     for (int sample_level = 0; sample_level < NUM_SAMPLE_SIZES;
          sample_level++) {
       // (1) Update and copy uniforms
-      ubos_.downsample.srcResolution =
+      ubos_.downsample.dstResolution =
           glm::vec2(offscreenPass_.down_samples[sample_level].width,
                     offscreenPass_.down_samples[sample_level].height);
       memcpy(uniformBuffers_[currentBuffer_].downsample[sample_level].mapped,
@@ -1225,7 +1219,6 @@ class VulkanExample : public VulkanExampleBase {
     // safely copy our buffer data to it.
     VkImageMemoryBarrier imageMemoryBarrier =
         vks::initializers::imageMemoryBarrier();
-    ;
     imageMemoryBarrier.image = accretionDiskTextureMap_.image;
     imageMemoryBarrier.subresourceRange = subresourceRange;
     imageMemoryBarrier.srcAccessMask = 0;
@@ -1347,7 +1340,6 @@ class VulkanExample : public VulkanExampleBase {
     vkDestroyFramebuffer(device_, offscreenPass_.original.framebuffer, nullptr);
     vkDestroyFramebuffer(device_, offscreenPass_.brightness.framebuffer,
                          nullptr);
-    vkDestroyFramebuffer(device_, offscreenPass_.final.framebuffer, nullptr);
     for (FrameBuffer sample : offscreenPass_.down_samples) {
       vkDestroyFramebuffer(device_, sample.framebuffer, nullptr);
     }
@@ -1422,10 +1414,6 @@ class VulkanExample : public VulkanExampleBase {
       vkFreeMemory(device_, offscreenPass_.brightness.color.mem, nullptr);
       vkDestroyFramebuffer(device_, offscreenPass_.brightness.framebuffer,
                            nullptr);
-      vkDestroyImageView(device_, offscreenPass_.final.color.view, nullptr);
-      vkDestroyImage(device_, offscreenPass_.final.color.image, nullptr);
-      vkFreeMemory(device_, offscreenPass_.final.color.mem, nullptr);
-      vkDestroyFramebuffer(device_, offscreenPass_.final.framebuffer, nullptr);
       for (auto& sample : offscreenPass_.down_samples) {
         vkDestroyImageView(device_, sample.color.view, nullptr);
         vkDestroyImage(device_, sample.color.image, nullptr);

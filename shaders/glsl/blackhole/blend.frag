@@ -31,9 +31,9 @@ void main() {
 	// return;
 
 	// linear interpolation
-	vec3 result = mix(blackholeColor, upSampledColor, ubo.bloomStrength);
+	// vec3 result = mix(blackholeColor, upSampledColor, ubo.bloomStrength);
 	// Orignal mixing procedure
-	//vec3 result = blackholeColor + upSampledColor * ubo.bloomStrength;
+	vec3 result = blackholeColor + upSampledColor * ubo.bloomStrength;
 
 	if (ubo.tonemapEnabled == 1) {
 		// Tonemapping

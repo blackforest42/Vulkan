@@ -8,7 +8,6 @@ glslc upsample.frag -o upsample.frag.spv
 glslc blend.frag -o blend.frag.spv
 
 
-
 # Use `toktx` to create a .ktx cubemap from 6 .png files
 toktx --target_type RGBA --cubemap  cubemap.ktx  .\left.png .\right.png .\top.png .\bottom.png .\back.png .\front.png 
 
