@@ -291,7 +291,7 @@ class VulkanExample : public VulkanExampleBase {
     sampler.maxAnisotropy = 1.0f;
     sampler.minLod = 0.0f;
     sampler.maxLod = 1.0f;
-    sampler.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+    sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     VK_CHECK_RESULT(
         vkCreateSampler(device_, &sampler, nullptr, &offscreenPass_.sampler));
 
@@ -1077,7 +1077,7 @@ class VulkanExample : public VulkanExampleBase {
       overlay->sliderFloat("Accretion Disk Speed",
                            &ubos_.blackhole.accDiskSpeed, 0.0, 2.0);
       overlay->checkBox("Tone Mapping Enabled", &toneMappingEnabled);
-      overlay->sliderFloat("Exposure", &ubos_.blend.exposure, 0.1f, 10.0f);
+      overlay->sliderFloat("Exposure", &ubos_.blend.exposure, 0.1f, 4.0f);
       overlay->sliderFloat("Bloom Strength", &ubos_.blend.bloomStrength, 0.0f,
                            1.0f);
     }
@@ -1389,9 +1389,8 @@ class VulkanExample : public VulkanExampleBase {
     cubeMap_.loadFromFile(
         getAssetPath() + "textures/blackhole/skybox/cubemap.ktx",
         VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
-    loadTexture(getAssetPath() + "textures/blackhole/uv_checker.ktx");
-    // loadTexture(getAssetPath() +
-    // "textures/blackhole/blackhole_color_map.ktx");
+    // loadTexture(getAssetPath() + "textures/blackhole/uv_checker.ktx");
+    loadTexture(getAssetPath() + "textures/blackhole/blackhole_color_map.ktx");
   }
 
   ~VulkanExample() {
