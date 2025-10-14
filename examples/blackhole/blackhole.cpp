@@ -845,82 +845,10 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
     // Blackhole
-    {
-      VkClearValue clearValues{};
-      clearValues.color = {0.0f, 0.0f, 0.0f, 0.f};
-
-      VkRenderPassBeginInfo renderPassBeginInfo =
-          vks::initializers::renderPassBeginInfo();
-      // renderPassBeginInfo.renderPass = renderPass_;
-      // renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
-      renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
-
-      const VulkanExample::FrameBuffer& fb = offscreenPass_.original;
-      renderPassBeginInfo.framebuffer = fb.framebuffer;
-      renderPassBeginInfo.renderArea.extent.width = fb.width;
-      renderPassBeginInfo.renderArea.extent.height = fb.height;
-      renderPassBeginInfo.clearValueCount = 1;
-      renderPassBeginInfo.pClearValues = &clearValues;
-
-      vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
-                           VK_SUBPASS_CONTENTS_INLINE);
-
-      VkViewport viewport = vks::initializers::viewport(
-          (float)fb.width, (float)fb.height, 0.0f, 1.0f);
-      vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
-
-      VkRect2D scissor = vks::initializers::rect2D(fb.width, fb.height, 0, 0);
-      vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
-
-      vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                              pipelineLayouts_.blackhole, 0, 1,
-                              &descriptorSets_[currentBuffer_].blackhole, 0,
-                              nullptr);
-
-      vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        pipelines_.blackhole);
-      vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
-
-      vkCmdEndRenderPass(cmdBuffer);
-    }
+    blackholeCmdBuffer(cmdBuffer);
 
     // Brightness
-    {
-      VkClearValue clearValues{};
-      clearValues.color = {0.f, 0.0f, 0.0f, 0.f};
-
-      VkRenderPassBeginInfo renderPassBeginInfo =
-          vks::initializers::renderPassBeginInfo();
-      renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
-      const VulkanExample::FrameBuffer& fb = offscreenPass_.brightness;
-      renderPassBeginInfo.framebuffer = fb.framebuffer;
-      renderPassBeginInfo.renderArea.offset.x = 0;
-      renderPassBeginInfo.renderArea.offset.y = 0;
-      renderPassBeginInfo.renderArea.extent.width = fb.width;
-      renderPassBeginInfo.renderArea.extent.height = fb.height;
-      renderPassBeginInfo.clearValueCount = 1;
-      renderPassBeginInfo.pClearValues = &clearValues;
-
-      vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
-                           VK_SUBPASS_CONTENTS_INLINE);
-      VkViewport viewport = vks::initializers::viewport(
-          (float)fb.width, (float)fb.height, 0.0f, 1.0f);
-      vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
-
-      VkRect2D scissor = vks::initializers::rect2D(fb.width, fb.height, 0, 0);
-      vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
-
-      vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                              pipelineLayouts_.brightness, 0, 1,
-                              &descriptorSets_[currentBuffer_].brightness, 0,
-                              nullptr);
-
-      vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        pipelines_.brightness);
-      vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
-
-      vkCmdEndRenderPass(cmdBuffer);
-    }
+    brightnessCmdBuffer(cmdBuffer);
 
     // Down sampling
     downSamplingCmdBuffer(cmdBuffer);
@@ -929,41 +857,83 @@ class VulkanExample : public VulkanExampleBase {
     upSamplingCmdBuffer(cmdBuffer);
 
     // Blend
-    {
-      VkClearValue clearValues{};
-      clearValues.color = {0.f, 0.0f, 0.0f, 0.f};
+    blendCmdBuffer(cmdBuffer);
 
-      VkRenderPassBeginInfo renderPassBeginInfo =
-          vks::initializers::renderPassBeginInfo();
-      renderPassBeginInfo.renderPass = renderPass_;
-      renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
-      renderPassBeginInfo.renderArea.offset.x = 0;
-      renderPassBeginInfo.renderArea.offset.y = 0;
-      renderPassBeginInfo.renderArea.extent.width = width_;
-      renderPassBeginInfo.renderArea.extent.height = height_;
-      renderPassBeginInfo.clearValueCount = 1;
-      renderPassBeginInfo.pClearValues = &clearValues;
-
-      vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
-                           VK_SUBPASS_CONTENTS_INLINE);
-      VkViewport viewport = vks::initializers::viewport(
-          (float)width_, (float)height_, 0.0f, 1.0f);
-      vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
-
-      VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
-      vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
-
-      vkCmdBindDescriptorSets(
-          cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.blend, 0,
-          1, &descriptorSets_[currentBuffer_].blend, 0, nullptr);
-
-      vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        pipelines_.blend);
-      vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
-      drawUI(cmdBuffer);
-      vkCmdEndRenderPass(cmdBuffer);
-    }
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
+  }
+
+  void blackholeCmdBuffer(VkCommandBuffer& cmdBuffer) {
+    VkClearValue clearValues{};
+    clearValues.color = {0.0f, 0.0f, 0.0f, 0.f};
+
+    VkRenderPassBeginInfo renderPassBeginInfo =
+        vks::initializers::renderPassBeginInfo();
+    // renderPassBeginInfo.renderPass = renderPass_;
+    // renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+    renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
+
+    const VulkanExample::FrameBuffer& fb = offscreenPass_.original;
+    renderPassBeginInfo.framebuffer = fb.framebuffer;
+    renderPassBeginInfo.renderArea.extent.width = fb.width;
+    renderPassBeginInfo.renderArea.extent.height = fb.height;
+    renderPassBeginInfo.clearValueCount = 1;
+    renderPassBeginInfo.pClearValues = &clearValues;
+
+    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
+                         VK_SUBPASS_CONTENTS_INLINE);
+
+    VkViewport viewport = vks::initializers::viewport(
+        (float)fb.width, (float)fb.height, 0.0f, 1.0f);
+    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor = vks::initializers::rect2D(fb.width, fb.height, 0, 0);
+    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+
+    vkCmdBindDescriptorSets(
+        cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.blackhole,
+        0, 1, &descriptorSets_[currentBuffer_].blackhole, 0, nullptr);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      pipelines_.blackhole);
+    vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
+
+    vkCmdEndRenderPass(cmdBuffer);
+  }
+
+  void brightnessCmdBuffer(VkCommandBuffer& cmdBuffer) {
+    VkClearValue clearValues{};
+    clearValues.color = {0.f, 0.0f, 0.0f, 0.f};
+
+    VkRenderPassBeginInfo renderPassBeginInfo =
+        vks::initializers::renderPassBeginInfo();
+    renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
+    const VulkanExample::FrameBuffer& fb = offscreenPass_.brightness;
+    renderPassBeginInfo.framebuffer = fb.framebuffer;
+    renderPassBeginInfo.renderArea.offset.x = 0;
+    renderPassBeginInfo.renderArea.offset.y = 0;
+    renderPassBeginInfo.renderArea.extent.width = fb.width;
+    renderPassBeginInfo.renderArea.extent.height = fb.height;
+    renderPassBeginInfo.clearValueCount = 1;
+    renderPassBeginInfo.pClearValues = &clearValues;
+
+    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
+                         VK_SUBPASS_CONTENTS_INLINE);
+    VkViewport viewport = vks::initializers::viewport(
+        (float)fb.width, (float)fb.height, 0.0f, 1.0f);
+    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor = vks::initializers::rect2D(fb.width, fb.height, 0, 0);
+    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+
+    vkCmdBindDescriptorSets(
+        cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.brightness,
+        0, 1, &descriptorSets_[currentBuffer_].brightness, 0, nullptr);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      pipelines_.brightness);
+    vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
+
+    vkCmdEndRenderPass(cmdBuffer);
   }
 
   void downSamplingCmdBuffer(VkCommandBuffer& cmdBuffer) {
@@ -1064,6 +1034,41 @@ class VulkanExample : public VulkanExampleBase {
 
       vkCmdEndRenderPass(cmdBuffer);
     }
+  }
+
+  void blendCmdBuffer(VkCommandBuffer& cmdBuffer) {
+    VkClearValue clearValues{};
+    clearValues.color = {0.f, 0.0f, 0.0f, 0.f};
+
+    VkRenderPassBeginInfo renderPassBeginInfo =
+        vks::initializers::renderPassBeginInfo();
+    renderPassBeginInfo.renderPass = renderPass_;
+    renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+    renderPassBeginInfo.renderArea.offset.x = 0;
+    renderPassBeginInfo.renderArea.offset.y = 0;
+    renderPassBeginInfo.renderArea.extent.width = width_;
+    renderPassBeginInfo.renderArea.extent.height = height_;
+    renderPassBeginInfo.clearValueCount = 1;
+    renderPassBeginInfo.pClearValues = &clearValues;
+
+    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
+                         VK_SUBPASS_CONTENTS_INLINE);
+    VkViewport viewport =
+        vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            pipelineLayouts_.blend, 0, 1,
+                            &descriptorSets_[currentBuffer_].blend, 0, nullptr);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      pipelines_.blend);
+    vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
+    drawUI(cmdBuffer);
+    vkCmdEndRenderPass(cmdBuffer);
   }
 
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {
