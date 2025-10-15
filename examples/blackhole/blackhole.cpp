@@ -1132,7 +1132,8 @@ class VulkanExample : public VulkanExampleBase {
     // (https://www.khronos.org/opengles/sdk/tools/KTX/file_format_spec/)
     // Texture data contains 4 channels (RGBA) with unnormalized 8-bit values,
     // this is the most commonly supported format
-    VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+    // VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+    VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
 
     ktxResult result;
     ktxTexture* ktxTexture;
