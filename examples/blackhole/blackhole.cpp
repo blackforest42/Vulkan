@@ -1431,7 +1431,7 @@ class VulkanExample : public VulkanExampleBase {
     // Cubemap texture
     cubeMap_.loadFromFile(
         getAssetPath() + "textures/blackhole/skybox/cubemap.ktx",
-        VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+        VK_FORMAT_R8G8B8A8_SRGB, vulkanDevice_, queue_);
     // loadTexture(getAssetPath() + "textures/blackhole/uv_checker.ktx");
     loadTexture(getAssetPath() + "textures/blackhole/blackhole_color_map.ktx");
   }

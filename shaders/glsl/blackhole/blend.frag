@@ -45,7 +45,7 @@ void main() {
 		// Tonemapping
 		vec3 fragColor = vec3(1.0) - exp(-result * ubo.exposure);
 		// No need to gamma correct. sRGB swapchain auto gamma corrects
-		//fragColor = pow(fragColor, vec3(1.0 / ubo.gamma));
+		fragColor = pow(fragColor, vec3(1.0 / 2.2f));
 		outFragColor.rgb = fragColor;
 	} else {
 		outFragColor.rgb = result;
