@@ -800,7 +800,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   // (B) Called in VulkanExampleBase::renderLoop()
-  virtual void render() {
+  void render() override {
     if (!prepared_)
       return;
     VulkanExampleBase::prepareFrame();
@@ -1098,7 +1098,7 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdEndRenderPass(cmdBuffer);
   }
 
-  virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {
+  void OnUpdateUIOverlay(vks::UIOverlay* overlay) override {
     if (overlay->header("Settings")) {
       overlay->checkBox("Show Blackhole", &showBlackholeUI);
       overlay->checkBox("Show Gravitational Lensing",
@@ -1199,8 +1199,6 @@ class VulkanExample : public VulkanExampleBase {
 
     // Setup buffer copy regions for each mip level
     std::vector<VkBufferImageCopy> bufferCopyRegions;
-    uint32_t offset = 0;
-
     for (uint32_t i = 0; i < accretionDiskTextureMap_.mipLevels; i++) {
       // Calculate offset into staging buffer for the current mip level
       ktx_size_t offset;
@@ -1380,7 +1378,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   // Enable physical device features required for this example
-  virtual void getEnabledFeatures() {
+  void getEnabledFeatures() override {
     if (deviceFeatures_.samplerAnisotropy) {
       enabledFeatures_.samplerAnisotropy = VK_TRUE;
     }
@@ -1414,7 +1412,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   // (Part A.0) Called once in main() before renderLoop()
-  void prepare() {
+  void prepare() override {
     VulkanExampleBase::prepare();
     loadAssets();
     prepareUniformBuffers();
@@ -1426,8 +1424,6 @@ class VulkanExample : public VulkanExampleBase {
 
   // (A.1)
   void loadAssets() {
-    uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices |
-                                vkglTF::FileLoadingFlags::FlipY;
     // Cubemap texture
     cubeMap_.loadFromFile(
         getAssetPath() + "textures/blackhole/skybox/cubemap.ktx",
