@@ -414,15 +414,15 @@ void VulkanExampleBase::renderLoop() {
     }
 
     // Render frame
-    if (prepared) {
+    if (prepared_) {
       auto tStart = std::chrono::high_resolution_clock::now();
       render();
-      frameCounter++;
+      frameCounter_++;
       auto tEnd = std::chrono::high_resolution_clock::now();
       auto tDiff =
           std::chrono::duration<double, std::milli>(tEnd - tStart).count();
       frameTimer = tDiff / 1000.0f;
-      camera.update(frameTimer);
+      camera_.update(frameTimer);
       // Convert to clamped timer value
       if (!paused) {
         timer += timerSpeed * frameTimer;
@@ -431,12 +431,12 @@ void VulkanExampleBase::renderLoop() {
         }
       }
       float fpsTimer =
-          std::chrono::duration<double, std::milli>(tEnd - lastTimestamp)
+          std::chrono::duration<double, std::milli>(tEnd - lastTimestamp_)
               .count();
       if (fpsTimer > 1000.0f) {
-        lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-        frameCounter = 0;
-        lastTimestamp = tEnd;
+        lastFPS = (float)frameCounter_ * (1000.0f / fpsTimer);
+        frameCounter_ = 0;
+        lastTimestamp_ = tEnd;
       }
 
       updateOverlay();
@@ -446,27 +446,27 @@ void VulkanExampleBase::renderLoop() {
         touchTimer += frameTimer;
       }
       if (touchTimer >= 1.0) {
-        camera.keys.up = true;
+        camera_.keys_.up = true;
       }
 
       // Check gamepad state
       const float deadZone = 0.0015f;
-      if (camera.type != Camera::CameraType::firstperson) {
+      if (camera_.type != Camera::CameraType::firstperson) {
         // Rotate
         if (std::abs(gamePadState.axisLeft.x) > deadZone) {
-          camera.rotate(glm::vec3(0.0f, gamePadState.axisLeft.x * 0.5f, 0.0f));
+          camera_.rotate(glm::vec3(0.0f, gamePadState.axisLeft.x * 0.5f, 0.0f));
         }
         if (std::abs(gamePadState.axisLeft.y) > deadZone) {
-          camera.rotate(glm::vec3(gamePadState.axisLeft.y * 0.5f, 0.0f, 0.0f));
+          camera_.rotate(glm::vec3(gamePadState.axisLeft.y * 0.5f, 0.0f, 0.0f));
         }
         // Zoom
         if (std::abs(gamePadState.axisRight.y) > deadZone) {
-          camera.translate(
+          camera_.translate(
               glm::vec3(0.0f, 0.0f, gamePadState.axisRight.y * 0.01f));
         }
       } else {
-        camera.updatePad(gamePadState.axisLeft, gamePadState.axisRight,
-                         frameTimer);
+        camera_.updatePad(gamePadState.axisLeft, gamePadState.axisRight,
+                          frameTimer);
       }
     }
   }
@@ -474,12 +474,12 @@ void VulkanExampleBase::renderLoop() {
   while (!quit) {
     auto tStart = std::chrono::high_resolution_clock::now();
     render();
-    frameCounter++;
+    frameCounter_++;
     auto tEnd = std::chrono::high_resolution_clock::now();
     auto tDiff =
         std::chrono::duration<double, std::milli>(tEnd - tStart).count();
     frameTimer = tDiff / 1000.0f;
-    camera.update(frameTimer);
+    camera_.update(frameTimer);
     // Convert to clamped timer value
     if (!paused) {
       timer += timerSpeed * frameTimer;
@@ -488,11 +488,12 @@ void VulkanExampleBase::renderLoop() {
       }
     }
     float fpsTimer =
-        std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
+        std::chrono::duration<double, std::milli>(tEnd - lastTimestamp_)
+            .count();
     if (fpsTimer > 1000.0f) {
-      lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-      frameCounter = 0;
-      lastTimestamp = tEnd;
+      lastFPS = (float)frameCounter_ * (1000.0f / fpsTimer);
+      frameCounter_ = 0;
+      lastTimestamp_ = tEnd;
     }
     updateOverlay();
   }
@@ -504,12 +505,12 @@ void VulkanExampleBase::renderLoop() {
       handleEvent(&event);
     }
     render();
-    frameCounter++;
+    frameCounter_++;
     auto tEnd = std::chrono::high_resolution_clock::now();
     auto tDiff =
         std::chrono::duration<double, std::milli>(tEnd - tStart).count();
     frameTimer = tDiff / 1000.0f;
-    camera.update(frameTimer);
+    camera_.update(frameTimer);
     // Convert to clamped timer value
     if (!paused) {
       timer += timerSpeed * frameTimer;
@@ -518,11 +519,12 @@ void VulkanExampleBase::renderLoop() {
       }
     }
     float fpsTimer =
-        std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
+        std::chrono::duration<double, std::milli>(tEnd - lastTimestamp_)
+            .count();
     if (fpsTimer > 1000.0f) {
-      lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-      frameCounter = 0;
-      lastTimestamp = tEnd;
+      lastFPS = (float)frameCounter_ * (1000.0f / fpsTimer);
+      frameCounter_ = 0;
+      lastTimestamp_ = tEnd;
     }
     updateOverlay();
   }
@@ -544,12 +546,12 @@ void VulkanExampleBase::renderLoop() {
       break;
 
     render();
-    frameCounter++;
+    frameCounter_++;
     auto tEnd = std::chrono::high_resolution_clock::now();
     auto tDiff =
         std::chrono::duration<double, std::milli>(tEnd - tStart).count();
     frameTimer = tDiff / 1000.0f;
-    camera.update(frameTimer);
+    camera_.update(frameTimer);
     // Convert to clamped timer value
     if (!paused) {
       timer += timerSpeed * frameTimer;
@@ -558,15 +560,16 @@ void VulkanExampleBase::renderLoop() {
       }
     }
     float fpsTimer =
-        std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
+        std::chrono::duration<double, std::milli>(tEnd - lastTimestamp_)
+            .count();
     if (fpsTimer > 1000.0f) {
-      if (!settings.overlay) {
+      if (!settings_.overlay) {
         std::string windowTitle = getWindowTitle();
         xdg_toplevel_set_title(xdg_toplevel, windowTitle.c_str());
       }
-      lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-      frameCounter = 0;
-      lastTimestamp = tEnd;
+      lastFPS = (float)frameCounter_ * (1000.0f / fpsTimer);
+      frameCounter_ = 0;
+      lastTimestamp_ = tEnd;
     }
     updateOverlay();
   }
@@ -580,12 +583,12 @@ void VulkanExampleBase::renderLoop() {
       free(event);
     }
     render();
-    frameCounter++;
+    frameCounter_++;
     auto tEnd = std::chrono::high_resolution_clock::now();
     auto tDiff =
         std::chrono::duration<double, std::milli>(tEnd - tStart).count();
     frameTimer = tDiff / 1000.0f;
-    camera.update(frameTimer);
+    camera_.update(frameTimer);
     // Convert to clamped timer value
     if (!paused) {
       timer += timerSpeed * frameTimer;
@@ -594,17 +597,18 @@ void VulkanExampleBase::renderLoop() {
       }
     }
     float fpsTimer =
-        std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
+        std::chrono::duration<double, std::milli>(tEnd - lastTimestamp_)
+            .count();
     if (fpsTimer > 1000.0f) {
-      if (!settings.overlay) {
+      if (!settings_.overlay) {
         std::string windowTitle = getWindowTitle();
         xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window,
                             XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,
                             windowTitle.size(), windowTitle.c_str());
       }
-      lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-      frameCounter = 0;
-      lastTimestamp = tEnd;
+      lastFPS = (float)frameCounter_ * (1000.0f / fpsTimer);
+      frameCounter_ = 0;
+      lastTimestamp_ = tEnd;
     }
     updateOverlay();
   }
@@ -612,23 +616,24 @@ void VulkanExampleBase::renderLoop() {
   while (!quit) {
     auto tStart = std::chrono::high_resolution_clock::now();
     render();
-    frameCounter++;
+    frameCounter_++;
     auto tEnd = std::chrono::high_resolution_clock::now();
     auto tDiff =
         std::chrono::duration<double, std::milli>(tEnd - tStart).count();
     frameTimer = tDiff / 1000.0f;
-    camera.update(frameTimer);
+    camera_.update(frameTimer);
     // Convert to clamped timer value
     timer += timerSpeed * frameTimer;
     if (timer > 1.0) {
       timer -= 1.0f;
     }
     float fpsTimer =
-        std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
+        std::chrono::duration<double, std::milli>(tEnd - lastTimestamp_)
+            .count();
     if (fpsTimer > 1000.0f) {
-      lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-      frameCounter = 0;
-      lastTimestamp = tEnd;
+      lastFPS = (float)frameCounter_ * (1000.0f / fpsTimer);
+      frameCounter_ = 0;
+      lastTimestamp_ = tEnd;
     }
     updateOverlay();
   }
@@ -640,7 +645,7 @@ void VulkanExampleBase::renderLoop() {
   while (!quit) {
     handleEvent();
 
-    if (prepared) {
+    if (prepared_) {
       nextFrame();
     }
   }
@@ -782,8 +787,9 @@ VulkanExampleBase::VulkanExampleBase() {
   commandLineParser.add("vsync", {"-vs", "--vsync"}, 0, "Enable V-Sync");
   commandLineParser.add("fullscreen", {"-f", "--fullscreen"}, 0,
                         "Start in fullscreen mode");
-  commandLineParser.add("width", {"-w", "--width"}, 1, "Set window width");
-  commandLineParser.add("height", {"-h", "--height"}, 1, "Set window height");
+  commandLineParser.add("width_", {"-w", "--width_"}, 1, "Set window width_");
+  commandLineParser.add("height_", {"-h", "--height_"}, 1,
+                        "Set window height_");
   commandLineParser.add("shaders", {"-s", "--shaders"}, 1,
                         "Select shader type to use (gls, hlsl or slang)");
   commandLineParser.add("gpuselection", {"-g", "--gpu"}, 1,
@@ -827,11 +833,11 @@ VulkanExampleBase::VulkanExampleBase() {
   if (commandLineParser.isSet("vsync")) {
     settings_.vsync = true;
   }
-  if (commandLineParser.isSet("height")) {
-    height_ = commandLineParser.getValueAsInt("height", height_);
+  if (commandLineParser.isSet("height_")) {
+    height_ = commandLineParser.getValueAsInt("height_", height_);
   }
-  if (commandLineParser.isSet("width")) {
-    width_ = commandLineParser.getValueAsInt("width", width_);
+  if (commandLineParser.isSet("width_")) {
+    width_ = commandLineParser.getValueAsInt("width_", width_);
   }
   if (commandLineParser.isSet("fullscreen")) {
     settings_.fullscreen = true;
@@ -911,7 +917,7 @@ VulkanExampleBase::VulkanExampleBase() {
   // Validation for all samples can be forced at compile time using the
   // FORCE_VALIDATION define
 #if defined(FORCE_VALIDATION)
-  settings.validation = true;
+  settings_.validation = true;
 #endif
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
@@ -1015,7 +1021,7 @@ bool VulkanExampleBase::initVulkan() {
   // Instead of checking for the command line switch, validation can be forced
   // via a define
 #if defined(_VALIDATION)
-  this->settings.validation = true;
+  this->settings_.validation = true;
 #endif
 
   // Validation messages can be stored, e.g. to be used in external tools like
@@ -1446,7 +1452,7 @@ int32_t VulkanExampleBase::handleAppInput(struct android_app* app,
             vulkanExample->touchPos.y = AMotionEvent_getY(event, 0);
             vulkanExample->touchTimer = 0.0;
             vulkanExample->touchDown = false;
-            vulkanExample->camera.keys.up = false;
+            vulkanExample->camera_.keys_.up = false;
 
             // Detect single tap
             int64_t eventTime = AMotionEvent_getEventTime(event);
@@ -1489,7 +1495,7 @@ int32_t VulkanExampleBase::handleAppInput(struct android_app* app,
           }
           case AMOTION_EVENT_ACTION_MOVE: {
             bool handled = false;
-            if (vulkanExample->settings.overlay) {
+            if (vulkanExample->settings_.overlay) {
               ImGuiIO& io = ImGui::GetIO();
               handled = io.WantCaptureMouse && vulkanExample->ui.visible;
             }
@@ -1498,12 +1504,12 @@ int32_t VulkanExampleBase::handleAppInput(struct android_app* app,
               int32_t eventY = AMotionEvent_getY(event, 0);
 
               float deltaX = (float)(vulkanExample->touchPos.y - eventY) *
-                             vulkanExample->camera.rotationSpeed * 0.5f;
+                             vulkanExample->camera_.rotationSpeed * 0.5f;
               float deltaY = (float)(vulkanExample->touchPos.x - eventX) *
-                             vulkanExample->camera.rotationSpeed * 0.5f;
+                             vulkanExample->camera_.rotationSpeed * 0.5f;
 
-              vulkanExample->camera.rotate(glm::vec3(deltaX, 0.0f, 0.0f));
-              vulkanExample->camera.rotate(glm::vec3(0.0f, -deltaY, 0.0f));
+              vulkanExample->camera_.rotate(glm::vec3(deltaX, 0.0f, 0.0f));
+              vulkanExample->camera_.rotate(glm::vec3(0.0f, -deltaY, 0.0f));
 
               vulkanExample->touchPos.x = eventX;
               vulkanExample->touchPos.y = eventY;
@@ -1583,7 +1589,7 @@ void VulkanExampleBase::handleAppCommand(android_app* app, int32_t cmd) {
       if (androidApp->window != nullptr) {
         if (vulkanExample->initVulkan()) {
           vulkanExample->prepare();
-          assert(vulkanExample->prepared);
+          assert(vulkanExample->prepared_);
         } else {
           LOGE("Could not initialize Vulkan, exiting!");
           androidApp->destroyRequested = 1;
@@ -1603,7 +1609,7 @@ void VulkanExampleBase::handleAppCommand(android_app* app, int32_t cmd) {
     case APP_CMD_TERM_WINDOW:
       // Window is hidden or closed, clean up resources
       LOGD("APP_CMD_TERM_WINDOW");
-      if (vulkanExample->prepared) {
+      if (vulkanExample->prepared_) {
         vulkanExample->swapChain.cleanup();
       }
       break;
@@ -1753,16 +1759,16 @@ static CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink,
       [NSApp terminate:nil];
       break;
     case KEY_W:
-      vulkanExample->camera.keys.up = true;
+      vulkanExample->camera_.keys_.up = true;
       break;
     case KEY_S:
-      vulkanExample->camera.keys.down = true;
+      vulkanExample->camera_.keys_.down = true;
       break;
     case KEY_A:
-      vulkanExample->camera.keys.left = true;
+      vulkanExample->camera_.keys_.left = true;
       break;
     case KEY_D:
-      vulkanExample->camera.keys.right = true;
+      vulkanExample->camera_.keys_.right = true;
       break;
     default:
       vulkanExample->keyPressed(
@@ -1774,16 +1780,16 @@ static CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink,
 - (void)keyUp:(NSEvent*)event {
   switch (event.keyCode) {
     case KEY_W:
-      vulkanExample->camera.keys.up = false;
+      vulkanExample->camera_.keys_.up = false;
       break;
     case KEY_S:
-      vulkanExample->camera.keys.down = false;
+      vulkanExample->camera_.keys_.down = false;
       break;
     case KEY_A:
-      vulkanExample->camera.keys.left = false;
+      vulkanExample->camera_.keys_.left = false;
       break;
     case KEY_D:
-      vulkanExample->camera.keys.right = false;
+      vulkanExample->camera_.keys_.right = false;
       break;
     default:
       break;
@@ -1793,7 +1799,7 @@ static CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink,
 - (NSPoint)getMouseLocalPoint:(NSEvent*)event {
   NSPoint location = [event locationInWindow];
   NSPoint point = [self convertPoint:location fromView:nil];
-  point.y = self.frame.size.height - point.y;
+  point.y = self.frame.size.height_ - point.y;
   return point;
 }
 
@@ -1849,17 +1855,17 @@ static CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink,
 
 - (void)scrollWheel:(NSEvent*)event {
   short wheelDelta = [event deltaY];
-  vulkanExample->camera.translate(glm::vec3(
+  vulkanExample->camera_.translate(glm::vec3(
       0.0f, 0.0f,
-      -(float)wheelDelta * 0.05f * vulkanExample->camera.movementSpeed));
+      -(float)wheelDelta * 0.05f * vulkanExample->camera_.movementSpeed));
 }
 
 - (void)windowWillEnterFullScreen:(NSNotification*)notification {
-  vulkanExample->settings.fullscreen = true;
+  vulkanExample->settings_.fullscreen = true;
 }
 
 - (void)windowWillExitFullScreen:(NSNotification*)notification {
-  vulkanExample->settings.fullscreen = false;
+  vulkanExample->settings_.fullscreen = false;
 }
 
 - (BOOL)windowShouldClose:(NSWindow*)sender {
@@ -1882,7 +1888,7 @@ void* VulkanExampleBase::setupWindow(void* view) {
   nsAppDelegate->vulkanExample = this;
   [NSApp setDelegate:nsAppDelegate];
 
-  const auto kContentRect = NSMakeRect(0.0f, 0.0f, width, height);
+  const auto kContentRect = NSMakeRect(0.0f, 0.0f, width_, height_);
   const auto kWindowStyle = NSWindowStyleMaskTitled |
                             NSWindowStyleMaskClosable |
                             NSWindowStyleMaskResizable;
@@ -1895,7 +1901,7 @@ void* VulkanExampleBase::setupWindow(void* view) {
   [window setAcceptsMouseMovedEvents:YES];
   [window center];
   [window makeKeyAndOrderFront:nil];
-  if (settings.fullscreen) {
+  if (settings_.fullscreen) {
     [window toggleFullScreen:nil];
   }
 
@@ -1928,7 +1934,7 @@ void VulkanExampleBase::displayLinkOutputCb() {
   }
 #endif
 
-  if (prepared)
+  if (prepared_)
     nextFrame();
 }
 
@@ -1938,7 +1944,7 @@ void VulkanExampleBase::mouseDragged(float x, float y) {
 
 void VulkanExampleBase::windowWillResize(float x, float y) {
   resizing = true;
-  if (prepared) {
+  if (prepared_) {
     destWidth = x;
     destHeight = y;
     windowResize();
@@ -1983,21 +1989,21 @@ IDirectFBSurface* VulkanExampleBase::setupWindow() {
     exit(1);
   }
 
-  if (settings.fullscreen) {
-    width = layer_config.width;
-    height = layer_config.height;
+  if (settings_.fullscreen) {
+    width_ = layer_config.width_;
+    height_ = layer_config.height_;
   } else {
-    if (layer_config.width > width)
-      posx = (layer_config.width - width) / 2;
-    if (layer_config.height > height)
-      posy = (layer_config.height - height) / 2;
+    if (layer_config.width_ > width_)
+      posx = (layer_config.width_ - width_) / 2;
+    if (layer_config.height_ > height_)
+      posy = (layer_config.height_ - height_) / 2;
   }
 
   DFBWindowDescription desc;
   desc.flags = (DFBWindowDescriptionFlags)(DWDESC_WIDTH | DWDESC_HEIGHT |
                                            DWDESC_POSX | DWDESC_POSY);
-  desc.width = width;
-  desc.height = height;
+  desc.width_ = width_;
+  desc.height_ = height_;
   desc.posx = posx;
   desc.posy = posy;
   ret = layer->CreateWindow(layer, &desc, &window);
@@ -2072,16 +2078,16 @@ void VulkanExampleBase::handleEvent(const DFBWindowEvent* event) {
     case DWET_KEYDOWN:
       switch (event->key_symbol) {
         case KEY_W:
-          camera.keys.up = true;
+          camera_.keys_.up = true;
           break;
         case KEY_S:
-          camera.keys.down = true;
+          camera_.keys_.down = true;
           break;
         case KEY_A:
-          camera.keys.left = true;
+          camera_.keys_.left = true;
           break;
         case KEY_D:
-          camera.keys.right = true;
+          camera_.keys_.right = true;
           break;
         case KEY_P:
           paused = !paused;
@@ -2095,16 +2101,16 @@ void VulkanExampleBase::handleEvent(const DFBWindowEvent* event) {
     case DWET_KEYUP:
       switch (event->key_symbol) {
         case KEY_W:
-          camera.keys.up = false;
+          camera_.keys_.up = false;
           break;
         case KEY_S:
-          camera.keys.down = false;
+          camera_.keys_.down = false;
           break;
         case KEY_A:
-          camera.keys.left = false;
+          camera_.keys_.left = false;
           break;
         case KEY_D:
-          camera.keys.right = false;
+          camera_.keys_.right = false;
           break;
         case KEY_ESCAPE:
           quit = true;
@@ -2213,7 +2219,7 @@ void VulkanExampleBase::pointerAxis(wl_pointer* pointer,
   double d = wl_fixed_to_double(value);
   switch (axis) {
     case REL_X:
-      camera.translate(glm::vec3(0.0f, 0.0f, d * 0.005f));
+      camera_.translate(glm::vec3(0.0f, 0.0f, d * 0.005f));
       break;
     default:
       break;
@@ -2256,16 +2262,16 @@ void VulkanExampleBase::keyboardKey(struct wl_keyboard* keyboard,
                                     uint32_t state) {
   switch (key) {
     case KEY_W:
-      camera.keys.up = !!state;
+      camera_.keys_.up = !!state;
       break;
     case KEY_S:
-      camera.keys.down = !!state;
+      camera_.keys_.down = !!state;
       break;
     case KEY_A:
-      camera.keys.left = !!state;
+      camera_.keys_.left = !!state;
       break;
     case KEY_D:
-      camera.keys.right = !!state;
+      camera_.keys_.right = !!state;
       break;
     case KEY_P:
       if (state)
@@ -2387,12 +2393,12 @@ void VulkanExampleBase::initWaylandConnection() {
   }
 }
 
-void VulkanExampleBase::setSize(int width, int height) {
-  if (width <= 0 || height <= 0)
+void VulkanExampleBase::setSize(int width_, int height_) {
+  if (width_ <= 0 || height_ <= 0)
     return;
 
-  destWidth = width;
-  destHeight = height;
+  destWidth = width_;
+  destHeight = height_;
 
   windowResize();
 }
@@ -2412,12 +2418,12 @@ static const struct xdg_surface_listener xdg_surface_listener = {
 
 static void xdg_toplevel_handle_configure(void* data,
                                           struct xdg_toplevel* toplevel,
-                                          int32_t width,
-                                          int32_t height,
+                                          int32_t width_,
+                                          int32_t height_,
                                           struct wl_array* states) {
   VulkanExampleBase* base = (VulkanExampleBase*)data;
 
-  base->setSize(width, height);
+  base->setSize(width_, height_);
 }
 
 static void xdg_toplevel_handle_close(void* data,
@@ -2442,7 +2448,7 @@ struct xdg_surface* VulkanExampleBase::setupWindow() {
 
   std::string windowTitle = getWindowTitle();
   xdg_toplevel_set_title(xdg_toplevel, windowTitle.c_str());
-  if (settings.fullscreen) {
+  if (settings_.fullscreen) {
     xdg_toplevel_set_fullscreen(xdg_toplevel, NULL);
   }
   wl_surface_commit(surface);
@@ -2475,13 +2481,13 @@ xcb_window_t VulkanExampleBase::setupWindow() {
                   XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_BUTTON_PRESS |
                   XCB_EVENT_MASK_BUTTON_RELEASE;
 
-  if (settings.fullscreen) {
-    width = destWidth = screen->width_in_pixels;
-    height = destHeight = screen->height_in_pixels;
+  if (settings_.fullscreen) {
+    width_ = destWidth = screen->width_in_pixels;
+    height_ = destHeight = screen->height_in_pixels;
   }
 
   xcb_create_window(connection, XCB_COPY_FROM_PARENT, window, screen->root, 0,
-                    0, width, height, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT,
+                    0, width_, height_, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT,
                     screen->root_visual, value_mask, value_list);
 
   /* Magic code that will send notification when window is destroyed */
@@ -2514,7 +2520,7 @@ xcb_window_t VulkanExampleBase::setupWindow() {
                       XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8,
                       wm_class.size() + 2, wm_class.c_str());
 
-  if (settings.fullscreen) {
+  if (settings_.fullscreen) {
     xcb_intern_atom_reply_t* atom_wm_state =
         intern_atom_helper(connection, false, "_NET_WM_STATE");
     xcb_intern_atom_reply_t* atom_wm_fullscreen =
@@ -2592,22 +2598,22 @@ void VulkanExampleBase::handleEvent(const xcb_generic_event_t* event) {
           (const xcb_key_release_event_t*)event;
       switch (keyEvent->detail) {
         case KEY_W:
-          camera.keys.up = true;
+          camera_.keys_.up = true;
           break;
         case KEY_S:
-          camera.keys.down = true;
+          camera_.keys_.down = true;
           break;
         case KEY_A:
-          camera.keys.left = true;
+          camera_.keys_.left = true;
           break;
         case KEY_D:
-          camera.keys.right = true;
+          camera_.keys_.right = true;
           break;
         case KEY_P:
           paused = !paused;
           break;
         case KEY_F1:
-          ui.visible = !ui.visible;
+          ui_.visible = !ui_.visible;
           break;
       }
     } break;
@@ -2616,16 +2622,16 @@ void VulkanExampleBase::handleEvent(const xcb_generic_event_t* event) {
           (const xcb_key_release_event_t*)event;
       switch (keyEvent->detail) {
         case KEY_W:
-          camera.keys.up = false;
+          camera_.keys_.up = false;
           break;
         case KEY_S:
-          camera.keys.down = false;
+          camera_.keys_.down = false;
           break;
         case KEY_A:
-          camera.keys.left = false;
+          camera_.keys_.left = false;
           break;
         case KEY_D:
-          camera.keys.right = false;
+          camera_.keys_.right = false;
           break;
         case KEY_ESCAPE:
           quit = true;
@@ -2639,8 +2645,8 @@ void VulkanExampleBase::handleEvent(const xcb_generic_event_t* event) {
     case XCB_CONFIGURE_NOTIFY: {
       const xcb_configure_notify_event_t* cfgEvent =
           (const xcb_configure_notify_event_t*)event;
-      if ((prepared) &&
-          ((cfgEvent->width != width) || (cfgEvent->height != height))) {
+      if ((prepared_) &&
+          ((cfgEvent->width != width_) || (cfgEvent->height != height_))) {
         destWidth = cfgEvent->width;
         destHeight = cfgEvent->height;
         if ((destWidth > 0) && (destHeight > 0)) {
@@ -2701,30 +2707,30 @@ void VulkanExampleBase::handleEvent() {
               break;
             case KEYCODE_W:
               if (keyflags & KEY_DOWN) {
-                camera.keys.up = true;
+                camera_.keys_.up = true;
               } else {
-                camera.keys.up = false;
+                camera_.keys_.up = false;
               }
               break;
             case KEYCODE_S:
               if (keyflags & KEY_DOWN) {
-                camera.keys.down = true;
+                camera_.keys_.down = true;
               } else {
-                camera.keys.down = false;
+                camera_.keys_.down = false;
               }
               break;
             case KEYCODE_A:
               if (keyflags & KEY_DOWN) {
-                camera.keys.left = true;
+                camera_.keys_.left = true;
               } else {
-                camera.keys.left = false;
+                camera_.keys_.left = false;
               }
               break;
             case KEYCODE_D:
               if (keyflags & KEY_DOWN) {
-                camera.keys.right = true;
+                camera_.keys_.right = true;
               } else {
-                camera.keys.right = false;
+                camera_.keys_.right = false;
               }
               break;
             case KEYCODE_P:
@@ -2777,8 +2783,8 @@ void VulkanExampleBase::handleEvent() {
                 quit = true;
                 break;
               }
-              width = size[0];
-              height = size[1];
+              width_ = size[0];
+              height_ = size[1];
               windowResize();
               break;
             default:
@@ -2837,7 +2843,7 @@ void VulkanExampleBase::handleEvent() {
           break;
         }
         if (val != 0) {
-          camera.translate(glm::vec3(0.0f, 0.0f, (float)val * 0.005f));
+          camera_.translate(glm::vec3(0.0f, 0.0f, (float)val * 0.005f));
         }
 
         rc = screen_get_event_property_iv(screen_event,
@@ -2900,7 +2906,7 @@ void VulkanExampleBase::setupWindow() {
     exit(EXIT_FAILURE);
   }
 
-  if ((width == 0) || (height == 0) || (settings.fullscreen) ||
+  if ((width_ == 0) || (height_ == 0) || (settings_.fullscreen) ||
       use_window_size) {
     rc = screen_get_window_property_iv(screen_window, SCREEN_PROPERTY_SIZE,
                                        size);
@@ -2909,11 +2915,11 @@ void VulkanExampleBase::setupWindow() {
       fflush(stdout);
       exit(EXIT_FAILURE);
     }
-    width = size[0];
-    height = size[1];
+    width_ = size[0];
+    height_ = size[1];
   } else {
-    size[0] = width;
-    size[1] = height;
+    size[0] = width_;
+    size[1] = height_;
     rc = screen_set_window_property_iv(screen_window, SCREEN_PROPERTY_SIZE,
                                        size);
     if (rc) {
@@ -3242,9 +3248,9 @@ void VulkanExampleBase::createSurface() {
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
   swapChain.initSurface(display, surface);
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
-  swapChain.initSurface(connection, window);
+  swapChain_.initSurface(connection, window);
 #elif (defined(_DIRECT2DISPLAY) || defined(VK_USE_PLATFORM_HEADLESS_EXT))
-  swapChain.initSurface(width, height);
+  swapChain.initSurface(width_, height_);
 #elif defined(VK_USE_PLATFORM_SCREEN_QNX)
   swapChain.initSurface(screen_context, screen_window);
 #endif
