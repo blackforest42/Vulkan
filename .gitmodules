@@ -3,5 +3,5 @@
 	url = https://github.com/g-truc/glm
 [submodule "assets"]
 	path = assets
-	url = https://github.com/SaschaWillems/Vulkan-Assets
+	url = git@github.com:asdfasdf996/Vulkan-Assets.git 
 	branch = main
