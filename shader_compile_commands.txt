@@ -1,0 +1,6 @@
+glslc blackhole.frag -o blackhole.frag.spv
+glslc blend.frag -o blend.frag.spv
+glslc brightness.frag -o brightness.frag.spv
+glslc downsample.frag -o downsample.frag.spv
+glslc upsample.frag -o upsample.frag.spv
+glslc simple.vert -o simple.vert.spv
