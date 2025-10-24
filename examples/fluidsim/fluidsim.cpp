@@ -15,6 +15,18 @@
 
 class VulkanExample : public VulkanExampleBase {
  public:
+  struct UBO {
+    glm::vec2 viewportResolution;
+  };
+  struct {
+    UBO simple;
+  } ubos_;
+
+  struct UniformBuffers {
+    vks::Buffer simple;
+  };
+  std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_{};
+
   std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
   VkDescriptorSetLayout descriptorSetLayout_{};
   VkPipeline pipeline_{};
@@ -32,9 +44,22 @@ class VulkanExample : public VulkanExampleBase {
   // (Part A)
   void prepare() override {
     VulkanExampleBase::prepare();
+    prepareUniformBuffers();
     setupDescriptors();
     preparePipelines();
     prepared_ = true;
+  }
+
+  void prepareUniformBuffers() {
+    for (auto& buffer : uniformBuffers_) {
+      // Blackhole
+      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.simple, sizeof(UBO), &ubos_.simple));
+      VK_CHECK_RESULT(buffer.simple.map());
+    }
   }
 
   void setupDescriptors() {
@@ -44,6 +69,35 @@ class VulkanExample : public VulkanExampleBase {
                                                     MAX_CONCURRENT_FRAMES);
     VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
                                            nullptr, &descriptorPool_));
+
+    // Layout:
+    std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
+        // Binding 0 : Fragment shader
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding id*/ 0)};
+
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI =
+        vks::initializers::descriptorSetLayoutCreateInfo(
+            setLayoutBindings.data(),
+            static_cast<uint32_t>(setLayoutBindings.size()));
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
+        device_, &descriptorSetLayoutCI, nullptr, &descriptorSetLayout_));
+
+    for (auto i = 0; i < uniformBuffers_.size(); i++) {
+      VkDescriptorSetAllocateInfo allocInfo =
+          vks::initializers::descriptorSetAllocateInfo(
+              descriptorPool_, &descriptorSetLayout_, 1);
+      VK_CHECK_RESULT(
+          vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
+      std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+          vks::initializers::writeDescriptorSet(
+              descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+              /*binding id*/ 0, &uniformBuffers_[i].simple.descriptor)};
+      vkUpdateDescriptorSets(device_,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
+    }
   }
 
   void preparePipelines() {
@@ -91,8 +145,6 @@ class VulkanExample : public VulkanExampleBase {
     pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineCI.pStages = shaderStages.data();
 
-    // Blend pipeline
-    // No vertices to input, quad verts are hardcoded in vertex shader.
     VkPipelineVertexInputStateCreateInfo emptyInputState =
         vks::initializers::pipelineVertexInputStateCreateInfo();
     pipelineCI.pVertexInputState = &emptyInputState;
@@ -105,12 +157,21 @@ class VulkanExample : public VulkanExampleBase {
         device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipeline_));
   }
 
+  // Part B (rendering)
   void render() override {
     if (!prepared_)
       return;
     VulkanExampleBase::prepareFrame();
+    updateUniformBuffers();
     buildCommandBuffer();
     VulkanExampleBase::submitFrame();
+  }
+
+  // B.1
+  void updateUniformBuffers() {
+    ubos_.simple.viewportResolution = glm::vec2(width_, height_);
+    memcpy(uniformBuffers_[currentBuffer_].simple.mapped, &ubos_.simple,
+           sizeof(UBO));
   }
 
   void buildCommandBuffer() {
@@ -165,6 +226,17 @@ class VulkanExample : public VulkanExampleBase {
     vkResetDescriptorPool(device_, descriptorPool_, 0);
     setupDescriptors();
     resized_ = false;
+  }
+
+  ~VulkanExample() {
+    if (device_) {
+      vkDestroyPipeline(device_, pipeline_, nullptr);
+      vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
+      vkDestroyDescriptorSetLayout(device_, descriptorSetLayout_, nullptr);
+      for (auto& buffer : uniformBuffers_) {
+        buffer.simple.destroy();
+      }
+    }
   }
 };
 
