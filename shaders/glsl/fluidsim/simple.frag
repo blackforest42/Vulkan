@@ -12,15 +12,23 @@ layout (binding = 0) uniform UBO
     vec2 viewportResolution;
 } ubo;
 
+const float EPS = 0.0005;
+
+bool is_near(float x, float near) {
+	return near - EPS <= x && x <= near + EPS;
+}
 
 
 void main() {
-	//debugPrintfEXT("My vector is %v2f", ubo.viewportResolution);
-    vec2 uv = gl_FragCoord.xy / ubo.viewportResolution.xy - vec2(0.5);
-    // Aspect ratio correction for non-square screens
-	uv.x *= ubo.viewportResolution.x / ubo.viewportResolution.y;
+    vec2 uv = gl_FragCoord.xy / ubo.viewportResolution.xy;
 
-	vec3 red = vec3(1.0, 0., 0.);
+	vec3 green = vec3(0.0, 1., 0.);
 	vec3 blue = vec3(0., 0., 1.);
-	outFragColor = vec4(blue, 1.0);
+	if (is_near(uv.x, 0) || is_near(uv.x, 1) || is_near(uv.y, 0) || is_near(uv.y, 1)) {
+		// debugPrintfEXT("My vector is %v2f", uv);
+		outFragColor = vec4(green, 1.0);
+	} else {
+		outFragColor = vec4(blue, 1.0);
+	}
+
 }
