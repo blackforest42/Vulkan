@@ -20,15 +20,15 @@ bool is_near(float x, float near) {
 
 
 void main() {
-    vec2 uv = gl_FragCoord.xy / ubo.viewportResolution.xy;
+	float x = gl_FragCoord.x - 0.5;
+	float y = gl_FragCoord.y - 0.5;
 
 	vec3 green = vec3(0.0, 1., 0.);
 	vec3 blue = vec3(0., 0., 1.);
-	if (is_near(uv.x, 0) || is_near(uv.x, 1) || is_near(uv.y, 0) || is_near(uv.y, 1)) {
-		// debugPrintfEXT("My vector is %v2f", uv);
+	if (x == 0 || x == ubo.viewportResolution.x - 1 || y == 0 || y == ubo.viewportResolution.y - 1) {
 		outFragColor = vec4(green, 1.0);
 	} else {
-		outFragColor = vec4(blue, 1.0);
+		outFragColor = vec4(vec3(0), 1.0);
 	}
 
 }

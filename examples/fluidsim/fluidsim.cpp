@@ -32,6 +32,27 @@ class VulkanExample : public VulkanExampleBase {
   VkPipeline pipeline_{};
   VkPipelineLayout pipelineLayout_{};
 
+  struct FrameBufferAttachment {
+    VkImage image;
+    VkDeviceMemory mem;
+    VkImageView view;
+  };
+  struct FrameBuffer {
+    int32_t width, height;
+    VkFramebuffer framebuffer;
+    FrameBufferAttachment color;
+    VkDescriptorImageInfo descriptor;
+  };
+  struct OffscreenPass {
+    VkRenderPass renderPass{};
+    VkSampler sampler{};
+  } offscreenPass_;
+
+  // 2 framebuffers for each field, index 0 is for reading, 1 is for writing
+  std::array<FrameBuffer, 2> velocity_field_{};
+  std::array<FrameBuffer, 2> pressure_field_{};
+  std::array<FrameBuffer, 1> divergence_{};
+
   VulkanExample() {
     title = "Blackhole";
     camera_.type_ = Camera::CameraType::lookat;

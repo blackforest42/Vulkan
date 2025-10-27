@@ -1,0 +1,21 @@
+1. Advection
+advection(float timestep, float rdx, u=velocity_field, x=velocity_field) -> velocity_field
+
+2. Force
+- each mouse click creates constant force
+
+3. Viscous Diffusion (20-50 iterations)
+jacobi(x=velocity_field, b=velocity_field) -> velocity_field
+
+4. Projection
+4a. Divergence
+divergence(w=velocity_field, float halfrdx) -> div_texture
+
+4b. Jacobi (40-80 iterations)
+jacobi(x=pressure_field, b=div_texture, float alpha, float beta) -> pressure_field
+
+4c. Gradient
+gradient(p=pressure_field, w=velocity) -> velocity_field
+
+5. Boundary
+boundary(x=texture_map) -> texture_map
