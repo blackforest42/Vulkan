@@ -1,3 +1,4 @@
-Oct 13
-	- When displaying down_samples[i=1] to screen, small squares appear
-	- Colour Pass #4
+Oct 27
+	- finish advection pipeline
+	- figure out how to ignore boundaries
+	- how to test?

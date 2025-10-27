@@ -13,24 +13,40 @@
 #include "VulkanglTFModel.h"
 #include "stb_image.h"
 
+// Offscreen frame buffer properties
+#define FB_COLOR_FORMAT VK_FORMAT_R32G32B32A32_SFLOAT
+
 class VulkanExample : public VulkanExampleBase {
  public:
-  struct UBO {
+  struct AdvectionUBO {
     glm::vec2 viewportResolution;
+    float timestep;
   };
   struct {
-    UBO simple;
+    AdvectionUBO advection;
   } ubos_;
 
   struct UniformBuffers {
-    vks::Buffer simple;
+    vks::Buffer advection;
   };
   std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_{};
 
-  std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
-  VkDescriptorSetLayout descriptorSetLayout_{};
-  VkPipeline pipeline_{};
-  VkPipelineLayout pipelineLayout_{};
+  struct {
+    VkDescriptorSetLayout advection;
+  } descriptorSetLayouts_{};
+
+  struct DescriptorSets {
+    VkDescriptorSet advection;
+  };
+  std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+
+  struct {
+    VkPipelineLayout advection;
+  } pipelineLayouts_{};
+
+  struct {
+    VkPipeline advection;
+  } pipelines_{};
 
   struct FrameBufferAttachment {
     VkImage image;
@@ -66,6 +82,7 @@ class VulkanExample : public VulkanExampleBase {
   void prepare() override {
     VulkanExampleBase::prepare();
     prepareUniformBuffers();
+    prepareOffscreen();
     setupDescriptors();
     preparePipelines();
     prepared_ = true;
@@ -78,43 +95,231 @@ class VulkanExample : public VulkanExampleBase {
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer.simple, sizeof(UBO), &ubos_.simple));
-      VK_CHECK_RESULT(buffer.simple.map());
+          &buffer.advection, sizeof(AdvectionUBO), &ubos_.advection));
+      VK_CHECK_RESULT(buffer.advection.map());
     }
   }
 
+  void prepareOffscreen() {
+    // Create a separate render pass for the offscreen rendering as it may
+    // differ from the one used for scene rendering
+    VkAttachmentDescription attchmentDescriptions;
+    // Color attachment
+    attchmentDescriptions.format = FB_COLOR_FORMAT;
+    attchmentDescriptions.samples = VK_SAMPLE_COUNT_1_BIT;
+    attchmentDescriptions.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attchmentDescriptions.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attchmentDescriptions.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attchmentDescriptions.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attchmentDescriptions.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attchmentDescriptions.finalLayout =
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkAttachmentReference colorReference = {
+        0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+
+    VkSubpassDescription subpassDescription = {};
+    subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpassDescription.colorAttachmentCount = 1;
+    subpassDescription.pColorAttachments = &colorReference;
+
+    // Use subpass dependencies for layout transitions
+    std::array<VkSubpassDependency, 3> dependencies{};
+
+    dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependencies[0].dstSubpass = 0;
+    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                                   VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                                   VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    dependencies[0].srcAccessMask =
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependencies[0].dstAccessMask =
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+    dependencies[0].dependencyFlags = 0;
+
+    dependencies[1].srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependencies[1].dstSubpass = 0;
+    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dependencies[1].dstStageMask =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[1].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    dependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+    dependencies[2].srcSubpass = 0;
+    dependencies[2].dstSubpass = VK_SUBPASS_EXTERNAL;
+    dependencies[2].srcStageMask =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[2].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dependencies[2].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[2].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    dependencies[2].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+    // Create the actual renderpass
+    VkRenderPassCreateInfo renderPassInfo = {};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.attachmentCount = 1;
+    renderPassInfo.pAttachments = &attchmentDescriptions;
+    renderPassInfo.subpassCount = 1;
+    renderPassInfo.pSubpasses = &subpassDescription;
+    renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
+    renderPassInfo.pDependencies = dependencies.data();
+    VK_CHECK_RESULT(vkCreateRenderPass(device_, &renderPassInfo, nullptr,
+                                       &offscreenPass_.renderPass));
+
+    // Create sampler to sample from the color attachments
+    VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
+    sampler.magFilter = VK_FILTER_LINEAR;
+    sampler.minFilter = VK_FILTER_LINEAR;
+    sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler.addressModeV = sampler.addressModeU;
+    sampler.addressModeW = sampler.addressModeU;
+    sampler.mipLodBias = 0.0f;
+    sampler.maxAnisotropy = 1.0f;
+    sampler.minLod = 0.0f;
+    sampler.maxLod = 1.0f;
+    sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+    VK_CHECK_RESULT(
+        vkCreateSampler(device_, &sampler, nullptr, &offscreenPass_.sampler));
+
+    for (auto& fb : velocity_field_) {
+      prepareOffscreenFramebuffer(&fb, FB_COLOR_FORMAT);
+    }
+  }
+
+  void prepareOffscreenFramebuffer(FrameBuffer* frameBuf,
+                                   VkFormat colorFormat) {
+    // Color attachment
+    VkImageCreateInfo imageCI = vks::initializers::imageCreateInfo();
+    imageCI.imageType = VK_IMAGE_TYPE_2D;
+    imageCI.format = colorFormat;
+    imageCI.extent.width = frameBuf->width;
+    imageCI.extent.height = frameBuf->height;
+    imageCI.extent.depth = 1;
+    imageCI.mipLevels = 1;
+    imageCI.arrayLayers = 1;
+    imageCI.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageCI.tiling = VK_IMAGE_TILING_OPTIMAL;
+    // We will sample directly from the color attachment
+    imageCI.usage =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
+    VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
+    VkMemoryRequirements memReqs;
+
+    VkImageViewCreateInfo colorImageView =
+        vks::initializers::imageViewCreateInfo();
+    colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    colorImageView.format = colorFormat;
+    colorImageView.flags = 0;
+    colorImageView.subresourceRange = {};
+    colorImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    colorImageView.subresourceRange.baseMipLevel = 0;
+    colorImageView.subresourceRange.levelCount = 1;
+    colorImageView.subresourceRange.baseArrayLayer = 0;
+    colorImageView.subresourceRange.layerCount = 1;
+
+    VK_CHECK_RESULT(
+        vkCreateImage(device_, &imageCI, nullptr, &frameBuf->color.image));
+    vkGetImageMemoryRequirements(device_, frameBuf->color.image, &memReqs);
+    memAlloc.allocationSize = memReqs.size;
+    memAlloc.memoryTypeIndex = vulkanDevice_->getMemoryType(
+        memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    VK_CHECK_RESULT(
+        vkAllocateMemory(device_, &memAlloc, nullptr, &frameBuf->color.mem));
+    VK_CHECK_RESULT(vkBindImageMemory(device_, frameBuf->color.image,
+                                      frameBuf->color.mem, 0));
+
+    colorImageView.image = frameBuf->color.image;
+    VK_CHECK_RESULT(vkCreateImageView(device_, &colorImageView, nullptr,
+                                      &frameBuf->color.view));
+
+    VkImageView attachments[1]{frameBuf->color.view};
+
+    VkFramebufferCreateInfo fbufCreateInfo =
+        vks::initializers::framebufferCreateInfo();
+    fbufCreateInfo.renderPass = offscreenPass_.renderPass;
+    fbufCreateInfo.attachmentCount = 1;
+    fbufCreateInfo.pAttachments = attachments;
+    fbufCreateInfo.width = frameBuf->width;
+    fbufCreateInfo.height = frameBuf->height;
+    fbufCreateInfo.layers = 1;
+
+    VK_CHECK_RESULT(vkCreateFramebuffer(device_, &fbufCreateInfo, nullptr,
+                                        &frameBuf->framebuffer));
+
+    // Fill a descriptor for later use in a descriptor set
+    frameBuf->descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    frameBuf->descriptor.imageView = frameBuf->color.view;
+    frameBuf->descriptor.sampler = offscreenPass_.sampler;
+  }
+
   void setupDescriptors() {
-    std::vector<VkDescriptorPoolSize> poolSizes = {};
+    std::vector<VkDescriptorPoolSize> poolSizes = {
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            /* descriptorCount */ MAX_CONCURRENT_FRAMES *
+                /*max number of uniform buffers*/ 1),
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            /* descriptorCount */ MAX_CONCURRENT_FRAMES *
+                /*max number of textures*/ 2)};
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
-        vks::initializers::descriptorPoolCreateInfo(poolSizes,
-                                                    MAX_CONCURRENT_FRAMES);
+        vks::initializers::descriptorPoolCreateInfo(
+            poolSizes,
+            /* max number of descriptor sets that can be allocated at once*/ 1 *
+                MAX_CONCURRENT_FRAMES);
     VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
                                            nullptr, &descriptorPool_));
 
-    // Layout:
+    // Layout: Advection
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
         // Binding 0 : Fragment shader
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT,
-            /*binding id*/ 0)};
+            /*binding id*/ 0),
+        // Binding 1 : Fragment shader field texture 1
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding id*/ 1),
+        // Binding 2 : Fragment shader field texture 2
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding id*/ 2),
+    };
 
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI =
         vks::initializers::descriptorSetLayoutCreateInfo(
             setLayoutBindings.data(),
             static_cast<uint32_t>(setLayoutBindings.size()));
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
-        device_, &descriptorSetLayoutCI, nullptr, &descriptorSetLayout_));
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr,
+                                    &descriptorSetLayouts_.advection));
 
     for (auto i = 0; i < uniformBuffers_.size(); i++) {
       VkDescriptorSetAllocateInfo allocInfo =
           vks::initializers::descriptorSetAllocateInfo(
-              descriptorPool_, &descriptorSetLayout_, 1);
-      VK_CHECK_RESULT(
-          vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
+              descriptorPool_, &descriptorSetLayouts_.advection, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
+                                               &descriptorSets_[i].advection));
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
           vks::initializers::writeDescriptorSet(
-              descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-              /*binding id*/ 0, &uniformBuffers_[i].simple.descriptor)};
+              descriptorSets_[i].advection, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+              /*binding id*/ 0, &uniformBuffers_[i].advection.descriptor),
+          vks::initializers::writeDescriptorSet(
+              descriptorSets_[i].advection,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              /*binding id*/ 1, &velocity_field_[0].descriptor),
+          vks::initializers::writeDescriptorSet(
+              descriptorSets_[i].advection,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              /*binding id*/ 2, &velocity_field_[0].descriptor),
+      };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
@@ -123,9 +328,10 @@ class VulkanExample : public VulkanExampleBase {
 
   void preparePipelines() {
     VkPipelineLayoutCreateInfo pipelineLayoutCI =
-        vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout_, 1);
+        vks::initializers::pipelineLayoutCreateInfo(
+            &descriptorSetLayouts_.advection, 1);
     VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr,
-                                           &pipelineLayout_));
+                                           &pipelineLayouts_.advection));
 
     // Pipeline
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
@@ -155,7 +361,8 @@ class VulkanExample : public VulkanExampleBase {
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
     VkGraphicsPipelineCreateInfo pipelineCI =
-        vks::initializers::pipelineCreateInfo(pipelineLayout_, renderPass_, 0);
+        vks::initializers::pipelineCreateInfo(pipelineLayouts_.advection,
+                                              renderPass_, 0);
     pipelineCI.pInputAssemblyState = &inputAssemblyState;
     pipelineCI.pRasterizationState = &rasterizationState;
     pipelineCI.pColorBlendState = &colorBlendState;
@@ -166,16 +373,19 @@ class VulkanExample : public VulkanExampleBase {
     pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineCI.pStages = shaderStages.data();
 
+    // Advection pipeline
     VkPipelineVertexInputStateCreateInfo emptyInputState =
         vks::initializers::pipelineVertexInputStateCreateInfo();
     pipelineCI.pVertexInputState = &emptyInputState;
-    pipelineCI.layout = pipelineLayout_;
+    pipelineCI.layout = pipelineLayouts_.advection;
     shaderStages[0] = loadShader(getShadersPath() + "fluidsim/simple.vert.spv",
                                  VK_SHADER_STAGE_VERTEX_BIT);
-    shaderStages[1] = loadShader(getShadersPath() + "fluidsim/simple.frag.spv",
-                                 VK_SHADER_STAGE_FRAGMENT_BIT);
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-        device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipeline_));
+    shaderStages[1] =
+        loadShader(getShadersPath() + "fluidsim/advection.frag.spv",
+                   VK_SHADER_STAGE_FRAGMENT_BIT);
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
+                                              &pipelineCI, nullptr,
+                                              &pipelines_.advection));
   }
 
   // Part B (rendering)
@@ -190,9 +400,9 @@ class VulkanExample : public VulkanExampleBase {
 
   // B.1
   void updateUniformBuffers() {
-    ubos_.simple.viewportResolution = glm::vec2(width_, height_);
-    memcpy(uniformBuffers_[currentBuffer_].simple.mapped, &ubos_.simple,
-           sizeof(UBO));
+    ubos_.advection.viewportResolution = glm::vec2(width_, height_);
+    memcpy(uniformBuffers_[currentBuffer_].advection.mapped, &ubos_.advection,
+           sizeof(AdvectionUBO));
   }
 
   void buildCommandBuffer() {
@@ -202,8 +412,14 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::commandBufferBeginInfo();
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
+    advectionCmd(cmdBuffer);
+
+    VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
+  }
+
+  void advectionCmd(VkCommandBuffer& cmdBuffer) {
     VkClearValue clearValues{};
-    clearValues.color = {0.0f, 0.0f, 0.0f, 0.f};
+    clearValues.color = {1.0f, 0.0f, 0.0f, 1.f};
 
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();
@@ -228,16 +444,15 @@ class VulkanExample : public VulkanExampleBase {
     VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
-    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            pipelineLayout_, 0, 1,
-                            &descriptorSets_[currentBuffer_], 0, nullptr);
+    vkCmdBindDescriptorSets(
+        cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.advection,
+        0, 1, &descriptorSets_[currentBuffer_].advection, 0, nullptr);
 
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      pipelines_.advection);
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
     drawUI(cmdBuffer);
     vkCmdEndRenderPass(cmdBuffer);
-
-    VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
 
   void destroyOffscreenPass() {}
@@ -251,11 +466,12 @@ class VulkanExample : public VulkanExampleBase {
 
   ~VulkanExample() {
     if (device_) {
-      vkDestroyPipeline(device_, pipeline_, nullptr);
-      vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayout_, nullptr);
+      vkDestroyPipeline(device_, pipelines_.advection, nullptr);
+      vkDestroyPipelineLayout(device_, pipelineLayouts_.advection, nullptr);
+      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.advection,
+                                   nullptr);
       for (auto& buffer : uniformBuffers_) {
-        buffer.simple.destroy();
+        buffer.advection.destroy();
       }
     }
   }

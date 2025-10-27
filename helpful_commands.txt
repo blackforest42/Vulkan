@@ -2,6 +2,7 @@
 
 glslc simple.vert -o simple.vert.spv
 glslc simple.frag -o simple.frag.spv
+glslc advection.frag -o advection.frag.spv
 
 
 # Use `toktx` to create a .ktx cubemap from 6 .png files
