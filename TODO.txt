@@ -1,12 +1,7 @@
 Oct 27
-	- boundary pipeline done!
-	- copy image done!
-	- add jacobi, divergence, and gradient pipelines
-	- still need a means of testing
-
-Long term:
-	- add mouse for force?
-	- add ink?
+	- start gradient pipelines
+	- start force/impulse pipelines
+	- map vector field to an RGB colors
 
 
 ### Fluid sim
@@ -14,14 +9,14 @@ Long term:
 advection(float timestep, float rdx, u=velocity_field, x=velocity_field) -> velocity_field
 
 2. Force
-- each mouse click creates constant force
+- 2D gaussian splat
 
 3. Viscous Diffusion (20-50 iterations)
 jacobi(x=velocity_field, b=velocity_field) -> velocity_field
 
 4. Projection
-Note: divergence pass is only relevant for non-boundary cells
 4a. Divergence
+Note: divergence pass is only relevant for non-boundary cells
 divergence(w=velocity_field, float halfrdx) -> div_texture
 
 4b. Jacobi (40-80 iterations)

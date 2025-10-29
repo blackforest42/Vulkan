@@ -29,7 +29,7 @@ void main() {
 
 	// boundary
 	if (x == 0 || x == ubo.viewportResolution.x - 1 || y == 0 || y == ubo.viewportResolution.y - 1) {
-		//debugPrintfEXT("My value is: %f and %f", x, y);
+		// Debugging: this color should never be rendered
 		outFragColor = vec4(blue, 1.0);
 		return; 
 	}
