@@ -25,16 +25,17 @@ void main() {
 	float x = gl_FragCoord.x - 0.5;
 	float y = gl_FragCoord.y - 0.5;
 
+	vec2 coords = gl_FragCoord.xy;
+
 	// boundary
 	if (x == 0 || x == ubo.viewportResolution.x - 1 || y == 0 || y == ubo.viewportResolution.y - 1) {
 		//debugPrintfEXT("My value is: %f and %f", x, y);
-		outFragColor = vec4(black, 1.0);
+		outFragColor = vec4(blue, 1.0);
 		return; 
 	}
-	outFragColor = vec4(green, 1.f);
-	return;
+	//outFragColor = vec4(green, 1.f);
+	// return;
 
-	vec2 coords = gl_FragCoord.xy;
 	// follow the velocity field "back in time"
 	vec2 pos = coords - ubo.timestep * texture(field1, coords).xy;
 	// interpolate and write to the output fragment

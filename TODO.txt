@@ -4,8 +4,6 @@ Oct 27
 	- add jacobi, divergence, and gradient pipelines
 	- still need a means of testing
 
-
-
 Long term:
 	- add mouse for force?
 	- add ink?
@@ -22,6 +20,7 @@ advection(float timestep, float rdx, u=velocity_field, x=velocity_field) -> velo
 jacobi(x=velocity_field, b=velocity_field) -> velocity_field
 
 4. Projection
+Note: divergence pass is only relevant for non-boundary cells
 4a. Divergence
 divergence(w=velocity_field, float halfrdx) -> div_texture
 
@@ -33,3 +32,4 @@ gradient(p=pressure_field, w=velocity) -> velocity_field
 
 5. Boundary
 boundary(x=texture_map) -> texture_map
+

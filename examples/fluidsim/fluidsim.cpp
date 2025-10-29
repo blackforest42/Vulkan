@@ -146,11 +146,12 @@ class VulkanExample : public VulkanExampleBase {
     // Color attachment
     attchmentDescriptions.format = FB_COLOR_FORMAT;
     attchmentDescriptions.samples = VK_SAMPLE_COUNT_1_BIT;
-    attchmentDescriptions.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attchmentDescriptions.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     attchmentDescriptions.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attchmentDescriptions.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attchmentDescriptions.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attchmentDescriptions.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attchmentDescriptions.initialLayout =
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     attchmentDescriptions.finalLayout =
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
@@ -550,8 +551,8 @@ class VulkanExample : public VulkanExampleBase {
 
     // Jacobi
     for (int i = 0; i < JACOBI_ITERATIONS; i++) {
-      velocityBoundaryCmd(cmdBuffer);
-      velocityJacobiCmd(cmdBuffer);
+      // velocityBoundaryCmd(cmdBuffer);
+      // velocityJacobiCmd(cmdBuffer);
     }
 
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
@@ -565,10 +566,10 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::renderPassBeginInfo();
     renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
     renderPassBeginInfo.framebuffer = velocity_field_[1].framebuffer;
-    renderPassBeginInfo.renderArea.offset.x = 0;
-    renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.renderArea.extent.width = width_;
-    renderPassBeginInfo.renderArea.extent.height = height_;
+    renderPassBeginInfo.renderArea.offset.x = 1;
+    renderPassBeginInfo.renderArea.offset.y = 1;
+    renderPassBeginInfo.renderArea.extent.width = width_ - 2;
+    renderPassBeginInfo.renderArea.extent.height = height_ - 2;
     renderPassBeginInfo.clearValueCount = 1;
     renderPassBeginInfo.pClearValues = &clearValues;
 
@@ -679,8 +680,8 @@ class VulkanExample : public VulkanExampleBase {
     }
     vkCmdEndRenderPass(cmdBuffer);
 
-    copyImage(cmdBuffer, output_field[1].color.image,
-              output_field[0].color.image);
+    // copyImage(cmdBuffer, output_field[1].color.image,
+    //           output_field[0].color.image);
   }
 
   void velocityJacobiCmd(VkCommandBuffer& cmdBuffer) {
