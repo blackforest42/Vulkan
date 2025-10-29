@@ -61,6 +61,7 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorSetLayout boundary;
     VkDescriptorSetLayout jacobi;
     VkDescriptorSetLayout divergence;
+    VkDescriptorSetLayout colorPass;
   } descriptorSetLayouts_{};
 
   struct DescriptorSets {
@@ -70,6 +71,7 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorSet jacobiVelocity;
     VkDescriptorSet jacobiPressure;
     VkDescriptorSet divergence;
+    VkDescriptorSet colorPass;
   };
   std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
@@ -80,6 +82,7 @@ class VulkanExample : public VulkanExampleBase {
     VkPipeline boundary;
     VkPipeline jacobi;
     VkPipeline divergence;
+    VkPipeline colorPass;
   } pipelines_{};
 
   struct FrameBufferAttachment {
@@ -278,7 +281,7 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
             poolSizes,
-            /* max number of descriptor sets that can be allocated at once*/ 6 *
+            /* max number of descriptor sets that can be allocated at once*/ 7 *
                 MAX_CONCURRENT_FRAMES);
     VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
                                            nullptr, &descriptorPool_));
@@ -369,6 +372,26 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(
         vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr,
                                     &descriptorSetLayouts_.divergence));
+
+    // Layout: Color pass
+    setLayoutBindings = {
+        // Binding 0 : velocity field
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding id*/ 0),
+        // Binding 1 : pressure field
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding id*/ 1),
+    };
+    descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(
+        setLayoutBindings.data(),
+        static_cast<uint32_t>(setLayoutBindings.size()));
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr,
+                                    &descriptorSetLayouts_.colorPass));
 
     for (auto i = 0; i < uniformBuffers_.size(); i++) {
       // Advection
@@ -495,6 +518,25 @@ class VulkanExample : public VulkanExampleBase {
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
+
+      // Color pass
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool_, &descriptorSetLayouts_.colorPass, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
+                                               &descriptorSets_[i].colorPass));
+      writeDescriptorSets = {
+          vks::initializers::writeDescriptorSet(
+              descriptorSets_[i].colorPass,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              /*binding id*/ 0, &velocity_field_[0].descriptor),
+          vks::initializers::writeDescriptorSet(
+              descriptorSets_[i].colorPass,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              /*binding id*/ 1, &pressure_field_[0].descriptor),
+      };
+      vkUpdateDescriptorSets(device_,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
     }
   }
 
@@ -582,6 +624,15 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCI, nullptr,
                                               &pipelines_.divergence));
+
+    // Color pass pipeline
+    pipelineCI.layout = pipelineLayout_;
+    shaderStages[1] =
+        loadShader(getShadersPath() + "fluidsim/colorpass.frag.spv",
+                   VK_SHADER_STAGE_FRAGMENT_BIT);
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
+                                              &pipelineCI, nullptr,
+                                              &pipelines_.colorPass));
   }
 
   // Part B (rendering)
@@ -637,6 +688,9 @@ class VulkanExample : public VulkanExampleBase {
     }
 
     // Gradient subtraction
+
+    // Color pass
+    colorPassCmd(cmdBuffer);
 
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
@@ -872,6 +926,44 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdEndRenderPass(cmdBuffer);
   }
 
+  void colorPassCmd(VkCommandBuffer& cmdBuffer) {
+    VkClearValue clearValues{};
+    clearValues.color = {0.0f, 0.0f, 0.0f, 1.f};
+
+    VkRenderPassBeginInfo renderPassBeginInfo =
+        vks::initializers::renderPassBeginInfo();
+    renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
+    renderPassBeginInfo.framebuffer = frameBuffers_[currentBuffer_];
+    renderPassBeginInfo.renderArea.offset.x = 0;
+    renderPassBeginInfo.renderArea.offset.y = 0;
+    renderPassBeginInfo.renderArea.extent.width = width_;
+    renderPassBeginInfo.renderArea.extent.height = height_;
+    renderPassBeginInfo.clearValueCount = 1;
+    renderPassBeginInfo.pClearValues = &clearValues;
+
+    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
+                         VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
+                         VK_SUBPASS_CONTENTS_INLINE);
+    VkViewport viewport =
+        vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+
+    vkCmdBindDescriptorSets(
+        cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 1,
+        &descriptorSets_[currentBuffer_].colorPass, 0, nullptr);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      pipelines_.colorPass);
+    vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
+
+    vkCmdEndRenderPass(cmdBuffer);
+  }
+
   // Copy framebuffer color attachmebt from source to dest
   void copyImage(VkCommandBuffer& cmdBuffer, VkImage& source, VkImage& dest) {
     VkImageCopy copyRegion = {};
@@ -989,6 +1081,7 @@ class VulkanExample : public VulkanExampleBase {
       vkDestroyPipeline(device_, pipelines_.boundary, nullptr);
       vkDestroyPipeline(device_, pipelines_.divergence, nullptr);
       vkDestroyPipeline(device_, pipelines_.jacobi, nullptr);
+      vkDestroyPipeline(device_, pipelines_.colorPass, nullptr);
       vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
       vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.advection,
                                    nullptr);
@@ -997,6 +1090,8 @@ class VulkanExample : public VulkanExampleBase {
       vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.divergence,
                                    nullptr);
       vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.jacobi,
+                                   nullptr);
+      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.colorPass,
                                    nullptr);
       for (auto& buffer : uniformBuffers_) {
         buffer.advection.destroy();
