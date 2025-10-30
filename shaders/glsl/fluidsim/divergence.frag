@@ -15,10 +15,9 @@ layout (binding = 0) uniform UBO
 layout (binding = 1) uniform sampler2D vectorField;
 
 void main() {
-	vec2 coords = gl_FragCoord.xy;
-	vec4 wL = texture(vectorField, coords + vec2(-1, 0));
-	vec4 wR = texture(vectorField, coords + vec2(1, 0));
-	vec4 wB = texture(vectorField, coords + vec2(0, -1));
-	vec4 wT = texture(vectorField, coords + vec2(0, 1));
+	vec4 wL = texture(vectorField, inUV + vec2(-1, 0));
+	vec4 wR = texture(vectorField, inUV + vec2(1, 0));
+	vec4 wB = texture(vectorField, inUV + vec2(0, -1));
+	vec4 wT = texture(vectorField, inUV + vec2(0, 1));
 	outFragColor = vec4(ubo.halfRdx * ((wR.x - wL.x) + (wT.y - wB.y)));
 }

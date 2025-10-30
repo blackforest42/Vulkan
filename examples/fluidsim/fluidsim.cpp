@@ -18,13 +18,15 @@
 
 class VulkanExample : public VulkanExampleBase {
  public:
-  const uint32_t JACOBI_ITERATIONS = 1;
+  const uint32_t JACOBI_ITERATIONS = 80;
   // Inner slab offset (in pixels) for x and y axis
   const uint32_t SLAB_OFFSET = 1;
+  static constexpr float TIME_STEP{0.1f};
 
   struct AdvectionUBO {
-    glm::vec2 bufferResolution{};
-    float timestep{.1f};
+    alignas(16) glm::vec3 randomVec3;
+    alignas(8) glm::vec2 bufferResolution{};
+    alignas(4) float timestep{TIME_STEP};
   };
 
   struct BoundaryUBO {
@@ -732,6 +734,7 @@ class VulkanExample : public VulkanExampleBase {
   // B.1
   void updateUniformBuffers() {
     ubos_.advection.bufferResolution = glm::vec2(width_, height_);
+    ubos_.advection.randomVec3 = glm::vec3();
     memcpy(uniformBuffers_[currentBuffer_].advection.mapped, &ubos_.advection,
            sizeof(AdvectionUBO));
     ubos_.boundary.bufferResolution = glm::vec2(width_, height_);
@@ -899,11 +902,19 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void velocityJacobiCmd(VkCommandBuffer& cmdBuffer) {
+    ubos_.jacobi.alpha = 1.f * 1.f / (TIME_STEP);
+    ubos_.jacobi.beta = 1.0f / (4.0f + ubos_.jacobi.alpha);
+    memcpy(uniformBuffers_[currentBuffer_].boundary.mapped, &ubos_.jacobi,
+           sizeof(JacobiUBO));
     jacobiCmd(cmdBuffer, velocity_field_,
               &descriptorSets_[currentBuffer_].jacobiVelocity);
   }
 
   void pressureJacobiCmd(VkCommandBuffer& cmdBuffer) {
+    ubos_.jacobi.alpha = -(1.f * 1.f);
+    ubos_.jacobi.beta = 0.25f;
+    memcpy(uniformBuffers_[currentBuffer_].boundary.mapped, &ubos_.jacobi,
+           sizeof(JacobiUBO));
     jacobiCmd(cmdBuffer, pressure_field_,
               &descriptorSets_[currentBuffer_].jacobiPressure);
   }

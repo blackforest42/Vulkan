@@ -19,7 +19,6 @@ vec2 vector2color(vec2 vector) {
 }
 
 void main() {
-	vec2 coords = gl_FragCoord.xy;
 	vec4 texel = texture(velocityFieldTex, inUV);
 	vec2 normalized_rgb = vector2color(texel.xy);
 	outFragColor = vec4(0, 0, 0, 1);

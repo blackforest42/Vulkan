@@ -18,8 +18,6 @@ layout (binding = 2) uniform sampler2D field2; // 'b' texture
 
 
 void main() {
-	vec2 coords = gl_FragCoord.xy;
-
 	/* debug
 	vec3 black = vec3(0.0);
 	vec3 red = vec3(1.0, 0., 0.);
@@ -29,12 +27,12 @@ void main() {
 	*/
 
 	// left, right, bottom, and top x samples
-	vec4 xL = texture(field1, coords - vec2(1, 0));
-	vec4 xR = texture(field1, coords + vec2(1, 0));
-	vec4 xB = texture(field1, coords - vec2(0, 1));
-	vec4 xT = texture(field1, coords + vec2(0, 1));
+	vec4 xL = texture(field1, inUV - vec2(1, 0));
+	vec4 xR = texture(field1, inUV + vec2(1, 0));
+	vec4 xB = texture(field1, inUV - vec2(0, 1));
+	vec4 xT = texture(field1, inUV + vec2(0, 1));
 	// b sample, from center
-	vec4 bC = texture(field2, coords);
+	vec4 bC = texture(field2, inUV);
 	// evaluate Jacobi iteration
 	outFragColor = (xL + xR + xB + xT + ubo.alpha * bC) * ubo.rBeta;
 

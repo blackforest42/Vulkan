@@ -9,6 +9,7 @@ layout (location = 0) out vec4 outFragColor;
 
 layout (binding = 0) uniform UBO
 {
+	vec3 randomVec3;
     vec2 viewportResolution;
 	float timestep;
 } ubo;
@@ -23,12 +24,11 @@ float rand(vec2 co){
 
 void main() {
 	// debug
-	// outFragColor.xyz = ((vec3(rand(gl_FragCoord.xy), rand(gl_FragCoord.xz), rand(gl_FragCoord.yz))) * 100) - 50;
+	// outFragColor.xyz = ((vec3(rand(), rand(), rand())) * 100) - 50;
 	// return;
 
 	// follow the velocity field "back in time"
-	vec2 coords = gl_FragCoord.xy;
-	vec2 pos = coords - ubo.timestep * texture(field1, coords).xy;
+	vec2 pos = inUV - ubo.timestep * texture(field1, inUV).xy;
 	// interpolate and write to the output fragment
 	outFragColor = texture(field2, pos);
 
