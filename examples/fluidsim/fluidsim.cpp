@@ -18,10 +18,10 @@
 
 class VulkanExample : public VulkanExampleBase {
  public:
-  const uint32_t JACOBI_ITERATIONS = 80;
+  const uint32_t JACOBI_ITERATIONS = 1;
   // Inner slab offset (in pixels) for x and y axis
   const uint32_t SLAB_OFFSET = 1;
-  static constexpr float TIME_STEP{.01f};
+  static constexpr float TIME_STEP{.001f};
   std::array<float, 4> impulseColor{1, 1, 0};
 
   struct AdvectionUBO {
@@ -775,7 +775,7 @@ class VulkanExample : public VulkanExampleBase {
     // Gradient pipeline
     pipelineCI.layout = pipelineLayouts_.gradient;
     shaderStages[1] =
-        loadShader(getShadersPath() + "fluidsim/colorpass.frag.spv",
+        loadShader(getShadersPath() + "fluidsim/gradient.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCI, nullptr,
@@ -821,7 +821,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void OnUpdateUIOverlay(vks::UIOverlay* overlay) override {
     if (overlay->header("Settings")) {
-      overlay->sliderFloat("Impulse Radius", &ubos_.impulse.radius, 0.0, 0.1);
+      overlay->sliderFloat("Impulse Radius", &ubos_.impulse.radius, 0.0, 0.01);
       overlay->colorPicker("Impulse Color/Vector", impulseColor.data());
     }
   }

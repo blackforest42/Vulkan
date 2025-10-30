@@ -23,6 +23,8 @@ float gaussian(vec2 pos, float radius) {
 
 void main() {
 	vec2 delta_distance = inUV - ubo.epicenter;
+	vec2 impulse_vector = normalize(delta_distance);
+
 	float rad = ubo.radius;
-	outFragColor = texture(velocityField, inUV) + ubo.color.xyzz * gaussian(delta_distance, rad);
+	outFragColor = texture(velocityField, inUV) + vec4(impulse_vector, 0, 1) * gaussian(delta_distance, rad);
 }

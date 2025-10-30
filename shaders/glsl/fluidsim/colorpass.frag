@@ -21,13 +21,13 @@ vec2 vector2color(vec2 vector) {
 
 void main() {
 	vec3 texel = texture(velocityFieldTex, inUV).rgb;
-	if (texel.x > 0 || texel.y > 0) {
-		debugPrintfEXT("Negative vector: %1.2v3f", texel);
-	}
+	// if (texel.x < 0 && texel.y < 0) {
+	//	debugPrintfEXT("Negative vector: %1.2v3f", texel);
+	// }
 
-	// tone map the texel
-	vec3 mapped = vec3(1.0) - exp(-texel * 1.0f);
+	vec2 normalized = vector2color(texel.xy);
+	float blue = (abs(normalized.x) + abs(normalized.y)) / 2.f;
 
 	// drop 'blue' channel from result
-	outFragColor = vec4(mapped, 1.f);
+	outFragColor = vec4(normalized, blue, 1.f);
 }
