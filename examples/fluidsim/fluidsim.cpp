@@ -22,7 +22,7 @@ class VulkanExample : public VulkanExampleBase {
   // Inner slab offset (in pixels) for x and y axis
   const uint32_t SLAB_OFFSET = 1;
   static constexpr float TIME_STEP{0.1f};
-  bool init_vector_field = true;
+  std::array<float, 4> impulseColor{};
 
   struct AdvectionUBO {
     alignas(16) glm::vec3 randomVec3;
@@ -33,6 +33,13 @@ class VulkanExample : public VulkanExampleBase {
   struct BoundaryUBO {
     glm::vec2 bufferResolution{};
     float scale{1.f};
+  };
+
+  struct ImpulseUBO {
+    alignas(16) glm::vec3 color{1, 0, 0};
+    alignas(8) glm::vec2 epicenter{};
+    alignas(8) glm::vec2 bufferResolution{};
+    alignas(4) float radius{0.1f};
   };
 
   struct JacobiUBO {
@@ -49,6 +56,7 @@ class VulkanExample : public VulkanExampleBase {
     BoundaryUBO boundary;
     JacobiUBO jacobi;
     DivergenceUBO divergence;
+    ImpulseUBO impulse;
   } ubos_;
 
   struct UniformBuffers {
@@ -56,6 +64,7 @@ class VulkanExample : public VulkanExampleBase {
     vks::Buffer boundary;
     vks::Buffer jacobi;
     vks::Buffer divergence;
+    vks::Buffer impulse;
   };
   std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_{};
 
@@ -134,7 +143,6 @@ class VulkanExample : public VulkanExampleBase {
     VulkanExampleBase::prepare();
     prepareUniformBuffers();
     prepareOffscreen();
-    // generateRandomTexture();
     setupDescriptors();
     preparePipelines();
     prepared_ = true;
@@ -173,6 +181,14 @@ class VulkanExample : public VulkanExampleBase {
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
           &buffer.divergence, sizeof(DivergenceUBO), &ubos_.divergence));
       VK_CHECK_RESULT(buffer.divergence.map());
+
+      // Impulse
+      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.impulse, sizeof(ImpulseUBO), &ubos_.impulse));
+      VK_CHECK_RESULT(buffer.impulse.map());
     }
   }
 
@@ -739,11 +755,26 @@ class VulkanExample : public VulkanExampleBase {
     ubos_.advection.randomVec3 = glm::vec3();
     memcpy(uniformBuffers_[currentBuffer_].advection.mapped, &ubos_.advection,
            sizeof(AdvectionUBO));
+
     ubos_.boundary.bufferResolution = glm::vec2(width_, height_);
     memcpy(uniformBuffers_[currentBuffer_].boundary.mapped, &ubos_.boundary,
            sizeof(BoundaryUBO));
+
+    ubos_.impulse.bufferResolution = glm::vec2(width_, height_);
+    ubos_.impulse.color =
+        glm::vec3(impulseColor[0], impulseColor[1], impulseColor[2]);
+    memcpy(uniformBuffers_[currentBuffer_].impulse.mapped, &ubos_.impulse,
+           sizeof(ImpulseUBO));
   }
 
+  void OnUpdateUIOverlay(vks::UIOverlay* overlay) override {
+    if (overlay->header("Settings")) {
+      overlay->sliderFloat("Impulse Radius", &ubos_.impulse.radius, 0.0, 1.0);
+      overlay->colorPicker("Impulse Color/Vector", impulseColor.data());
+    }
+  }
+
+  // B.2
   void buildCommandBuffer() {
     VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
 
@@ -751,32 +782,13 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::commandBufferBeginInfo();
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
-    // init Randomize vector field
-    if (init_vector_field) {
-      // vks::Texture2D result;
-      // std::random_device rndDevice;
-      // std::default_random_engine rndEngine(benchmark.active ? 0 :
-      // rndDevice()); std::uniform_int_distribution<> rndDist(/*min*/ -100,
-      // /*max*/ 100); const size_t bufferSize = width_ * height_ * 4;
-      // std::vector<uint8_t> texture(bufferSize);
-      // for (size_t j = 0; j < width_ * height_; j++) {
-      //   texture[j * 4] = rndDist(rndEngine);
-      //   texture[j * 4 + 1] = rndDist(rndEngine);
-      //   texture[j * 4 + 2] = rndDist(rndEngine);
-      //   texture[j * 4 + 3] = 255;
-      // }
-      // result.fromBuffer(texture.data(), bufferSize,
-      //                   VK_FORMAT_R32G32B32A32_SFLOAT, width_, height_,
-      //                   vulkanDevice_, queue_, VK_FILTER_NEAREST);
-      // copyImage(cmdBuffer, result.image, velocity_field_[0].color.image);
-      // init_vector_field = false;
-    }
-
     // Advection
     velocityBoundaryCmd(cmdBuffer);
     advectionCmd(cmdBuffer);
     copyImage(cmdBuffer, velocity_field_[1].color.image,
               velocity_field_[0].color.image);
+
+    // Impulse
 
     // Jacobi: Viscous Diffusion
     for (uint32_t i = 0; i < JACOBI_ITERATIONS; i++) {
