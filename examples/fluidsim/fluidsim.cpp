@@ -21,8 +21,8 @@ class VulkanExample : public VulkanExampleBase {
   const uint32_t JACOBI_ITERATIONS = 1;
   // Inner slab offset (in pixels) for x and y axis
   const uint32_t SLAB_OFFSET = 1;
-  static constexpr float TIME_STEP{.001f};
-  std::array<float, 4> impulseColor{1, 1, 0};
+  static constexpr float TIME_STEP{.0001f};
+  bool addImpulse = false;
 
   struct AdvectionUBO {
     alignas(16) glm::vec3 randomVec3;
@@ -36,8 +36,7 @@ class VulkanExample : public VulkanExampleBase {
   };
 
   struct ImpulseUBO {
-    alignas(16) glm::vec3 color{};
-    alignas(8) glm::vec2 epicenter{0.5, 0.5};
+    alignas(8) glm::vec2 epicenter{};
     alignas(8) glm::vec2 bufferResolution{};
     alignas(4) float radius{0.001f};
   };
@@ -813,8 +812,6 @@ class VulkanExample : public VulkanExampleBase {
            sizeof(BoundaryUBO));
 
     ubos_.impulse.bufferResolution = glm::vec2(width_, height_);
-    ubos_.impulse.color =
-        glm::vec3(impulseColor[0], impulseColor[1], impulseColor[2]);
     memcpy(uniformBuffers_[currentBuffer_].impulse.mapped, &ubos_.impulse,
            sizeof(ImpulseUBO));
   }
@@ -822,7 +819,6 @@ class VulkanExample : public VulkanExampleBase {
   void OnUpdateUIOverlay(vks::UIOverlay* overlay) override {
     if (overlay->header("Settings")) {
       overlay->sliderFloat("Impulse Radius", &ubos_.impulse.radius, 0.0, 0.01);
-      overlay->colorPicker("Impulse Color/Vector", impulseColor.data());
     }
   }
 
@@ -841,9 +837,12 @@ class VulkanExample : public VulkanExampleBase {
               velocity_field_[0].color.image);
 
     // Impulse
-    impulseCmd(cmdBuffer);
-    copyImage(cmdBuffer, velocity_field_[1].color.image,
-              velocity_field_[0].color.image);
+    if (addImpulse) {
+      impulseCmd(cmdBuffer);
+      copyImage(cmdBuffer, velocity_field_[1].color.image,
+                velocity_field_[0].color.image);
+      addImpulse = false;
+    }
 
     // Jacobi: Viscous Diffusion
     for (uint32_t i = 0; i < JACOBI_ITERATIONS; i++) {
@@ -1333,6 +1332,15 @@ class VulkanExample : public VulkanExampleBase {
     frameBuf->descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     frameBuf->descriptor.imageView = frameBuf->color.view;
     frameBuf->descriptor.sampler = offscreenPass_.sampler;
+  }
+
+  void mouseMoved(double x, double y, bool& handled) override {
+    if (mouseState.buttons.left) {
+      ubos_.impulse.epicenter = glm::vec2((float)x, (float)y);
+      handled = true;
+      addImpulse = true;
+      return;
+    }
   }
 
   ~VulkanExample() {

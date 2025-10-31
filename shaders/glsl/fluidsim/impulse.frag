@@ -9,9 +9,8 @@ layout (location = 0) out vec4 outFragColor;
 
 layout (binding = 0) uniform UBO
 {
-	vec3 color;
     vec2 epicenter;
-	vec2 viewportResolution;
+	vec2 bufferRes;
 	float radius;
 } ubo;
 
@@ -22,7 +21,10 @@ float gaussian(vec2 pos, float radius) {
 }
 
 void main() {
-	vec2 delta_distance = inUV - ubo.epicenter;
+	// debug
+	// debugPrintfEXT("impulse frag shader called");
+
+	vec2 delta_distance = inUV - ubo.epicenter / ubo.bufferRes;
 	vec2 impulse_vector = normalize(delta_distance);
 
 	float rad = ubo.radius;
