@@ -18,10 +18,10 @@
 
 class VulkanExample : public VulkanExampleBase {
  public:
-  const uint32_t JACOBI_ITERATIONS = 12;
+  const uint32_t JACOBI_ITERATIONS = 80;
   // Inner slab offset (in pixels) for x and y axis
-  const uint32_t SLAB_OFFSET = 1;
-  static constexpr float TIME_STEP{.0001};
+  const uint32_t SLAB_OFFSET = 10;
+  static constexpr float TIME_STEP{.01};
   bool addImpulse = false;
 
   struct AdvectionUBO {
@@ -876,12 +876,12 @@ class VulkanExample : public VulkanExampleBase {
     }
 
     // Jacobi: Viscous Diffusion
-    for (uint32_t i = 0; i < JACOBI_ITERATIONS; i++) {
-      velocityBoundaryCmd(cmdBuffer);
-      velocityJacobiCmd(cmdBuffer);
-      copyImage(cmdBuffer, velocity_field_[1].color.image,
-                velocity_field_[0].color.image);
-    }
+    // for (uint32_t i = 0; i < JACOBI_ITERATIONS; i++) {
+    //  velocityBoundaryCmd(cmdBuffer);
+    //  velocityJacobiCmd(cmdBuffer);
+    //  copyImage(cmdBuffer, velocity_field_[1].color.image,
+    //            velocity_field_[0].color.image);
+    //}
 
     // Divergence
     divergenceCmd(cmdBuffer);

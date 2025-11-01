@@ -1,10 +1,7 @@
-Oct 27
-- added impulse
-- nothing looks "correct" lots of noise in velocity field when jacobi iter > 0
-	- jacobi <= 11, X's
-	- jacobi > 11, dippin dots
+Oct 31
 - try adding "ink density"
 - add a toggle in imgui to switch views between multiple texture maps
+- tested fluid-sim.js on webGPU, jacboi iter with velocity field is wrong
 
 
 ### Fluid sim
