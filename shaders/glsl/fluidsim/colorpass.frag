@@ -8,9 +8,14 @@ layout (location = 0) in vec2 inUV;
 layout (location = 0) out vec4 outFragColor;
 
 
-layout (binding = 0) uniform sampler2D velocityFieldTex;
-layout (binding = 1) uniform sampler2D pressureFieldTex;
-layout (binding = 2) uniform sampler2D colorFieldTex;
+layout (binding = 0) uniform UBO
+{
+	int chooseTextureMap;
+} ubo;
+
+layout (binding = 1) uniform sampler2D colorFieldTex;
+layout (binding = 2) uniform sampler2D velocityFieldTex;
+layout (binding = 3) uniform sampler2D pressureFieldTex;
 
 const float PI = 3.14159265358979323846;
 
@@ -43,13 +48,22 @@ vec3 vector2color(vec2 vector) {
 }
 
 void main() {
-	vec3 texel = texture(colorFieldTex, inUV).rgb;
-	outFragColor = vec4(texel, 1.f);
-	return;
-
 	vec3 result;
-
-	result = vector2color(texel.xy);
+	vec4 texel;
+	switch (ubo.chooseTextureMap) {
+		case 0:
+			result = texture(colorFieldTex, inUV).rgb;
+			break;
+		case 1:
+			texel = texture(velocityFieldTex, inUV);
+			result = vector2color(texel.xy);
+			break;
+		default: {
+			texel = texture(pressureFieldTex, inUV);
+			result = vector2color(texel.xy);
+			break;
+		}
+	}
 
 	// drop 'blue' channel from result
 	outFragColor = vec4(result, 1.f);
