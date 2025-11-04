@@ -1,8 +1,9 @@
 Nov 3
 
 TODO: 
-- velocity field viewer with arrows
-	- look at descriptorindexing.cpp on how to create buffers for vertices
+- velocity field arrow
+	- finish vertex instancing and spacing
+	- finish vertex buffer creation
 - init velocity field e.g. (u, v) = sin(y), sin(x)
 - add different colors to checkerboard
 - bug: velocity color and pressure maps are always the same value at the borders

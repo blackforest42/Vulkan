@@ -24,7 +24,9 @@ class VulkanExample : public VulkanExampleBase {
   static constexpr float TIME_STEP{1.f / 60};
 
   struct Vertex {
-    glm::vec2 pos[3];
+    glm::vec2 pos;
+    Vertex() = default;
+    Vertex(float x, float y) : pos(x, y) {};
 
     static VkVertexInputBindingDescription getBindingDescription() {
       VkVertexInputBindingDescription bindingDescription{};
@@ -46,10 +48,7 @@ class VulkanExample : public VulkanExampleBase {
       return attributeDescriptions;
     }
   };
-
-  struct Triangle {
-    std::array<Vertex, 3> indices;
-  };
+  std::vector<VulkanExample::Vertex> triangle_vertices_;
 
   struct ColorInitUBO {
     alignas(8) glm::vec2 bufferResolution{};
@@ -110,6 +109,8 @@ class VulkanExample : public VulkanExampleBase {
     vks::Buffer colorPass;
   };
   std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_{};
+
+  vks::Buffer vertex_buffer_;
 
   struct {
     VkDescriptorSetLayout colorInit;
@@ -190,7 +191,6 @@ class VulkanExample : public VulkanExampleBase {
   bool shouldInitColorField_ = true;
   std::vector<std::string> texture_viewer_selection = {"color", "velocity",
                                                        "pressure"};
-  std::vector<Triangle> triangles_;
 
   VulkanExample() {
     title = "Fluid Simulation";
@@ -205,10 +205,33 @@ class VulkanExample : public VulkanExampleBase {
   void prepare() override {
     VulkanExampleBase::prepare();
     prepareUniformBuffers();
+    prepareVertices();
     prepareOffscreen();
     setupDescriptors();
     preparePipelines();
     prepared_ = true;
+  }
+
+  void prepareVertices() {
+    triangle_vertices_.clear();
+    int arrow_spacing = 30;
+    for (int y = 0; y < height_; y += arrow_spacing) {
+      for (int x = 0; x < width_; x += arrow_spacing) {
+        for (int i = 0; i < 3; i++) {
+          triangle_vertices_.emplace_back(2.f * x / width_ - 1,
+                                          2.f * y / height_ - 1);
+        }
+      }
+    }
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = sizeof(Vertex) * triangle_vertices_.size();
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (vkCreateBuffer(device_, &bufferInfo, nullptr, &vertex_buffer_.buffer) !=
+        VK_SUCCESS) {
+      throw std::runtime_error("failed to create vertex buffer!");
+    }
   }
 
   void prepareUniformBuffers() {
@@ -1602,12 +1625,19 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void windowResized() override {
+    destroyVertexBuffer();
     destroyOffscreenPass();
     prepareOffscreen();
     vkResetDescriptorPool(device_, descriptorPool_, 0);
     setupDescriptors();
+    prepareVertices();
+
     shouldInitColorField_ = true;
     resized_ = false;
+  }
+
+  void destroyVertexBuffer() {
+    vkDestroyBuffer(device_, vertex_buffer_.buffer, nullptr);
   }
 
   void destroyOffscreenPass() {
