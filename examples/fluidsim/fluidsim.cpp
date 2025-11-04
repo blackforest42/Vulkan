@@ -22,10 +22,34 @@ class VulkanExample : public VulkanExampleBase {
   // Inner slab offset (in pixels) for x and y axis
   const uint32_t SLAB_OFFSET = 10;
   static constexpr float TIME_STEP{1.f / 60};
-  bool addImpulse = false;
-  bool shouldInitColorField_ = true;
-  std::vector<std::string> texture_viewer_selection = {"color", "velocity",
-                                                       "pressure"};
+
+  struct Vertex {
+    glm::vec2 pos[3];
+
+    static VkVertexInputBindingDescription getBindingDescription() {
+      VkVertexInputBindingDescription bindingDescription{};
+      bindingDescription.binding = 0;
+      bindingDescription.stride = sizeof(Vertex);
+      bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+      return bindingDescription;
+    }
+
+    static std::array<VkVertexInputAttributeDescription, 1>
+    getAttributeDescriptions() {
+      std::array<VkVertexInputAttributeDescription, 1> attributeDescriptions{};
+      attributeDescriptions[0].binding = 0;
+      attributeDescriptions[0].location = 0;
+      attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+      attributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+      return attributeDescriptions;
+    }
+  };
+
+  struct Triangle {
+    std::array<Vertex, 3> indices;
+  };
 
   struct ColorInitUBO {
     alignas(8) glm::vec2 bufferResolution{};
@@ -96,6 +120,7 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorSetLayout divergence;
     VkDescriptorSetLayout gradient;
     VkDescriptorSetLayout colorPass;
+    VkDescriptorSetLayout velocityArrows;
   } descriptorSetLayouts_{};
 
   struct DescriptorSets {
@@ -111,6 +136,7 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorSet divergence;
     VkDescriptorSet gradient;
     VkDescriptorSet colorPass;
+    VkDescriptorSet velocityArrows;
   };
   std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
@@ -123,6 +149,7 @@ class VulkanExample : public VulkanExampleBase {
     VkPipelineLayout divergence;
     VkPipelineLayout gradient;
     VkPipelineLayout colorPass;
+    VkPipelineLayout velocityArrows;
   } pipelineLayouts_{};
 
   struct {
@@ -134,6 +161,7 @@ class VulkanExample : public VulkanExampleBase {
     VkPipeline divergence;
     VkPipeline gradient;
     VkPipeline colorPass;
+    VkPipeline velocityArrows;
   } pipelines_{};
 
   struct FrameBufferAttachment {
@@ -157,9 +185,15 @@ class VulkanExample : public VulkanExampleBase {
   std::array<FrameBuffer, 2> velocity_field_{};
   std::array<FrameBuffer, 2> pressure_field_{};
   FrameBuffer divergence_field_{};  // Scalar valued
+  // feedback control for mouse click + movement
+  bool addImpulse_ = false;
+  bool shouldInitColorField_ = true;
+  std::vector<std::string> texture_viewer_selection = {"color", "velocity",
+                                                       "pressure"};
+  std::vector<Triangle> triangles_;
 
   VulkanExample() {
-    title = "Blackhole";
+    title = "Fluid Simulation";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -15.0f));
     camera_.setRotation(glm::vec3(0.0f));
@@ -372,7 +406,7 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorPoolCreateInfo(
             poolSizes,
             /* max number of descriptor sets that can be allocated at once*/
-            12 * MAX_CONCURRENT_FRAMES);
+            13 * MAX_CONCURRENT_FRAMES);
     VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
                                            nullptr, &descriptorPool_));
     // Layout: Color init
@@ -839,6 +873,11 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr,
                                            &pipelineLayouts_.colorPass));
 
+    pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(
+        &descriptorSetLayouts_.velocityArrows, 1);
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr,
+                                           &pipelineLayouts_.velocityArrows));
+
     // Pipeline
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
         vks::initializers::pipelineInputAssemblyStateCreateInfo(
@@ -893,7 +932,7 @@ class VulkanExample : public VulkanExampleBase {
                                               &pipelineCI, nullptr,
                                               &pipelines_.advection));
 
-    // Color init Pipeline
+    // Color init pipeline
     pipelineCI.layout = pipelineLayouts_.colorInit;
     shaderStages[1] =
         loadShader(getShadersPath() + "fluidsim/colorinit.frag.spv",
@@ -960,6 +999,28 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCI, nullptr,
                                               &pipelines_.colorPass));
+
+    // Arrow vector pipeline
+    auto bindingDescription = Vertex::getBindingDescription();
+    auto attributeDescription = Vertex::getAttributeDescriptions();
+    VkPipelineVertexInputStateCreateInfo vertexInputCI{};
+    vertexInputCI.vertexBindingDescriptionCount = 1;
+    vertexInputCI.vertexAttributeDescriptionCount =
+        static_cast<uint32_t>(attributeDescription.size());
+    vertexInputCI.pVertexBindingDescriptions = &bindingDescription;
+    vertexInputCI.pVertexAttributeDescriptions = attributeDescription.data();
+
+    pipelineCI.pVertexInputState = &vertexInputCI;
+    shaderStages[0] =
+        loadShader(getShadersPath() + "fluidsim/velocityarrows.vert.spv",
+                   VK_SHADER_STAGE_VERTEX_BIT);
+    pipelineCI.layout = pipelineLayouts_.velocityArrows;
+    shaderStages[1] =
+        loadShader(getShadersPath() + "fluidsim/velocityarrows.frag.spv",
+                   VK_SHADER_STAGE_FRAGMENT_BIT);
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
+                                              &pipelineCI, nullptr,
+                                              &pipelines_.velocityArrows));
   }
 
   // Part B (rendering)
@@ -1036,11 +1097,11 @@ class VulkanExample : public VulkanExampleBase {
               velocity_field_[0].color.image);
 
     // Impulse
-    if (addImpulse) {
+    if (addImpulse_) {
       impulseCmd(cmdBuffer);
       copyImage(cmdBuffer, velocity_field_[1].color.image,
                 velocity_field_[0].color.image);
-      addImpulse = false;
+      addImpulse_ = false;
     }
 
     // Divergence
@@ -1634,7 +1695,7 @@ class VulkanExample : public VulkanExampleBase {
     if (mouseState.buttons.left) {
       ubos_.impulse.epicenter = glm::vec2((float)x, (float)y);
       handled = true;
-      addImpulse = true;
+      addImpulse_ = true;
       return;
     }
   }

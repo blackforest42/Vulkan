@@ -1,15 +1,17 @@
 Nov 3
-- initalized color map done
-- texture viewer done
-- advected velocity with (color/velocity) in two different stages
-- fixed pressure field always black bug!
 
 TODO: 
+- velocity field viewer with arrows
+	- look at descriptorindexing.cpp on how to create buffers for vertices
 - init velocity field e.g. (u, v) = sin(y), sin(x)
-- velocity field viewer with arrows?
 - add different colors to checkerboard
-- bug, velocity color and pressure maps are always the same value at the borders
+- bug: velocity color and pressure maps are always the same value at the borders
 
+DONE:
+- initalized color map (checker board)
+- texture map viewer combo box in UI
+- advected velocity with (color/velocity) in two different stages
+- fixed pressure field always black bug!
 
 
 ### Fluid sim

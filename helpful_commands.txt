@@ -1,5 +1,4 @@
 # Compile shaders
-
 glslc simple.vert -o simple.vert.spv
 glslc colorinit.frag -o colorinit.frag.spv
 glslc advection.frag -o advection.frag.spv
@@ -9,6 +8,8 @@ glslc divergence.frag -o divergence.frag.spv
 glslc gradient.frag -o gradient.frag.spv
 glslc colorpass.frag -o colorpass.frag.spv
 glslc impulse.frag -o impulse.frag.spv
+glslc velocityarrows.vert -o velocityarrows.vert.spv
+glslc velocityarrows.frag -o velocityarrows.frag.spv
 
 
 # Use `toktx` to create a .ktx cubemap from 6 .png files
