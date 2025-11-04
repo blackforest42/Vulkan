@@ -1,7 +1,14 @@
-Oct 31
-- add a color map
-- add a toggle in imgui to switch views between multiple texture maps
-- tested fluid-sim.js on webGPU, jacboi iter with velocity field is wrong
+Nov 3
+- initalized color map done
+- texture viewer done
+- advected velocity with (color/velocity) in two different stages
+- fixed pressure field always black bug!
+
+TODO: 
+- init velocity field e.g. (u, v) = sin(y), sin(x)
+- velocity field viewer with arrows?
+- add different colors to checkerboard
+
 
 
 ### Fluid sim
