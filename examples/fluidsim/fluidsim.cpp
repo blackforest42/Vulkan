@@ -25,8 +25,9 @@ class VulkanExample : public VulkanExampleBase {
 
   struct Vertex {
     glm::vec2 pos;
+    glm::vec2 translation;
     Vertex() = default;
-    Vertex(float x, float y) : pos(x, y) {};
+    Vertex(glm::vec2 _p, glm::vec2 _t) : pos(_p), translation(_t) {}
 
     static VkVertexInputBindingDescription getBindingDescription() {
       VkVertexInputBindingDescription bindingDescription{};
@@ -37,13 +38,18 @@ class VulkanExample : public VulkanExampleBase {
       return bindingDescription;
     }
 
-    static std::array<VkVertexInputAttributeDescription, 1>
+    static std::array<VkVertexInputAttributeDescription, 2>
     getAttributeDescriptions() {
-      std::array<VkVertexInputAttributeDescription, 1> attributeDescriptions{};
+      std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
       attributeDescriptions[0].binding = 0;
       attributeDescriptions[0].location = 0;
       attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
       attributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+      attributeDescriptions[1].binding = 0;
+      attributeDescriptions[1].location = 1;
+      attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+      attributeDescriptions[1].offset = offsetof(Vertex, translation);
 
       return attributeDescriptions;
     }
@@ -87,6 +93,8 @@ class VulkanExample : public VulkanExampleBase {
     alignas(4) int chooseDisplayTexture{0};
   };
 
+  struct VelocityArrowsUBO {};
+
   struct {
     ColorInitUBO colorInit;
     AdvectionUBO advection;
@@ -96,6 +104,7 @@ class VulkanExample : public VulkanExampleBase {
     DivergenceUBO divergence;
     GradientUBO gradient;
     ColorPassUBO colorPass;
+    VelocityArrowsUBO velocityArrows;
   } ubos_;
 
   struct UniformBuffers {
@@ -107,6 +116,7 @@ class VulkanExample : public VulkanExampleBase {
     vks::Buffer divergence;
     vks::Buffer gradient;
     vks::Buffer colorPass;
+    vks::Buffer velocityArrows;
   };
   std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_{};
 
@@ -214,24 +224,28 @@ class VulkanExample : public VulkanExampleBase {
 
   void prepareVertices() {
     triangle_vertices_.clear();
+    const std::array<glm::vec2, 3> triangle = {
+        glm::vec2(0.0f, 0.2f), glm::vec2(1.0f, 0.f), glm::vec2(0.0f, -.2f)};
+
     int arrow_spacing = 30;
-    for (int y = 0; y < height_; y += arrow_spacing) {
-      for (int x = 0; x < width_; x += arrow_spacing) {
+    for (int y = arrow_spacing / 2.f; y < height_; y += arrow_spacing) {
+      for (int x = arrow_spacing / 2.f; x < width_; x += arrow_spacing) {
         for (int i = 0; i < 3; i++) {
-          triangle_vertices_.emplace_back(2.f * x / width_ - 1,
-                                          2.f * y / height_ - 1);
+          triangle_vertices_.emplace_back(
+              triangle[i],
+              glm::vec2(2.f * x / width_ - 1, 2.f * y / height_ - 1));
         }
       }
     }
     VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = sizeof(Vertex) * triangle_vertices_.size();
-    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    if (vkCreateBuffer(device_, &bufferInfo, nullptr, &vertex_buffer_.buffer) !=
-        VK_SUCCESS) {
-      throw std::runtime_error("failed to create vertex buffer!");
-    }
+    VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        &vertex_buffer_,
+        triangle_vertices_.size() * sizeof(VulkanExample::Vertex),
+        triangle_vertices_.data()));
+    VK_CHECK_RESULT(vertex_buffer_.map());
   }
 
   void prepareUniformBuffers() {
@@ -299,6 +313,15 @@ class VulkanExample : public VulkanExampleBase {
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
           &buffer.colorPass, sizeof(ColorPassUBO), &ubos_.colorPass));
       VK_CHECK_RESULT(buffer.colorPass.map());
+
+      // Velocity arrows
+      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.velocityArrows, sizeof(VelocityArrowsUBO),
+          &ubos_.velocityArrows));
+      VK_CHECK_RESULT(buffer.velocityArrows.map());
     }
   }
 
@@ -604,6 +627,25 @@ class VulkanExample : public VulkanExampleBase {
         vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr,
                                     &descriptorSetLayouts_.colorPass));
 
+    // Layout: Velocity Arrows
+    setLayoutBindings = {
+        // Binding 0 : Uniform
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT,
+            /*binding id*/ 0),
+        // Binding 1 : Velocity field texture map
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_VERTEX_BIT,
+            /*binding id*/ 1),
+    };
+    descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(
+        setLayoutBindings.data(),
+        static_cast<uint32_t>(setLayoutBindings.size()));
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr,
+                                    &descriptorSetLayouts_.velocityArrows));
+
     // Descriptor Sets
     for (auto i = 0; i < uniformBuffers_.size(); i++) {
       // Color Init
@@ -851,6 +893,25 @@ class VulkanExample : public VulkanExampleBase {
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
+
+      // Velocity arrows
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool_, &descriptorSetLayouts_.velocityArrows, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device_, &allocInfo, &descriptorSets_[i].velocityArrows));
+      writeDescriptorSets = {
+          vks::initializers::writeDescriptorSet(
+              descriptorSets_[i].velocityArrows,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+              /*binding id*/ 0, &uniformBuffers_[i].velocityArrows.descriptor),
+          vks::initializers::writeDescriptorSet(
+              descriptorSets_[i].velocityArrows,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              /*binding id*/ 1, &velocity_field_[0].descriptor),
+      };
+      vkUpdateDescriptorSets(device_,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
     }
   }
 
@@ -1087,6 +1148,9 @@ class VulkanExample : public VulkanExampleBase {
 
     memcpy(uniformBuffers_[currentBuffer_].colorPass.mapped, &ubos_.colorPass,
            sizeof(ColorInitUBO));
+
+    memcpy(uniformBuffers_[currentBuffer_].velocityArrows.mapped,
+           &ubos_.velocityArrows, sizeof(VelocityArrowsUBO));
   }
 
   void OnUpdateUIOverlay(vks::UIOverlay* overlay) override {
@@ -1152,6 +1216,8 @@ class VulkanExample : public VulkanExampleBase {
 
     // Color pass
     colorPassCmd(cmdBuffer);
+
+    velocityArrowsCmd(cmdBuffer);
 
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
@@ -1582,6 +1648,58 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       pipelines_.colorPass);
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
+
+    // IMPORTANT: This barrier is to serialize WRITES BEFORE READS
+    {
+      VkMemoryBarrier memBarrier = {};
+      memBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+      memBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+      memBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                           VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
+                           nullptr, 0, nullptr);
+    }
+    vkCmdEndRenderPass(cmdBuffer);
+  }
+
+  void velocityArrowsCmd(VkCommandBuffer& cmdBuffer) {
+    VkClearValue clearValues{};
+    clearValues.color = {0.f, 0.0f, 0.0f, 0.f};
+
+    VkRenderPassBeginInfo renderPassBeginInfo =
+        vks::initializers::renderPassBeginInfo();
+    renderPassBeginInfo.renderPass = renderPass_;
+    renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+    renderPassBeginInfo.renderArea.offset.x = 0;
+    renderPassBeginInfo.renderArea.offset.y = 0;
+    renderPassBeginInfo.renderArea.extent.width = width_;
+    renderPassBeginInfo.renderArea.extent.height = height_;
+    renderPassBeginInfo.clearValueCount = 1;
+    renderPassBeginInfo.pClearValues = &clearValues;
+
+    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
+                         VK_SUBPASS_CONTENTS_INLINE);
+    VkViewport viewport =
+        vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            pipelineLayouts_.velocityArrows, 0, 1,
+                            &descriptorSets_[currentBuffer_].velocityArrows, 0,
+                            nullptr);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      pipelines_.velocityArrows);
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertex_buffer_.buffer, offsets);
+
+    vkCmdDraw(cmdBuffer, static_cast<uint32_t>(triangle_vertices_.size()), 1, 0,
+              0);
     drawUI(cmdBuffer);
 
     // IMPORTANT: This barrier is to serialize WRITES BEFORE READS

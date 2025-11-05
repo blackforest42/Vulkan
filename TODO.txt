@@ -7,6 +7,7 @@ TODO:
 - init velocity field e.g. (u, v) = sin(y), sin(x)
 - add different colors to checkerboard
 - bug: velocity color and pressure maps are always the same value at the borders
+- bug: screen render pass is set to clear screen. fix is to render color pass to another offscreen fb, then draw arrows on that
 
 DONE:
 - initalized color map (checker board)
