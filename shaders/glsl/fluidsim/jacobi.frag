@@ -14,8 +14,8 @@ layout (binding = 0) uniform UBO
 	float rBeta;
 } ubo;
 
-layout (binding = 1) uniform sampler2D field1; // 'x' texture
-layout (binding = 2) uniform sampler2D field2; // 'b' texture
+layout (binding = 1) uniform sampler2D pressureTex;
+layout (binding = 2) uniform sampler2D divergenceTex;
 
 
 void main() {
@@ -25,13 +25,13 @@ void main() {
 
 
 	// left, right, bottom, and top x samples
-	vec4 xL = texture(field1, inUV - vec2(du, 0));
-	vec4 xR = texture(field1, inUV + vec2(du, 0));
-	vec4 xB = texture(field1, inUV - vec2(0, dv));
-	vec4 xT = texture(field1, inUV + vec2(0, dv));
+	vec4 xL = texture(pressureTex, inUV - vec2(du, 0));
+	vec4 xR = texture(pressureTex, inUV + vec2(du, 0));
+	vec4 xB = texture(pressureTex, inUV - vec2(0, dv));
+	vec4 xT = texture(pressureTex, inUV + vec2(0, dv));
 	// b sample, from center
-	vec4 bC = texture(field2, inUV);
+	vec4 bC = texture(divergenceTex, inUV);
 	// evaluate Jacobi iteration
-	outFragColor = (xL + xR + xB + xT + ubo.alpha * bC) * ubo.rBeta;
+	outFragColor = (xL + xR + xB + xT + bC) * 0.25f;
 
 }

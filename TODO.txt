@@ -6,6 +6,7 @@ TODO:
 - bug: velocity field dissapates too quickly
 - bug: ink doesn't mix properly
 - bug: velocity field doesn't mix properly
+- bug: boundary conditions are bugged
 
 DONE:
 - velocity field arrow

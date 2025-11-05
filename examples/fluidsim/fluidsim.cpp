@@ -78,8 +78,6 @@ class VulkanExample : public VulkanExampleBase {
 
   struct JacobiUBO {
     alignas(8) glm::vec2 bufferResolution{};
-    alignas(4) float alpha{};
-    alignas(4) float beta{};
   };
 
   struct DivergenceUBO {
@@ -91,6 +89,9 @@ class VulkanExample : public VulkanExampleBase {
   };
 
   struct TextureViewSwitcherUBO {
+    // 0 = color field
+    // 1 = velocity field
+    // 2 = pressure field
     alignas(4) int chooseDisplayTexture{0};
   };
 
@@ -1249,8 +1250,8 @@ class VulkanExample : public VulkanExampleBase {
     }
 
     // Advect Velocity
-    velocityBoundaryCmd(cmdBuffer);
     advectVelocityCmd(cmdBuffer);
+    velocityBoundaryCmd(cmdBuffer);
     copyImage(cmdBuffer, velocity_field_[1].color.image,
               velocity_field_[0].color.image);
 
@@ -1267,21 +1268,21 @@ class VulkanExample : public VulkanExampleBase {
 
     // Jacobi Iteration: Pressure
     for (uint32_t i = 0; i < JACOBI_ITERATIONS; i++) {
-      pressureBoundaryCmd(cmdBuffer);
       pressureJacobiCmd(cmdBuffer);
+      pressureBoundaryCmd(cmdBuffer);
       copyImage(cmdBuffer, pressure_field_[1].color.image,
                 pressure_field_[0].color.image);
     }
 
     // Gradient subtraction
-    velocityBoundaryCmd(cmdBuffer);
     gradientSubtractionCmd(cmdBuffer);
+    velocityBoundaryCmd(cmdBuffer);
     copyImage(cmdBuffer, velocity_field_[1].color.image,
               velocity_field_[0].color.image);
 
     // Advect Color
-    colorBoundaryCmd(cmdBuffer);
     advectColorCmd(cmdBuffer);
+    colorBoundaryCmd(cmdBuffer);
     copyImage(cmdBuffer, color_field_[1].color.image,
               color_field_[0].color.image);
 
@@ -1536,8 +1537,6 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void pressureJacobiCmd(VkCommandBuffer& cmdBuffer) {
-    ubos_.jacobi.alpha = -(1.f * 1.f);
-    ubos_.jacobi.beta = 0.25f;
     memcpy(uniformBuffers_[currentBuffer_].boundary.mapped, &ubos_.jacobi,
            sizeof(JacobiUBO));
     jacobiCmd(cmdBuffer, pressure_field_,
