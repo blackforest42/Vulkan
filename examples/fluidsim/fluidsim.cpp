@@ -1792,7 +1792,7 @@ class VulkanExample : public VulkanExampleBase {
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();
     renderPassBeginInfo.renderPass = renderPass_;
-    renderPassBeginInfo.framebuffer = frameBuffers_[currentBuffer_];
+    renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
     renderPassBeginInfo.renderArea.offset.x = 0;
     renderPassBeginInfo.renderArea.offset.y = 0;
     renderPassBeginInfo.renderArea.extent.width = width_;

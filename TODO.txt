@@ -1,19 +1,17 @@
 Nov 3
 
 TODO: 
-- velocity field arrow
-	- finish vertex instancing and spacing
-	- finish vertex buffer creation
+- create a toggle in the UI to overlay velocity field on current texture view
 - init velocity field e.g. (u, v) = sin(y), sin(x)
 - add different colors to checkerboard
 - bug: velocity color and pressure maps are always the same value at the borders
-- bug: screen render pass is set to clear screen. fix is to render color pass to another offscreen fb, then draw arrows on that
 
 DONE:
-- initalized color map (checker board)
-- texture map viewer combo box in UI
-- advected velocity with (color/velocity) in two different stages
-- fixed pressure field always black bug!
+- velocity field arrow
+	- finish vertex instancing and spacing
+	- finish vertex buffer creation
+- bug fixed: render color pass to another offscreen fb, then draw arrows on that
+
 
 
 ### Fluid sim
