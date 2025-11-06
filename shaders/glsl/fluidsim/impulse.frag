@@ -11,6 +11,7 @@ layout (binding = 0) uniform UBO
 {
     vec2 epicenter;
 	vec2 bufferRes;
+    vec2 dxdy;
 	float radius;
 } ubo;
 
@@ -23,10 +24,13 @@ float gaussian(vec2 pos, float radius) {
 void main() {
 	// debug
 	// debugPrintfEXT("impulse frag shader called");
+	vec2 dxdy = ubo.dxdy / ubo.bufferRes;
+	float dx = dxdy.x;
+	float dy = dxdy.y;
 
 	vec2 delta_distance = inUV - ubo.epicenter / ubo.bufferRes;
-	vec2 impulse_vector = normalize(delta_distance);
 
 	float rad = ubo.radius;
-	outFragColor = texture(velocityField, inUV) + vec4(impulse_vector, 0, 1) * gaussian(delta_distance, rad);
+	outFragColor = texture(velocityField, inUV) + 
+		vec4(-10 * dxdy.x, -10 * dxdy.y, 0, 1) * gaussian(delta_distance, rad);
 }

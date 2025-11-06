@@ -20,7 +20,7 @@ class VulkanExample : public VulkanExampleBase {
  public:
   const uint32_t JACOBI_ITERATIONS = 100;
   // Inner slab offset (in pixels) for x and y axis
-  const uint32_t SLAB_OFFSET = 10;
+  const uint32_t SLAB_OFFSET = 2;
   static constexpr float TIME_STEP{1.f / 600};
 
   struct Vertex {
@@ -73,6 +73,7 @@ class VulkanExample : public VulkanExampleBase {
   struct ImpulseUBO {
     alignas(8) glm::vec2 epicenter{};
     alignas(8) glm::vec2 bufferResolution{};
+    alignas(8) glm::vec2 dxdy{};
     alignas(4) float radius{0.001f};
   };
 
@@ -1422,10 +1423,10 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::renderPassBeginInfo();
     renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
     renderPassBeginInfo.framebuffer = velocity_field_[1].framebuffer;
-    renderPassBeginInfo.renderArea.offset.x = 0;
-    renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.renderArea.extent.width = width_;
-    renderPassBeginInfo.renderArea.extent.height = height_;
+    renderPassBeginInfo.renderArea.offset.x = SLAB_OFFSET;
+    renderPassBeginInfo.renderArea.offset.y = SLAB_OFFSET;
+    renderPassBeginInfo.renderArea.extent.width = width_ - 2 * SLAB_OFFSET;
+    renderPassBeginInfo.renderArea.extent.height = height_ - 2 * SLAB_OFFSET;
     renderPassBeginInfo.clearValueCount = 1;
     renderPassBeginInfo.pClearValues = &clearValues;
 
@@ -1972,6 +1973,9 @@ class VulkanExample : public VulkanExampleBase {
 
   void mouseMoved(double x, double y, bool& handled) override {
     if (mouseState.buttons.left) {
+      float dx = mouseState.position.x - x;
+      float dy = mouseState.position.y - y;
+      ubos_.impulse.dxdy = glm::vec2(dx, dy);
       ubos_.impulse.epicenter = glm::vec2((float)x, (float)y);
       handled = true;
       addImpulse_ = true;
