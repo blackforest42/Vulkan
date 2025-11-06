@@ -15,7 +15,10 @@ layout (binding = 0) uniform UBO
 const float PI = 3.14159265358979323846;
 
 void main() {
-	outFragColor.r = sin(4.0f * PI * inUV.y);
-	outFragColor.g = sin(4.0f * PI * inUV.x);
+	float x = inUV.x;
+	float y = inUV.y;
+
+	outFragColor.r = sin(4.0f * PI * y);
+	outFragColor.g = sin(4.0f * PI * x);
 	return;
 }

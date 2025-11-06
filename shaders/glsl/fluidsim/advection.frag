@@ -9,6 +9,7 @@ layout (location = 0) out vec4 outFragColor;
 
 layout (binding = 0) uniform UBO
 {
+	vec2 bufferResolution;
 	float timestep;
 } ubo;
 
@@ -16,6 +17,9 @@ layout (binding = 1) uniform sampler2D velocityTex;
 layout (binding = 2) uniform sampler2D textureToAdvect;
 
 void main() {
+	float x = inUV.x;
+	float y = inUV.y;
+
 	// follow the velocity field "back in time"
 	vec2 pos = (inUV - 0.5 * ubo.timestep * texture(velocityTex, inUV).xy);
 	if (pos.x < 0 || pos.y < 0) {
