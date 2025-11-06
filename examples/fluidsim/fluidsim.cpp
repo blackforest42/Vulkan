@@ -213,6 +213,7 @@ class VulkanExample : public VulkanExampleBase {
   std::vector<std::string> texture_viewer_selection = {"Color", "Velocity",
                                                        "Pressure"};
 
+  std::vector<float> debugColor = {.7f, 0.4f, 0.4f, 1.0f};
   PFN_vkCmdBeginDebugUtilsLabelEXT vkCmdBeginDebugUtilsLabelEXT{nullptr};
   PFN_vkCmdEndDebugUtilsLabelEXT vkCmdEndDebugUtilsLabelEXT{nullptr};
 
@@ -1250,60 +1251,50 @@ class VulkanExample : public VulkanExampleBase {
       memcpy(uniformBuffers_[currentBuffer_].colorInit.mapped, &ubos_.colorInit,
              sizeof(BoundaryUBO));
       initColorCmd(cmdBuffer);
-      copyImage(cmdBuffer, color_field_[1].color.image,
-                color_field_[0].color.image);
+      copyImage(cmdBuffer, color_field_);
       shouldInitColorField_ = false;
     }
 
     // Advect Velocity
     if (advectVelocity_) {
       advectVelocityCmd(cmdBuffer);
-      copyImage(cmdBuffer, velocity_field_[1].color.image,
-                velocity_field_[0].color.image);
+      copyImage(cmdBuffer, velocity_field_);
     }
 
     // Impulse
     if (addImpulse_) {
       impulseCmd(cmdBuffer);
-      copyImage(cmdBuffer, velocity_field_[1].color.image,
-                velocity_field_[0].color.image);
+      copyImage(cmdBuffer, velocity_field_);
       addImpulse_ = false;
     }
 
     // Divergence
-    cmdBeginLabel(cmdBuffer, "Divergence", {0.0f, 0.7f, 0.7f, 1.0f});
     divergenceCmd(cmdBuffer);
-    cmdEndLabel(cmdBuffer);
 
     // Jacobi Iteration: Pressure
-    cmdBeginLabel(cmdBuffer, "Jacobi for Pressure", {0.0f, 0.7f, 0.7f, 1.0f});
+    cmdBeginLabel(cmdBuffer, "Jacobi for Pressure", debugColor);
     for (uint32_t i = 0; i < JACOBI_ITERATIONS; i++) {
       pressureJacobiCmd(cmdBuffer);
-      copyImage(cmdBuffer, pressure_field_[1].color.image,
-                pressure_field_[0].color.image);
+      copyImage(cmdBuffer, pressure_field_);
     }
     cmdEndLabel(cmdBuffer);
 
     // Gradient subtraction
     gradientSubtractionCmd(cmdBuffer);
-    copyImage(cmdBuffer, velocity_field_[1].color.image,
-              velocity_field_[0].color.image);
+    copyImage(cmdBuffer, velocity_field_);
 
     // Advect Color
     advectColorCmd(cmdBuffer);
-    copyImage(cmdBuffer, color_field_[1].color.image,
-              color_field_[0].color.image);
+    copyImage(cmdBuffer, color_field_);
 
     // Select which tex to view
     textureViewSwitcherCmd(cmdBuffer);
-    copyImage(cmdBuffer, color_pass_[1].color.image,
-              color_pass_[0].color.image);
+    copyImage(cmdBuffer, color_pass_);
 
     if (showVelocityArrows_) {
       // Draw arrows
       velocityArrowsCmd(cmdBuffer);
-      copyImage(cmdBuffer, color_pass_[1].color.image,
-                color_pass_[0].color.image);
+      copyImage(cmdBuffer, color_pass_);
     }
 
     // Color pass
@@ -1327,8 +1318,7 @@ class VulkanExample : public VulkanExampleBase {
     renderPassBeginInfo.clearValueCount = 1;
     renderPassBeginInfo.pClearValues = &clearValues;
 
-    cmdBeginLabel(cmdBuffer, "Initialize Color Field Command",
-                  {0.0f, 0.7f, 0.7f, 1.0f});
+    cmdBeginLabel(cmdBuffer, "Initialize Color Field", debugColor);
     vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
 
@@ -1365,14 +1355,14 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void advectColorCmd(VkCommandBuffer& cmdBuffer) {
-    cmdBeginLabel(cmdBuffer, "Advecting Color", {0.0f, 0.7f, 0.7f, 1.0f});
+    cmdBeginLabel(cmdBuffer, "Advecting Color", debugColor);
     advectionCmd(cmdBuffer, color_field_,
                  &descriptorSets_[currentBuffer_].advectColor);
     cmdEndLabel(cmdBuffer);
   }
 
   void advectVelocityCmd(VkCommandBuffer& cmdBuffer) {
-    cmdBeginLabel(cmdBuffer, "Advecting velocity", {0.0f, 0.7f, 0.7f, 1.0f});
+    cmdBeginLabel(cmdBuffer, "Advecting velocity", debugColor);
     advectionCmd(cmdBuffer, velocity_field_,
                  &descriptorSets_[currentBuffer_].advectVelocity);
     cmdEndLabel(cmdBuffer);
@@ -1444,7 +1434,7 @@ class VulkanExample : public VulkanExampleBase {
     renderPassBeginInfo.clearValueCount = 1;
     renderPassBeginInfo.pClearValues = &clearValues;
 
-    cmdBeginLabel(cmdBuffer, "Adding impulse", {0.0f, 0.7f, 0.7f, 1.0f});
+    cmdBeginLabel(cmdBuffer, "Adding impulse", debugColor);
     vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
 
@@ -1618,6 +1608,7 @@ class VulkanExample : public VulkanExampleBase {
     renderPassBeginInfo.clearValueCount = 1;
     renderPassBeginInfo.pClearValues = &clearValues;
 
+    cmdBeginLabel(cmdBuffer, "Divergence", debugColor);
     vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
 
@@ -1649,6 +1640,7 @@ class VulkanExample : public VulkanExampleBase {
                            nullptr, 0, nullptr);
     }
     vkCmdEndRenderPass(cmdBuffer);
+    cmdEndLabel(cmdBuffer);
   }
 
   void gradientSubtractionCmd(VkCommandBuffer& cmdBuffer) {
@@ -1666,7 +1658,7 @@ class VulkanExample : public VulkanExampleBase {
     renderPassBeginInfo.clearValueCount = 1;
     renderPassBeginInfo.pClearValues = &clearValues;
 
-    cmdBeginLabel(cmdBuffer, "Gradient Subtraction", {0.0f, 0.7f, 0.7f, 1.0f});
+    cmdBeginLabel(cmdBuffer, "Gradient Subtraction", debugColor);
     vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
     VkViewport viewport =
@@ -1715,7 +1707,7 @@ class VulkanExample : public VulkanExampleBase {
     renderPassBeginInfo.clearValueCount = 1;
     renderPassBeginInfo.pClearValues = &clearValues;
 
-    cmdBeginLabel(cmdBuffer, "Texture View Switcher", {0.0f, 0.7f, 0.7f, 1.0f});
+    cmdBeginLabel(cmdBuffer, "Texture View Switcher", debugColor);
     vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
     VkViewport viewport =
@@ -1765,7 +1757,7 @@ class VulkanExample : public VulkanExampleBase {
     renderPassBeginInfo.clearValueCount = 1;
     renderPassBeginInfo.pClearValues = &clearValues;
 
-    cmdBeginLabel(cmdBuffer, "Velocity Field Arrows", {0.0f, 0.7f, 0.7f, 1.0f});
+    cmdBeginLabel(cmdBuffer, "Velocity Field Arrows", debugColor);
     vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
     VkViewport viewport =
@@ -1818,7 +1810,7 @@ class VulkanExample : public VulkanExampleBase {
     renderPassBeginInfo.clearValueCount = 1;
     renderPassBeginInfo.pClearValues = &clearValues;
 
-    cmdBeginLabel(cmdBuffer, "Color Pass", {0.0f, 0.7f, 0.7f, 1.0f});
+    cmdBeginLabel(cmdBuffer, "Color Pass", debugColor);
     vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
     VkViewport viewport =
@@ -1854,7 +1846,8 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   // Copy framebuffer color attachmebt from source to dest
-  void copyImage(VkCommandBuffer& cmdBuffer, VkImage& source, VkImage& dest) {
+  void copyImage(VkCommandBuffer& cmdBuffer,
+                 std::array<FrameBuffer, 2>& framebuffers) {
     VkImageCopy copyRegion = {};
 
     copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1875,8 +1868,10 @@ class VulkanExample : public VulkanExampleBase {
 
     cmdBeginLabel(cmdBuffer, "Copying image", {1.0f, 0.78f, 0.05f, 1.0f});
     // Copy output of write to read buffer
-    vkCmdCopyImage(cmdBuffer, source, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                   dest, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+    vkCmdCopyImage(cmdBuffer, framebuffers[1].color.image,
+                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                   framebuffers[0].color.image,
+                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
     cmdEndLabel(cmdBuffer);
   }
 

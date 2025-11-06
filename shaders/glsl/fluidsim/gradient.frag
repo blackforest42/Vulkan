@@ -27,5 +27,5 @@ void main() {
 
 	outFragColor = texture(velocityFieldTex, inUV);
 	// Subtract the pressure gradient from velocity
-	outFragColor.xy -= ( 1.f/120 / (2.f * dudv)) * vec2(pR - pL, pT - pB);
+	outFragColor.xy -= (1.f/120 / (2.f * dudv)) * vec2(pR - pL, pT - pB);
 }
