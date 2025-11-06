@@ -27,7 +27,7 @@ class VulkanExample : public VulkanExampleBase {
   // 2 = pressure field
   static const int WHICH_TEXTURE_DISPLAY = 0;
   bool showVelocityArrows_ = false;
-  bool advectVelocity_ = false;
+  bool advectVelocity_ = true;
   std::vector<std::string> texture_viewer_selection = {"Color", "Velocity",
                                                        "Pressure"};
 
@@ -92,10 +92,12 @@ class VulkanExample : public VulkanExampleBase {
 
   struct DivergenceUBO {
     alignas(8) glm::vec2 bufferResolution{};
+    alignas(4) float timestep{TIME_STEP};
   };
 
   struct GradientUBO {
     alignas(8) glm::vec2 bufferResolution{};
+    alignas(4) float timestep{TIME_STEP};
   };
 
   struct TextureViewSwitcherUBO {
@@ -913,7 +915,7 @@ class VulkanExample : public VulkanExampleBase {
                                                &descriptorSets_[i].gradient));
       writeDescriptorSets = {
           vks::initializers::writeDescriptorSet(
-              descriptorSets_[i].divergence, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+              descriptorSets_[i].gradient, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
               /*binding id*/ 0, &uniformBuffers_[i].gradient.descriptor),
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i].gradient,
@@ -1292,7 +1294,9 @@ class VulkanExample : public VulkanExampleBase {
                         &ubos_.textureViewSwitcher.chooseDisplayTexture,
                         texture_viewer_selection);
       overlay->checkBox("Show velocity arrows", &showVelocityArrows_);
-      overlay->checkBox("Advect velocity", &advectVelocity_);
+      if (overlay->checkBox("Advect velocity", &advectVelocity_)) {
+        windowResized();
+      }
       if (overlay->button("Reset")) {
         windowResized();
       }

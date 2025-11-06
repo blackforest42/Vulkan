@@ -17,7 +17,9 @@ layout (binding = 2) uniform sampler2D divergenceTex;
 
 
 void main() {
-	vec2 dudv = 1.f / ubo.bufferResolution;
+	// For whatever reason, the duvdv has to be multiplied by 2.f
+	// otherwise the velocity field turns from smooth -> noise/chaos
+	vec2 dudv = 2.f / ubo.bufferResolution;
 	float du = dudv.x;
 	float dv = dudv.y;
 
@@ -31,6 +33,6 @@ void main() {
 	vec4 bC = texture(divergenceTex, inUV);
 
 	// evaluate Jacobi iteration
-	outFragColor = (xL + xR + xB + xT + -1 * bC) * 0.25f;
+	outFragColor = (xL + xR + xB + xT + bC) * 0.25f;
 
 }

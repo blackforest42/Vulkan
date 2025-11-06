@@ -7,9 +7,10 @@ layout (location = 0) in vec2 inUV;
 // out
 layout (location = 0) out vec4 outFragColor;
 
-layout (binding = 0) uniform UBO
+layout (std140, binding = 0) uniform UBO
 {
     vec2 bufferResolution;
+	float timestep;
 } ubo;
 
 layout (binding = 1) uniform sampler2D vectorField;
@@ -28,5 +29,8 @@ void main() {
 	vec4 wR = texture(vectorField, x_positive);
 	vec4 wB = texture(vectorField, y_positive);
 	vec4 wT = texture(vectorField, y_negative);
-	outFragColor = vec4(0.5f * ((wR.x - wL.x) + (wT.y - wB.y)));
+
+	double cx = (-2.0 * du / ubo.timestep);
+	double cy = (-2.0 * dv / ubo.timestep);
+	outFragColor = vec4((cx * (wR.x - wL.x) + cy * (wT.y - wB.y)));
 }

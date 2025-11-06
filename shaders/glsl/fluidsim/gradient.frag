@@ -10,6 +10,7 @@ layout (location = 0) out vec4 outFragColor;
 layout (binding = 0) uniform UBO
 {
     vec2 bufferResolution;
+	float timestep;
 } ubo;
 
 layout (binding = 1) uniform sampler2D velocityFieldTex;
@@ -27,5 +28,5 @@ void main() {
 
 	outFragColor = texture(velocityFieldTex, inUV);
 	// Subtract the pressure gradient from velocity
-	outFragColor.xy -= (1.f/120 / (2.f * dudv)) * vec2(pR - pL, pT - pB);
+	outFragColor.xy -= (ubo.timestep / (2.f * dudv)) * vec2(pR - pL, pT - pB);
 }

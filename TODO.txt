@@ -1,15 +1,10 @@
 Nov 3
 
 TODO: 
-- bug: gradient shader is bugged
-	- mine with grad subtration behaves like webgpu without gradient subtraction
-	- it might mean gradient.frag is having little to no effect on vel field
-- figure out why fract() only works on pressure field and not color and vel.
-- bug: velocity advection works like webgpu
-
+	- add ink splat to the impulse frag?
 
 DONE:
-- add different colors to checkerboard
+	- i am happy with this state
 
 
 
