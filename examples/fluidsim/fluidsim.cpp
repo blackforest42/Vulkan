@@ -112,6 +112,7 @@ class VulkanExample : public VulkanExampleBase {
 
   struct UniformBuffers {
     vks::Buffer colorInit;
+    vks::Buffer velocityInit;
     vks::Buffer advection;
     vks::Buffer impulse;
     vks::Buffer boundary;
@@ -140,6 +141,7 @@ class VulkanExample : public VulkanExampleBase {
 
   struct DescriptorSets {
     VkDescriptorSet colorInit;
+    VkDescriptorSet velocityInit;
     VkDescriptorSet advectColor;
     VkDescriptorSet advectVelocity;
     VkDescriptorSet impulse;
@@ -157,6 +159,7 @@ class VulkanExample : public VulkanExampleBase {
 
   struct {
     VkPipelineLayout colorInit;
+    VkPipelineLayout velocityInit;
     VkPipelineLayout advection;
     VkPipelineLayout impulse;
     VkPipelineLayout boundary;
@@ -169,6 +172,7 @@ class VulkanExample : public VulkanExampleBase {
   } pipelineLayouts_{};
 
   struct {
+    VkPipeline velocityInit;
     VkPipeline colorInit;
     VkPipeline advection;
     VkPipeline impulse;
@@ -274,6 +278,14 @@ class VulkanExample : public VulkanExampleBase {
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
           &buffer.colorInit, sizeof(ColorInitUBO), &ubos_.colorInit));
       VK_CHECK_RESULT(buffer.colorInit.map());
+
+      // Velocity Init
+      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.velocityInit, sizeof(ColorInitUBO), &ubos_.colorInit));
+      VK_CHECK_RESULT(buffer.velocityInit.map());
 
       // Advection
       VK_CHECK_RESULT(vulkanDevice_->createBuffer(
@@ -477,7 +489,7 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorPoolCreateInfo(
             poolSizes,
             /* max number of descriptor sets that can be allocated at once*/
-            14 * MAX_CONCURRENT_FRAMES);
+            15 * MAX_CONCURRENT_FRAMES);
     VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
                                            nullptr, &descriptorPool_));
     // Layout: Color init
@@ -492,6 +504,20 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorSetLayoutCreateInfo(
             setLayoutBindings.data(),
             static_cast<uint32_t>(setLayoutBindings.size()));
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr,
+                                    &descriptorSetLayouts_.colorInit));
+
+    // Layout: Velocity Init
+    setLayoutBindings = {
+        // Binding 0 : Fragment shader
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding id*/ 0),
+    };
+    descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(
+        setLayoutBindings.data(),
+        static_cast<uint32_t>(setLayoutBindings.size()));
     VK_CHECK_RESULT(
         vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr,
                                     &descriptorSetLayouts_.colorInit));
@@ -698,6 +724,21 @@ class VulkanExample : public VulkanExampleBase {
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i].colorInit, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
               /*binding id*/ 0, &uniformBuffers_[i].colorInit.descriptor),
+      };
+      vkUpdateDescriptorSets(device_,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
+
+      // Velocity Init
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool_, &descriptorSetLayouts_.colorInit, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device_, &allocInfo, &descriptorSets_[i].velocityInit));
+      writeDescriptorSets = {
+          vks::initializers::writeDescriptorSet(
+              descriptorSets_[i].velocityInit,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+              /*binding id*/ 0, &uniformBuffers_[i].velocityInit.descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -957,6 +998,11 @@ class VulkanExample : public VulkanExampleBase {
                                            &pipelineLayouts_.colorInit));
 
     pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(
+        &descriptorSetLayouts_.colorInit, 1);
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr,
+                                           &pipelineLayouts_.velocityInit));
+
+    pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(
         &descriptorSetLayouts_.advection, 1);
     VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr,
                                            &pipelineLayouts_.advection));
@@ -1064,6 +1110,15 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCI, nullptr,
                                               &pipelines_.colorInit));
+
+    // Velocity init pipeline
+    pipelineCI.layout = pipelineLayouts_.velocityInit;
+    shaderStages[1] =
+        loadShader(getShadersPath() + "fluidsim/velocityinit.frag.spv",
+                   VK_SHADER_STAGE_FRAGMENT_BIT);
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
+                                              &pipelineCI, nullptr,
+                                              &pipelines_.velocityInit));
 
     // Boundary pipeline
     pipelineCI.layout = pipelineLayouts_.boundary;
@@ -1194,6 +1249,9 @@ class VulkanExample : public VulkanExampleBase {
     memcpy(uniformBuffers_[currentBuffer_].colorInit.mapped, &ubos_.colorInit,
            sizeof(ColorInitUBO));
 
+    memcpy(uniformBuffers_[currentBuffer_].velocityInit.mapped,
+           &ubos_.colorInit, sizeof(ColorInitUBO));
+
     memcpy(uniformBuffers_[currentBuffer_].advection.mapped, &ubos_.advection,
            sizeof(AdvectionUBO));
 
@@ -1253,6 +1311,12 @@ class VulkanExample : public VulkanExampleBase {
       initColorCmd(cmdBuffer);
       copyImage(cmdBuffer, color_field_);
       shouldInitColorField_ = false;
+    }
+
+    if (shouldInitVelocityField_) {
+      initVelocityCmd(cmdBuffer);
+      copyImage(cmdBuffer, velocity_field_);
+      shouldInitVelocityField_ = false;
     }
 
     // Advect Velocity
@@ -1335,6 +1399,58 @@ class VulkanExample : public VulkanExampleBase {
 
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       pipelines_.colorInit);
+    vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
+
+    // IMPORTANT: This barrier is to serialize WRITES BEFORE READS
+    {
+      VkMemoryBarrier memBarrier = {};
+      memBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+      memBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+      memBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_HOST_BIT,
+                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                           VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
+                           nullptr, 0, nullptr);
+    }
+
+    vkCmdEndRenderPass(cmdBuffer);
+    cmdEndLabel(cmdBuffer);
+  }
+
+  void initVelocityCmd(VkCommandBuffer& cmdBuffer) {
+    VkClearValue clearValues{};
+    clearValues.color = {0.0f, 0.0f, 0.0f, 0.f};
+
+    VkRenderPassBeginInfo renderPassBeginInfo =
+        vks::initializers::renderPassBeginInfo();
+    renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
+    renderPassBeginInfo.framebuffer = velocity_field_[1].framebuffer;
+    renderPassBeginInfo.renderArea.offset.x = SLAB_OFFSET;
+    renderPassBeginInfo.renderArea.offset.y = SLAB_OFFSET;
+    renderPassBeginInfo.renderArea.extent.width = width_ - 2 * SLAB_OFFSET;
+    renderPassBeginInfo.renderArea.extent.height = height_ - 2 * SLAB_OFFSET;
+    renderPassBeginInfo.clearValueCount = 1;
+    renderPassBeginInfo.pClearValues = &clearValues;
+
+    cmdBeginLabel(cmdBuffer, "Initialize Velocity Field", debugColor);
+    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
+                         VK_SUBPASS_CONTENTS_INLINE);
+
+    VkViewport viewport =
+        vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            pipelineLayouts_.velocityInit, 0, 1,
+                            &descriptorSets_[currentBuffer_].velocityInit, 0,
+                            nullptr);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      pipelines_.velocityInit);
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
 
     // IMPORTANT: This barrier is to serialize WRITES BEFORE READS

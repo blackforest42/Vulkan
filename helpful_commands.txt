@@ -1,6 +1,7 @@
 # Compile shaders
 glslc simple.vert -o simple.vert.spv
 glslc colorinit.frag -o colorinit.frag.spv
+glslc velocityinit.frag -o velocityinit.frag.spv
 glslc advection.frag -o advection.frag.spv
 glslc boundary.frag -o boundary.frag.spv
 glslc jacobi.frag -o jacobi.frag.spv
