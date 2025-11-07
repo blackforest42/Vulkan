@@ -1,9 +1,4 @@
-<<<<<<< HEAD
-Oct 20
-	- No accretion disk spinning in Linux
-=======
-Nov 3
-
+Nov 6
 TODO: 
 	- add ink splat to the impulse frag?
 
@@ -36,4 +31,3 @@ gradient(p=pressure_field, w=velocity) -> velocity_field
 # Boundary
 boundary(x=texture_map) -> texture_map
 
->>>>>>> navier-stokes
