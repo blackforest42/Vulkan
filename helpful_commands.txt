@@ -1,17 +1,17 @@
 # Compile shaders
-glslc simple.vert -o simple.vert.spv
-glslc colorinit.frag -o colorinit.frag.spv
-glslc velocityinit.frag -o velocityinit.frag.spv
-glslc advection.frag -o advection.frag.spv
-glslc boundary.frag -o boundary.frag.spv
-glslc jacobi.frag -o jacobi.frag.spv
-glslc divergence.frag -o divergence.frag.spv
-glslc gradient.frag -o gradient.frag.spv
-glslc textureviewswitcher.frag -o textureviewswitcher.frag.spv
-glslc impulse.frag -o impulse.frag.spv
-glslc velocityarrows.vert -o velocityarrows.vert.spv
-glslc velocityarrows.frag -o velocityarrows.frag.spv
-glslc colorpass.frag -o colorpass.frag.spv
+glslc -g simple.vert -o simple.vert.spv
+glslc -g colorinit.frag -o colorinit.frag.spv
+glslc -g velocityinit.frag -o velocityinit.frag.spv
+glslc -g advection.frag -o advection.frag.spv
+glslc -g boundary.frag -o boundary.frag.spv
+glslc -g jacobi.frag -o jacobi.frag.spv
+glslc -g divergence.frag -o divergence.frag.spv
+glslc -g gradient.frag -o gradient.frag.spv
+glslc -g textureviewswitcher.frag -o textureviewswitcher.frag.spv
+glslc -g impulse.frag -o impulse.frag.spv
+glslc -g velocityarrows.vert -o velocityarrows.vert.spv
+glslc -g velocityarrows.frag -o velocityarrows.frag.spv
+glslc -g colorpass.frag -o colorpass.frag.spv
 
 
 # Use `toktx` to create a .ktx cubemap from 6 .png files
