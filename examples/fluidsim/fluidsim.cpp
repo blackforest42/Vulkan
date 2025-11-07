@@ -21,11 +21,12 @@ class VulkanExample : public VulkanExampleBase {
   const uint32_t JACOBI_ITERATIONS = 100;
   // Inner slab offset (in pixels) for x and y axis
   const uint32_t SLAB_OFFSET = 0;
-  static constexpr float TIME_STEP{1.f / 120};
+  static constexpr float TIME_STEP{1.f / 180};
   // 0 = color field
   // 1 = velocity field
   // 2 = pressure field
-  static const int WHICH_TEXTURE_DISPLAY = 0;
+  static const int WHICH_TEXTURE_DISPLAY_AT_START = 0;
+  static constexpr float IMPULSE_RADIUS{0.004f};
   bool showVelocityArrows_ = false;
   bool advectVelocity_ = true;
   std::vector<std::string> texture_viewer_selection = {"Color", "Velocity",
@@ -83,7 +84,7 @@ class VulkanExample : public VulkanExampleBase {
     alignas(8) glm::vec2 epicenter{};
     alignas(8) glm::vec2 bufferResolution{};
     alignas(8) glm::vec2 dxdy{};
-    alignas(4) float radius{0.001f};
+    alignas(4) float radius{IMPULSE_RADIUS};
   };
 
   struct JacobiUBO {
@@ -101,7 +102,7 @@ class VulkanExample : public VulkanExampleBase {
   };
 
   struct TextureViewSwitcherUBO {
-    alignas(4) int chooseDisplayTexture{WHICH_TEXTURE_DISPLAY};
+    alignas(4) int chooseDisplayTexture{WHICH_TEXTURE_DISPLAY_AT_START};
   };
 
   struct VelocityArrowsUBO {};
@@ -1289,8 +1290,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void OnUpdateUIOverlay(vks::UIOverlay* overlay) override {
     if (overlay->header("Settings")) {
-      overlay->sliderFloat("Impulse Radius", &ubos_.impulse.radius, 0.0, 0.01);
-      overlay->comboBox("Texture map viewer",
+      overlay->comboBox("Select Texture Map",
                         &ubos_.textureViewSwitcher.chooseDisplayTexture,
                         texture_viewer_selection);
       overlay->checkBox("Show velocity arrows", &showVelocityArrows_);

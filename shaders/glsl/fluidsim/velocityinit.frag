@@ -18,7 +18,7 @@ void main() {
 	float x = inUV.x;
 	float y = inUV.y;
 
-	outFragColor.r = sin(4.0f * PI * y);
-	outFragColor.g = sin(4.0f * PI * x);
+	outFragColor.r = sin(8.0f * PI * y);
+	outFragColor.g = sin(8.0f * PI * x);
 	return;
 }
