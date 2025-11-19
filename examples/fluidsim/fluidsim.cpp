@@ -21,7 +21,7 @@ class VulkanExample : public VulkanExampleBase {
   const uint32_t JACOBI_ITERATIONS = 100;
   // Inner slab offset (in pixels) for x and y axis
   const uint32_t SLAB_OFFSET = 0;
-  static constexpr float TIME_STEP{1.f / 180};
+  static constexpr float TIME_STEP{1.f / 360};
   // 0 = color field
   // 1 = velocity field
   // 2 = pressure field

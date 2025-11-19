@@ -75,15 +75,15 @@ void main() {
 
 
     // gl_FragCoord is in window/pixel coordinates where (0,0) is bottom-left
-    // uv is in NDC, where (0,0) is the center
-    vec2 uv = gl_FragCoord.xy / ubo.resolution.xy - vec2(0.5);
+    // xy is in NDC, where (0,0) is the center
+    vec2 xy = 2*(gl_FragCoord.xy / ubo.resolution.xy - vec2(0.5));
     // Aspect ratio correction for non-square screens
-	uv.x *= ubo.resolution.x / ubo.resolution.y;
+	xy.x *= ubo.resolution.x / ubo.resolution.y;
  
-    // Extrapolate a 3D vector.
-    // Assuming camera is behind screen at (0, 0, 0) then (0, 0, 1) would be
+    // Extrapolate a 3D vector from the camera to the screen.
+    // The camera is behind screen at (0, 0, -z) then (0, 0, 1) would be
     // center of the screen (near plane of frustum)
-	vec3 dir = normalize(vec3(uv.x, -uv.y,  1.0));
+	vec3 dir = normalize(vec3(xy.x, -xy.y,  1.0));
 	dir = mat3(ubo.cameraView) * dir;
 
     // Keeps camera focal point at the center of screen
