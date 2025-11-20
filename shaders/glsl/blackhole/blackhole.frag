@@ -51,7 +51,7 @@ vec4 permute(vec4 x);
 vec4 taylorInvSqrt(vec4 r);
 float snoise(vec3 v);
 float ringDistance(vec3 rayOrigin, vec3 rayDir, Ring ring);
-vec3 accel(float h2, vec3 pos);
+vec3 computeAcceleration(float h2, vec3 pos);
 vec4 quadFromAxisAngle(vec3 axis, float angle);
 vec4 quadConj(vec4 q);
 vec4 quat_mult(vec4 q1, vec4 q2);
@@ -163,14 +163,15 @@ vec3 traceColor(vec3 pos, vec3 dir) {
   float STEP_SIZE = 0.1;
   dir *= STEP_SIZE;
 
-  // Initial values
+  // Angular momentum
   vec3 h = cross(pos, dir);
   float h2 = dot(h, h);
 
   for (int i = 0; i < MAX_STEP_SIZE; i++) {
       // If gravatational lensing is applied
       if (ubo.gravatationalLensingEnabled > 0.5) {
-        vec3 acc = accel(h2, pos);
+        vec3 acc = computeAcceleration(h2, pos);
+        // assume time step to be 1.0
         dir += acc;
       }
 
@@ -195,11 +196,13 @@ vec3 traceColor(vec3 pos, vec3 dir) {
           AccDiskColor(pos, color, alpha);
         }
       }
+    // assume time step to be 1.0
     pos += dir;
   }
 
-  // Sample skybox color
+  // Passively rotates the background
   dir = rotateVector(dir, vec3(0.0, 1.0, 0.0), ubo.time);
+  // Sample skybox color
   color += texture(galaxyCubemap, dir).rgb * alpha;
   return color;
 }
@@ -308,10 +311,11 @@ float ringDistance(vec3 rayOrigin, vec3 rayDir, Ring ring) {
   }
 }
 
-vec3 accel(float h2, vec3 pos) {
+vec3 computeAcceleration(float h2, vec3 pos) {
+  vec3 norm = normalize(pos);
   float r2 = dot(pos, pos);
-  float r5 = pow(r2, 2.5);
-  vec3 acc = -1.5 * h2 * pos / r5 * 1.0;
+  float r4 = pow(r2, 2);
+  vec3 acc = -1.5 * h2 * norm / r4 * 1.0;
   return acc;
 }
 
