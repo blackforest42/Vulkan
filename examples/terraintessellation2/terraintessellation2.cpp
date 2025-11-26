@@ -28,13 +28,21 @@ class VulkanExample : public VulkanExampleBase {
     camera_.movementSpeed = 10.0f;
   }
 
-  ~VulkanExample() {
-    if (device_) {
+  // Generate a terrain quad patch with normals based on heightmap data
+  void generateTerrain() {
+    std::vector<float> vertices;
+    // Normalize to [0, 1] then rescale to 64
+    float height_scale = 64.0f / 256.0f;
+    // Adjusts vertical translation of height map. e.g. Below or above surface.
+    float height_shift = 16.f;
+    uint32_t ROWS = textures_.heightMap.height;
+    uint32_t COLS = textures_.heightMap.width;
+
+    for (int r = 0; r < ROWS; r++) {
+      for (int c = 0; c < COLS; c++) {
+      }
     }
   }
-
-  // Generate a terrain quad patch with normals based on heightmap data
-  void generateTerrain() {}
 
   void setupDescriptors() {}
 
@@ -57,14 +65,14 @@ class VulkanExample : public VulkanExampleBase {
 
   void buildCommandBuffer() {}
 
-  virtual void render() {
-    if (!prepared_) {
-      return;
-    }
-    VulkanExampleBase::prepareFrame();
-    updateUniformBuffers();
-    buildCommandBuffer();
-    VulkanExampleBase::submitFrame();
+  void render() override {
+    // if (!prepared_) {
+    //   return;
+    // }
+    // VulkanExampleBase::prepareFrame();
+    //  updateUniformBuffers();
+    // buildCommandBuffer();
+    // VulkanExampleBase::submitFrame();
   }
 
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {}
@@ -112,6 +120,13 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateSampler(device_, &samplerInfo, nullptr,
                                     &textures_.heightMap.sampler));
     textures_.heightMap.descriptor.sampler = textures_.heightMap.sampler;
+  }
+
+  ~VulkanExample() {
+    if (device_) {
+      textures_.heightMap.destroy();
+      textures_.skyBox.destroy();
+    }
   }
 };
 
