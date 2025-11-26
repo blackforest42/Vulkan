@@ -30,13 +30,31 @@ class VulkanExample : public VulkanExampleBase {
 
   // Generate a terrain quad patch with normals based on heightmap data
   void generateTerrain() {
+    std::string filename = getAssetPath() + "textures/iceland_heightmap.ktx";
+
+    ktxResult result;
+    ktxTexture* ktxTexture;
+    result = ktxTexture_CreateFromNamedFile(
+        filename.c_str(), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &ktxTexture);
+    assert(result == KTX_SUCCESS);
+    ktx_size_t ktxSize = ktxTexture_GetImageSize(ktxTexture, 0);
+    ktx_uint8_t* ktxImage = ktxTexture_GetData(ktxTexture);
+    uint32_t COLS = ktxTexture->baseWidth;
+    uint32_t ROWS = ktxTexture->baseHeight;
+    std::vector<std::vector<float>> height_data(ROWS, std::vector<float>(COLS));
+    int i = 0;
+    for (int r = 0; r < ROWS; r++) {
+      for (int c = 0; c < COLS; c++) {
+        height_data[r][c] = ktxImage[i++];
+      }
+    }
+    ktxTexture_Destroy(ktxTexture);
+
     std::vector<float> vertices;
     // Normalize to [0, 1] then rescale to 64
     float height_scale = 64.0f / 256.0f;
     // Adjusts vertical translation of height map. e.g. Below or above surface.
     float height_shift = 16.f;
-    uint32_t ROWS = textures_.heightMap.height;
-    uint32_t COLS = textures_.heightMap.width;
 
     for (int r = 0; r < ROWS; r++) {
       for (int c = 0; c < COLS; c++) {
