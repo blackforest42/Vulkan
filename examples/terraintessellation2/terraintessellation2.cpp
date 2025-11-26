@@ -22,7 +22,7 @@ class VulkanExample : public VulkanExampleBase {
 
   struct TerrainUBO {
     glm::mat4 mvp;
-  } terrainUbo;
+  } terrain_ubo;
 
   struct UniformBuffers {
     vks::Buffer terrain;
@@ -54,7 +54,7 @@ class VulkanExample : public VulkanExampleBase {
   std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_;
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Dynamic terrain tessellation";
+    title = "Dynamic terrain tessellation 2";
     camera_.type_ = Camera::CameraType::firstperson;
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
     camera_.setRotation(glm::vec3(-12.0f, 159.0f, 0.0f));
@@ -106,10 +106,11 @@ class VulkanExample : public VulkanExampleBase {
         }
       }
     }
+    terrain_.indexCount = indices.size();
 
     // Allocate buffer space for vertices and indices
     uint32_t vertexBufferSize = vertices.size() * sizeof(vkglTF::Vertex);
-    uint32_t indexBufferSize = indices.size() * sizeof(int);
+    uint32_t indexBufferSize = indices.size() * sizeof(uint32_t);
     vks::Buffer vertexBuffer, indexBuffer;
 
     // Source
@@ -214,10 +215,13 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo,
                                            nullptr, &pipelineLayouts_.terrain));
 
-    // Pipelines
+    // Pipeline
+    VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
+        vks::initializers::pipelineInputAssemblyStateCreateInfo(
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
     VkPipelineRasterizationStateCreateInfo rasterizationState =
         vks::initializers::pipelineRasterizationStateCreateInfo(
-            VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT,
+            VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE,
             VK_FRONT_FACE_COUNTER_CLOCKWISE, 0);
     VkPipelineColorBlendAttachmentState blendAttachmentState =
         vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
@@ -233,15 +237,23 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::pipelineMultisampleStateCreateInfo(
             VK_SAMPLE_COUNT_1_BIT, 0);
     std::vector<VkDynamicState> dynamicStateEnables = {
-        VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR,
-        VK_DYNAMIC_STATE_LINE_WIDTH};
+        VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
     VkPipelineDynamicStateCreateInfo dynamicState =
         vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
-    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{};
+    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
-    VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
-        vks::initializers::pipelineInputAssemblyStateCreateInfo(
-            VK_PRIMITIVE_TOPOLOGY_PATCH_LIST, 0, VK_FALSE);
+    VkGraphicsPipelineCreateInfo pipelineCI =
+        vks::initializers::pipelineCreateInfo(pipelineLayouts_.terrain,
+                                              renderPass_, 0);
+    pipelineCI.pInputAssemblyState = &inputAssemblyState;
+    pipelineCI.pRasterizationState = &rasterizationState;
+    pipelineCI.pColorBlendState = &colorBlendState;
+    pipelineCI.pMultisampleState = &multisampleState;
+    pipelineCI.pViewportState = &viewportState;
+    pipelineCI.pDepthStencilState = &depthStencilState;
+    pipelineCI.pDynamicState = &dynamicState;
+    pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
+    pipelineCI.pStages = shaderStages.data();
 
     // Terrain tessellation pipeline
     shaderStages[0] =
@@ -251,21 +263,8 @@ class VulkanExample : public VulkanExampleBase {
         loadShader(getShadersPath() + "terraintessellation2/mesh.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
 
-    VkGraphicsPipelineCreateInfo pipelineCI =
-        vks::initializers::pipelineCreateInfo(pipelineLayouts_.terrain,
-                                              renderPass_);
-    pipelineCI.pInputAssemblyState = &inputAssemblyState;
-    pipelineCI.pRasterizationState = &rasterizationState;
-    pipelineCI.pColorBlendState = &colorBlendState;
-    pipelineCI.pMultisampleState = &multisampleState;
-    pipelineCI.pViewportState = &viewportState;
-    pipelineCI.pDepthStencilState = &depthStencilState;
-    pipelineCI.pDynamicState = &dynamicState;
-    pipelineCI.stageCount = 2;
-    pipelineCI.pStages = shaderStages.data();
     pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState(
-        {vkglTF::VertexComponent::Position, vkglTF::VertexComponent::Normal,
-         vkglTF::VertexComponent::UV});
+        {vkglTF::VertexComponent::Position});
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(
         device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.terrain));
   }
@@ -283,7 +282,13 @@ class VulkanExample : public VulkanExampleBase {
     }
   }
 
-  void updateUniformBuffers() {}
+  void updateUniformBuffers() {
+    // Vertex shader
+    terrain_ubo.mvp = camera_.matrices_.perspective *
+                      glm::mat4(glm::mat3(camera_.matrices_.view));
+    memcpy(uniformBuffers_[currentBuffer_].terrain.mapped, &terrain_ubo,
+           sizeof(TerrainUBO));
+  }
 
   void prepare() {
     VulkanExampleBase::prepare();
@@ -302,7 +307,7 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::commandBufferBeginInfo();
 
     VkClearValue clearValues[2]{};
-    clearValues[0].color = defaultClearColor;
+    clearValues[0].color = {0, 0, 0, 1};
     clearValues[1].depthStencil = {1.0f, 0};
 
     VkRenderPassBeginInfo renderPassBeginInfo =
@@ -329,6 +334,19 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
     vkCmdSetLineWidth(cmdBuffer, 1.0f);
+
+    VkDeviceSize offsets[1] = {0};
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      pipelines_.terrain);
+    vkCmdBindDescriptorSets(
+        cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.terrain, 0,
+        1, &descriptorSets_[currentBuffer_].terrain, 0, nullptr);
+    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &terrain_.vertexBuffer.buffer,
+                           offsets);
+    vkCmdBindIndexBuffer(cmdBuffer, terrain_.indexBuffer.buffer, 0,
+                         VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(cmdBuffer, terrain_.indexCount, 1, 0, 0, 0);
 
     drawUI(cmdBuffer);
 
