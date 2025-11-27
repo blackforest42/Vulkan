@@ -18,11 +18,11 @@ class VulkanExample : public VulkanExampleBase {
   bool wireframe = false;
 
   struct {
-    vkglTF::Model skyBox;
+    vkglTF::Model skyBox{};
   } models_;
 
   struct {
-    vks::TextureCubeMap skyBox{};
+    vks::TextureCubeMap cubeMap{};
     vks::Texture2D heightMap{};
   } textures_;
 
@@ -30,7 +30,7 @@ class VulkanExample : public VulkanExampleBase {
     glm::mat4 mvp;
   };
   struct {
-    ModelViewProjectionUBO terrain, skybox;
+    ModelViewProjectionUBO terrain, skyBox;
   } ubos_;
 
   struct UniformBuffers {
@@ -49,10 +49,12 @@ class VulkanExample : public VulkanExampleBase {
   struct Pipelines {
     VkPipeline terrain{VK_NULL_HANDLE};
     VkPipeline wireframe{VK_NULL_HANDLE};
+    VkPipeline skyBox{VK_NULL_HANDLE};
   } pipelines_;
 
   struct {
     VkDescriptorSetLayout terrain{VK_NULL_HANDLE};
+    VkDescriptorSetLayout skyBox{VK_NULL_HANDLE};
   } descriptorSetLayouts_;
 
   struct {
@@ -61,6 +63,7 @@ class VulkanExample : public VulkanExampleBase {
 
   struct DescriptorSets {
     VkDescriptorSet terrain{VK_NULL_HANDLE};
+    VkDescriptorSet skyBox{VK_NULL_HANDLE};
   };
   std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_;
 
@@ -183,13 +186,13 @@ class VulkanExample : public VulkanExampleBase {
     // Pool
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                              MAX_CONCURRENT_FRAMES * 1),
+                                              MAX_CONCURRENT_FRAMES * 2),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            MAX_CONCURRENT_FRAMES * 1)};
+            MAX_CONCURRENT_FRAMES * 2)};
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(poolSizes,
-                                                    MAX_CONCURRENT_FRAMES * 1);
+                                                    MAX_CONCURRENT_FRAMES * 2);
     VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
                                            nullptr, &descriptorPool_));
 
@@ -209,6 +212,28 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
         device_, &descriptorLayout, nullptr, &descriptorSetLayouts_.terrain));
 
+    // Skybox
+    setLayoutBindings = {
+        // Binding 0 : Vertex shader ubo
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0),
+        // Binding 1 : Color map
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT, 1),
+    };
+    descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
+        setLayoutBindings.data(),
+        static_cast<uint32_t>(setLayoutBindings.size()));
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
+        device_, &descriptorLayout, nullptr, &descriptorSetLayouts_.skyBox));
+
+    // Image descriptor for the cube map texture
+    VkDescriptorImageInfo textureDescriptor =
+        vks::initializers::descriptorImageInfo(textures_.cubeMap.sampler,
+                                               textures_.cubeMap.view,
+                                               textures_.cubeMap.imageLayout);
+
     for (auto i = 0; i < uniformBuffers_.size(); i++) {
       // Terrain
       VkDescriptorSetAllocateInfo allocInfo =
@@ -221,6 +246,23 @@ class VulkanExample : public VulkanExampleBase {
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i].terrain, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
               &uniformBuffers_[i].terrain.descriptor),
+      };
+      vkUpdateDescriptorSets(device_,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
+
+      // Skybox
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool_, &descriptorSetLayouts_.skyBox, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
+                                               &descriptorSets_[i].skyBox));
+      writeDescriptorSets = {
+          vks::initializers::writeDescriptorSet(
+              descriptorSets_[i].skyBox, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
+              &uniformBuffers_[i].skybox.descriptor),
+          vks::initializers::writeDescriptorSet(
+              descriptorSets_[i].skyBox,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textureDescriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -298,6 +340,17 @@ class VulkanExample : public VulkanExampleBase {
                                                 &pipelineCI, nullptr,
                                                 &pipelines_.wireframe));
     }
+
+    // Skybox (cubemap)
+    shaderStages[0] =
+        loadShader(getShadersPath() + "terraintessellation2/skybox.vert.spv",
+                   VK_SHADER_STAGE_VERTEX_BIT);
+    shaderStages[1] =
+        loadShader(getShadersPath() + "terraintessellation2/skybox.frag.spv",
+                   VK_SHADER_STAGE_FRAGMENT_BIT);
+    rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
+        device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.skyBox));
   }
 
   // Prepare and initialize uniform buffer containing shader uniforms
@@ -312,11 +365,11 @@ class VulkanExample : public VulkanExampleBase {
       VK_CHECK_RESULT(buffer.terrain.map());
 
       // Skybox vertex shader uniform buffer
-      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
-          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer.skybox, sizeof(ModelViewProjectionUBO)));
+      VK_CHECK_RESULT(
+          vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                      &buffer.skybox, sizeof(ubos_.skyBox)));
       VK_CHECK_RESULT(buffer.skybox.map());
     }
   }
@@ -327,9 +380,9 @@ class VulkanExample : public VulkanExampleBase {
     memcpy(uniformBuffers_[currentBuffer_].terrain.mapped, &ubos_.terrain,
            sizeof(ModelViewProjectionUBO));
 
-    ubos_.skybox.mvp = camera_.matrices_.perspective *
-                       glm::mat4(camera_.matrices_.view * glm::mat4(1.0f));
-    memcpy(uniformBuffers_[currentBuffer_].skybox.mapped, &ubos_.skybox,
+    ubos_.skyBox.mvp = camera_.matrices_.perspective *
+                       glm::mat4(glm::mat3(camera_.matrices_.view));
+    memcpy(uniformBuffers_[currentBuffer_].skybox.mapped, &ubos_.skyBox,
            sizeof(ModelViewProjectionUBO));
   }
 
@@ -350,7 +403,7 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::commandBufferBeginInfo();
 
     VkClearValue clearValues[2]{};
-    clearValues[0].color = {0, 0, 0, 1};
+    clearValues[0].color = {0, 0, 1, 1};
     clearValues[1].depthStencil = {1.0f, 0};
 
     VkRenderPassBeginInfo renderPassBeginInfo =
@@ -380,18 +433,33 @@ class VulkanExample : public VulkanExampleBase {
 
     VkDeviceSize offsets[1] = {0};
 
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      wireframe ? pipelines_.wireframe : pipelines_.terrain);
-    vkCmdBindDescriptorSets(
-        cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.terrain, 0,
-        1, &descriptorSets_[currentBuffer_].terrain, 0, nullptr);
-    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &terrain_.vertexBuffer.buffer,
-                           offsets);
-    vkCmdBindIndexBuffer(cmdBuffer, terrain_.indexBuffer.buffer, 0,
-                         VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(cmdBuffer, terrain_.indexCount, 1, 0, 0, 0);
+    // Terrain/wireframe
+    {
+      //  vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+      //                    wireframe ? pipelines_.wireframe :
+      //                    pipelines_.terrain);
+      //  vkCmdBindDescriptorSets(
+      //      cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+      //      pipelineLayouts_.terrain, 0, 1,
+      //      &descriptorSets_[currentBuffer_].terrain, 0, nullptr);
+      //  vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &terrain_.vertexBuffer.buffer,
+      //                         offsets);
+      //  vkCmdBindIndexBuffer(cmdBuffer, terrain_.indexBuffer.buffer, 0,
+      //                       VK_INDEX_TYPE_UINT32);
+      //  vkCmdDrawIndexed(cmdBuffer, terrain_.indexCount, 1, 0, 0, 0);
+    }
 
-    drawUI(cmdBuffer);
+    // Skybox
+    {
+      vkCmdBindDescriptorSets(
+          cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.terrain,
+          0, 1, &descriptorSets_[currentBuffer_].skyBox, 0, nullptr);
+      vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        pipelines_.skyBox);
+      models_.skyBox.draw(cmdBuffer);
+    }
+
+    // drawUI(cmdBuffer);
 
     vkCmdEndRenderPass(cmdBuffer);
 
@@ -431,16 +499,24 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void loadAssets() {
-    textures_.skyBox.loadFromFile(
-        getAssetPath() + "textures/cartoon_sky_cubemap.ktx",
-        VK_FORMAT_R8G8B8A8_SRGB, vulkanDevice_, queue_);
-
     // Height data is stored in a one-channel texture
     textures_.heightMap.loadFromFile(
         getAssetPath() + "textures/iceland_heightmap.ktx", VK_FORMAT_R8_SRGB,
         vulkanDevice_, queue_);
 
     VkSamplerCreateInfo samplerInfo = vks::initializers::samplerCreateInfo();
+
+    // Skybox cube model
+    const uint32_t glTFLoadingFlags =
+        vkglTF::FileLoadingFlags::PreTransformVertices |
+        vkglTF::FileLoadingFlags::PreMultiplyVertexColors |
+        vkglTF::FileLoadingFlags::FlipY;
+    models_.skyBox.loadFromFile(getAssetPath() + "models/cube.gltf",
+                                vulkanDevice_, queue_, glTFLoadingFlags);
+    // Skybox textures
+    textures_.cubeMap.loadFromFile(
+        getAssetPath() + "textures/cartoon_sky_cubemap.ktx",
+        VK_FORMAT_R8G8B8A8_SRGB, vulkanDevice_, queue_);
 
     // Setup a mirroring sampler for the height map
     vkDestroySampler(device_, textures_.heightMap.sampler, nullptr);
@@ -466,7 +542,7 @@ class VulkanExample : public VulkanExampleBase {
         vkDestroyPipeline(device_, pipelines_.wireframe, nullptr);
       }
       textures_.heightMap.destroy();
-      textures_.skyBox.destroy();
+      textures_.cubeMap.destroy();
       for (auto& buffer : uniformBuffers_) {
         buffer.terrain.destroy();
       }

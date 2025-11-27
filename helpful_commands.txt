@@ -1,6 +1,8 @@
 # Compile shaders
 glslc -g mesh.vert -o mesh.vert.spv
 glslc -g mesh.frag -o mesh.frag.spv
+glslc -g skybox.vert -o skybox.vert.spv
+glslc -g skybox.frag -o skybox.frag.spv
 
 
 # Use `toktx` to create a .ktx cubemap from 6 .png files
