@@ -89,7 +89,7 @@ class VulkanExample : public VulkanExampleBase {
         float height = ktxImage[i] * height_scale - height_shift;
 
         vertices[i].pos[0] = c * COLS / (float)COLS - COLS / 2.f;
-        vertices[i].pos[1] = height;
+        vertices[i].pos[1] = -height;
         vertices[i].pos[2] = r * ROWS / (float)ROWS - ROWS / 2.f;
 
         i++;
@@ -232,7 +232,7 @@ class VulkanExample : public VulkanExampleBase {
             VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
     VkPipelineRasterizationStateCreateInfo rasterizationState =
         vks::initializers::pipelineRasterizationStateCreateInfo(
-            VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE,
+            VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT,
             VK_FRONT_FACE_COUNTER_CLOCKWISE, 0);
     VkPipelineColorBlendAttachmentState blendAttachmentState =
         vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
