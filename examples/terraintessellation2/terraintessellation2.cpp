@@ -17,6 +17,12 @@ class VulkanExample : public VulkanExampleBase {
  public:
   bool wireframe = false;
 
+  // Dynamic rendering
+  PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR{VK_NULL_HANDLE};
+  PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR{VK_NULL_HANDLE};
+  VkPhysicalDeviceDynamicRenderingFeaturesKHR
+      enabledDynamicRenderingFeaturesKHR{};
+
   struct {
     vkglTF::Model skyBox{};
   } models_;
@@ -66,15 +72,6 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorSet skyBox{VK_NULL_HANDLE};
   };
   std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_;
-
-  VulkanExample() : VulkanExampleBase() {
-    title = "Dynamic terrain tessellation 2";
-    camera_.type_ = Camera::CameraType::firstperson;
-    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
-    camera_.setRotation(glm::vec3(-12.0f, 159.0f, 0.0f));
-    camera_.setTranslation(glm::vec3(18.0f, 22.5f, 57.5f));
-    camera_.movementSpeed = 100.0f;
-  }
 
   // Generate a terrain quad patch with normals based on heightmap data
   void generateTerrain() {
@@ -303,8 +300,8 @@ class VulkanExample : public VulkanExampleBase {
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
     VkGraphicsPipelineCreateInfo pipelineCI =
-        vks::initializers::pipelineCreateInfo(pipelineLayouts_.terrain,
-                                              renderPass_, 0);
+        vks::initializers::pipelineCreateInfo();
+    pipelineCI.layout = pipelineLayouts_.terrain;
     pipelineCI.pInputAssemblyState = &inputAssemblyState;
     pipelineCI.pRasterizationState = &rasterizationState;
     pipelineCI.pColorBlendState = &colorBlendState;
@@ -314,6 +311,21 @@ class VulkanExample : public VulkanExampleBase {
     pipelineCI.pDynamicState = &dynamicState;
     pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineCI.pStages = shaderStages.data();
+    pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState(
+        {vkglTF::VertexComponent::Position});
+
+    // New create info to define color, depth and stencil attachments at
+    // pipeline create time
+    VkPipelineRenderingCreateInfoKHR pipelineRenderingCreateInfo{};
+    pipelineRenderingCreateInfo.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+    pipelineRenderingCreateInfo.colorAttachmentCount = 1;
+    pipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &swapChain_.colorFormat_;
+    pipelineRenderingCreateInfo.depthAttachmentFormat = depthFormat_;
+    pipelineRenderingCreateInfo.stencilAttachmentFormat = depthFormat_;
+    // Chain into the pipeline creat einfo
+    pipelineCI.pNext = &pipelineRenderingCreateInfo;
 
     // Terrain tessellation pipeline
     shaderStages[0] =
@@ -322,9 +334,6 @@ class VulkanExample : public VulkanExampleBase {
     shaderStages[1] =
         loadShader(getShadersPath() + "terraintessellation2/mesh.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
-
-    pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState(
-        {vkglTF::VertexComponent::Position});
 
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(
         device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.terrain));
@@ -386,6 +395,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void prepare() {
     VulkanExampleBase::prepare();
+    setupDynamicRendering();
     loadAssets();
     generateTerrain();
     prepareUniformBuffers();
@@ -394,31 +404,84 @@ class VulkanExample : public VulkanExampleBase {
     prepared_ = true;
   }
 
+  void setupDynamicRendering() {
+    // With VK_KHR_dynamic_rendering we no longer need a render pass, so skip
+    // the sample base render pass setup
+    renderPass_ = VK_NULL_HANDLE;
+
+    // Since we use an extension, we need to expliclity load the function
+    // pointers for extension related Vulkan commands
+    vkCmdBeginRenderingKHR = reinterpret_cast<PFN_vkCmdBeginRenderingKHR>(
+        vkGetDeviceProcAddr(device_, "vkCmdBeginRenderingKHR"));
+    vkCmdEndRenderingKHR = reinterpret_cast<PFN_vkCmdEndRenderingKHR>(
+        vkGetDeviceProcAddr(device_, "vkCmdEndRenderingKHR"));
+  }
+
   void buildCommandBuffer() {
     VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
 
     VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
+    VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
-    VkClearValue clearValues[2]{};
-    clearValues[0].color = {0, 0, 1, 1};
-    clearValues[1].depthStencil = {1.0f, 0};
+    // With dynamic rendering there are no subpass dependencies, so we need to
+    // take care of proper layout transitions by using barriers This set of
+    // barriers prepares the color and depth images for output
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, swapChain_.images_[currentImageIndex_], 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, depthStencil_.image, 0,
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        VkImageSubresourceRange{
+            VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0,
+            1});
 
-    VkRenderPassBeginInfo renderPassBeginInfo =
-        vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = renderPass_;
-    renderPassBeginInfo.renderArea.offset.x = 0;
-    renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.renderArea.extent.width = width_;
-    renderPassBeginInfo.renderArea.extent.height = height_;
-    renderPassBeginInfo.clearValueCount = 2;
-    renderPassBeginInfo.pClearValues = clearValues;
-    renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+    // New structures are used to define the attachments used in dynamic
+    // rendering
+    VkRenderingAttachmentInfoKHR colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    colorAttachment.imageView = swapChain_.imageViews_[currentImageIndex_];
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {0.0f, 0.0f, 1.0f, 0.0f};
+
+    // A single depth stencil attachment info can be used, but they can also be
+    // specified separately. When both are specified separately, the only
+    // requirement is that the image view is identical.
+    VkRenderingAttachmentInfoKHR depthStencilAttachment{};
+    depthStencilAttachment.sType =
+        VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    depthStencilAttachment.imageView = depthStencil_.view;
+    depthStencilAttachment.imageLayout =
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depthStencilAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthStencilAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    depthStencilAttachment.clearValue.depthStencil = {1.0f, 0};
+
+    VkRenderingInfoKHR renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderingInfo.renderArea = {0, 0, width_, height_};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
+    renderingInfo.pDepthAttachment = &depthStencilAttachment;
+    renderingInfo.pStencilAttachment = &depthStencilAttachment;
 
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
-    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
-                         VK_SUBPASS_CONTENTS_INLINE);
+    // Begin dynamic rendering
+    vkCmdBeginRenderingKHR(cmdBuffer, &renderingInfo);
 
     VkViewport viewport =
         vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
@@ -432,18 +495,16 @@ class VulkanExample : public VulkanExampleBase {
     VkDeviceSize offsets[1] = {0};
 
     // Terrain/wireframe
-    {
-      vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        wireframe ? pipelines_.wireframe : pipelines_.terrain);
-      vkCmdBindDescriptorSets(
-          cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.terrain,
-          0, 1, &descriptorSets_[currentBuffer_].terrain, 0, nullptr);
-      vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &terrain_.vertexBuffer.buffer,
-                             offsets);
-      vkCmdBindIndexBuffer(cmdBuffer, terrain_.indexBuffer.buffer, 0,
-                           VK_INDEX_TYPE_UINT32);
-      vkCmdDrawIndexed(cmdBuffer, terrain_.indexCount, 1, 0, 0, 0);
-    }
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      wireframe ? pipelines_.wireframe : pipelines_.terrain);
+    vkCmdBindDescriptorSets(
+        cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.terrain, 0,
+        1, &descriptorSets_[currentBuffer_].terrain, 0, nullptr);
+    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &terrain_.vertexBuffer.buffer,
+                           offsets);
+    vkCmdBindIndexBuffer(cmdBuffer, terrain_.indexBuffer.buffer, 0,
+                         VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(cmdBuffer, terrain_.indexCount, 1, 0, 0, 0);
 
     // Skybox
     vkCmdBindDescriptorSets(
@@ -455,7 +516,8 @@ class VulkanExample : public VulkanExampleBase {
 
     // drawUI(cmdBuffer);
 
-    vkCmdEndRenderPass(cmdBuffer);
+    // End dynamic rendering
+    vkCmdEndRenderingKHR(cmdBuffer);
 
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
@@ -527,6 +589,35 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateSampler(device_, &samplerInfo, nullptr,
                                     &textures_.heightMap.sampler));
     textures_.heightMap.descriptor.sampler = textures_.heightMap.sampler;
+  }
+
+  VulkanExample() : VulkanExampleBase() {
+    title = "Dynamic terrain tessellation 2";
+    camera_.type_ = Camera::CameraType::firstperson;
+    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
+    camera_.setTranslation(glm::vec3(18.0f, 64.5f, 57.5f));
+    camera_.movementSpeed = 100.0f;
+
+    enabledInstanceExtensions_.push_back(
+        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+
+    // The sample uses the extension (instead of Vulkan 1.2, where dynamic
+    // rendering is core)
+    enabledDeviceExtensions_.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
+    enabledDeviceExtensions_.push_back(VK_KHR_MAINTENANCE2_EXTENSION_NAME);
+    enabledDeviceExtensions_.push_back(VK_KHR_MULTIVIEW_EXTENSION_NAME);
+    enabledDeviceExtensions_.push_back(
+        VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME);
+    enabledDeviceExtensions_.push_back(
+        VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME);
+
+    // in addition to the extension, the feature needs to be explicitly enabled
+    // too by chaining the extension structure into device creation
+    enabledDynamicRenderingFeaturesKHR.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
+    enabledDynamicRenderingFeaturesKHR.dynamicRendering = VK_TRUE;
+
+    deviceCreatepNextChain_ = &enabledDynamicRenderingFeaturesKHR;
   }
 
   ~VulkanExample() {

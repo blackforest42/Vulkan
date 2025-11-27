@@ -526,10 +526,6 @@ class VulkanExample : public VulkanExampleBase {
                                                 nullptr,
                                                 &descriptorSetLayouts_.blend));
 
-    // Image descriptor for the cube map texture
-    VkDescriptorImageInfo textureDescriptor =
-        vks::initializers::descriptorImageInfo(cubeMap_.sampler, cubeMap_.view,
-                                               cubeMap_.imageLayout);
     // Image descriptor for the blackhole color texture
     VkDescriptorImageInfo accretionDiskTextureMap =
         vks::initializers::descriptorImageInfo(
@@ -550,7 +546,7 @@ class VulkanExample : public VulkanExampleBase {
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i].blackhole,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, /*binding id*/ 1,
-              &textureDescriptor),
+              &cubeMap_.descriptor),
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i].blackhole,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, /*binding id*/ 2,

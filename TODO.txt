@@ -1,7 +1,7 @@
 Nov 26
 TODO: 
 	- continue tesselation part 2
-	- skybox
+	- skybox bugged, gl_Position vertices gets zeroed out after vertex shader stage
 
 DONE:
 	- Height map mesh generation + rendering done
