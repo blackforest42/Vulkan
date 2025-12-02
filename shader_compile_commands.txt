@@ -1,6 +1,7 @@
-glslc -g blackhole.frag -o blackhole.frag.spv
-glslc -g blend.frag -o blend.frag.spv
-glslc -g brightness.frag -o brightness.frag.spv
-glslc -g downsample.frag -o downsample.frag.spv
-glslc -g upsample.frag -o upsample.frag.spv
-glslc -g simple.vert -o simple.vert.spv
+glslc -g terrain.vert -o terrain.vert.spv
+glslc -g terrain.frag -o terrain.frag.spv
+glslc -g terrain.tesc -o terrain.tesc.spv
+glslc -g terrain.tese -o terrain.tese.spv
+glslc -g skybox.vert -o skybox.vert.spv
+glslc -g skybox.frag -o skybox.frag.spv
+

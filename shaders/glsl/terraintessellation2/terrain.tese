@@ -1,10 +1,10 @@
 #version 450
 
 // in
-layout (location = 1) in vec2 inUV[];
+layout (location = 0) in vec2 inUV[];
  
 // out
-layout (location = 1) out vec2 outUV;
+layout (location = 0) out vec2 outUV;
 
 layout (set = 0, binding = 0) uniform UBO 
 {
@@ -27,7 +27,7 @@ void main()
 	vec4 pos2 = mix(gl_in[3].gl_Position, gl_in[2].gl_Position, gl_TessCoord.x);
 	vec4 pos = mix(pos1, pos2, gl_TessCoord.y);
 	// Displace
-	pos.y -= textureLod(heightMap, outUV, 0.0).x;
+	pos.y -= textureLod(heightMap, outUV, 0.0).r * 64;
 
 	// Perspective projection
 	gl_Position = ubo.mvp * pos;

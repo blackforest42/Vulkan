@@ -1,11 +1,5 @@
 Nov 26
 TODO: 
-	- finish tesselation control and evaluation stages
-	- infinite terrain generation perlin noise
+	- rescale dimensions of terrain to be the same as the height map texture
 
 DONE:
-	- Height map mesh generation + rendering done
-	- wireframe view toggle
-	- fixed depth stencil bug for sky box
-	- fixed un-gamma corrected skybox
-

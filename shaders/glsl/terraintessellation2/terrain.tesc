@@ -1,11 +1,11 @@
 #version 450
 
 // in
-layout (location = 1) in vec2 inUV[];
+layout (location = 0) in vec2 inUV[];
  
 // out
 layout (vertices = 4) out;
-layout (location = 1) out vec2 outUV[4];
+layout (location = 0) out vec2 outUV[4];
 
 layout(set = 0, binding = 0) uniform UBO
 {
@@ -21,12 +21,12 @@ void main(void)
 
 		// Tessellation factor can be set to zero by example
 		// to demonstrate a simple passthrough
-		gl_TessLevelInner[0] = 1.0;
-		gl_TessLevelInner[1] = 1.0;
-		gl_TessLevelOuter[0] = 1.0;
-		gl_TessLevelOuter[1] = 1.0;
-		gl_TessLevelOuter[2] = 1.0;
-		gl_TessLevelOuter[3] = 1.0;
+		gl_TessLevelInner[0] = 16.0;
+		gl_TessLevelInner[1] = 16.0;
+		gl_TessLevelOuter[0] = 16.0;
+		gl_TessLevelOuter[1] = 16.0;
+		gl_TessLevelOuter[2] = 16.0;
+		gl_TessLevelOuter[3] = 16.0;
 	}
 
 	gl_out[gl_InvocationID].gl_Position =  gl_in[gl_InvocationID].gl_Position;

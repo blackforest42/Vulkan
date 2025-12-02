@@ -1,7 +1,7 @@
 #version 450
 
 // in
-layout (location = 1) out vec2 inUV;
+layout (location = 0) in vec2 inUV;
 
 //out
 

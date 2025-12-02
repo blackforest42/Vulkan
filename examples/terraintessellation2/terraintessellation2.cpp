@@ -89,8 +89,8 @@ class VulkanExample : public VulkanExampleBase {
     uint32_t TEXTURE_HEIGHT = ktxTexture->baseHeight;
     ktxTexture_Destroy(ktxTexture);
 
-    const uint32_t patchSize{64};
-    const uint32_t vertexCount = patchSize * patchSize;
+    const uint32_t n_patches{64};
+    const uint32_t vertexCount = n_patches * n_patches;
     // We use the Vertex definition from the glTF model loader, so we can re-use
     // the vertex input state
     std::vector<vkglTF::Vertex> vertices(vertexCount);
@@ -99,20 +99,29 @@ class VulkanExample : public VulkanExampleBase {
     const float wy = 2.0f;
 
     // Generate a two-dimensional vertex patch
-    for (auto i = 0; i < patchSize; i++) {
-      for (auto j = 0; j < patchSize; j++) {
+    for (auto x = 0; x < n_patches; x++) {
+      for (auto y = 0; y < n_patches; y++) {
+        uint32_t index = (x + y * n_patches);
+        vertices[index].pos[0] =
+            x * wx + wx / 2.0f - (float)n_patches * wx / 2.0f;
+        vertices[index].pos[1] = 0.0f;
+        vertices[index].pos[2] =
+            y * wy + wy / 2.0f - (float)n_patches * wy / 2.0f;
+        vertices[index].uv =
+            glm::vec2((float)x / (n_patches - 1), (float)y / (n_patches - 1)) *
+            1.f;
       }
     }
 
     // Generate indices
-    const uint32_t w = (patchSize - 1);
+    const uint32_t w = (n_patches - 1);
     terrain_.indexCount = w * w * 4;
     std::vector<uint32_t> indices(terrain_.indexCount);
     for (auto x = 0; x < w; x++) {
       for (auto y = 0; y < w; y++) {
         uint32_t index = (x + y * w) * 4;
-        indices[index] = (x + y * patchSize);
-        indices[index + 1] = indices[index] + patchSize;
+        indices[index] = (x + y * n_patches);
+        indices[index + 1] = indices[index] + n_patches;
         indices[index + 2] = indices[index + 1] + 1;
         indices[index + 3] = indices[index] + 1;
       }
