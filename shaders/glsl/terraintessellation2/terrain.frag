@@ -1,12 +1,17 @@
 #version 450
 
-layout (location = 0) in float height;
+// in
+layout (location = 1) out vec2 inUV;
+
+//out
+
+layout (set = 0, binding = 1) uniform sampler2D samplerHeight; 
 
 layout (location = 0) out vec4 outFragColor;
 
 void main(void)
 {
-	// shift and scale the height into a grayscale value
-    float h = (-height + 16)/32.0f;
+	// Get height from displacement map
+	float h = textureLod(samplerHeight, inUV, 0.0).r;
 	outFragColor = vec4(h, h, h, 1);
 }

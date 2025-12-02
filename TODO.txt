@@ -1,6 +1,7 @@
 Nov 26
 TODO: 
-	- continue tesselation part 2
+	- finish tesselation control and evaluation stages
+	- infinite terrain generation perlin noise
 
 DONE:
 	- Height map mesh generation + rendering done

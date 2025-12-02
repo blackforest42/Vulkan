@@ -85,51 +85,39 @@ class VulkanExample : public VulkanExampleBase {
     assert(result == KTX_SUCCESS);
     ktx_size_t ktxSize = ktxTexture_GetImageSize(ktxTexture, 0);
     ktx_uint8_t* ktxImage = ktxTexture_GetData(ktxTexture);
-    uint32_t COLS = ktxTexture->baseWidth;
-    uint32_t ROWS = ktxTexture->baseHeight;
-    float height_scale = 64.0f / 256.0f;
-    // Adjusts vertical translation of height map. e.g. Below or above
-    // surface.
-    float height_shift = 16.f;
-    // Generate vertices
-    std::vector<vkglTF::Vertex> vertices(ROWS * COLS);
-    uint32_t i = 0;
-    for (uint32_t r = 0; r < ROWS; r++) {
-      for (uint32_t c = 0; c < COLS; c++) {
-        // Read height map for 'y' value. Normalize to [0, 1] then rescale and
-        // translate (up or down).
-        float height = ktxImage[i] * height_scale - height_shift;
-
-        // xyz positions
-        vertices[i].pos[0] = c * COLS / (float)COLS - COLS / 2.f;
-        vertices[i].pos[1] = -height;
-        vertices[i].pos[2] = r * ROWS / (float)ROWS - ROWS / 2.f;
-
-        i++;
-      }
-    }
+    uint32_t TEXTURE_WIDTH = ktxTexture->baseWidth;
+    uint32_t TEXTURE_HEIGHT = ktxTexture->baseHeight;
     ktxTexture_Destroy(ktxTexture);
 
-    // Generate indices
-    std::vector<uint32_t> indices;
-    for (uint32_t r = 0; r < ROWS - 1; r++) {
-      for (uint32_t c = 0; c < COLS - 1; c++) {
-        uint32_t top_left = r * COLS + c;
-        uint32_t top_right = top_left + 1;
-        uint32_t bottom_left = (r + 1) * COLS + c;
-        uint32_t bottom_right = bottom_left + 1;
+    const uint32_t patchSize{64};
+    const uint32_t vertexCount = patchSize * patchSize;
+    // We use the Vertex definition from the glTF model loader, so we can re-use
+    // the vertex input state
+    std::vector<vkglTF::Vertex> vertices(vertexCount);
 
-        // first tri
-        indices.push_back(top_left);
-        indices.push_back(bottom_left);
-        indices.push_back(top_right);
+    const float wx = 2.0f;
+    const float wy = 2.0f;
 
-        // second tri
-        indices.push_back(top_right);
-        indices.push_back(bottom_left);
-        indices.push_back(bottom_right);
+    // Generate a two-dimensional vertex patch
+    for (auto i = 0; i < patchSize; i++) {
+      for (auto j = 0; j < patchSize; j++) {
       }
     }
+
+    // Generate indices
+    const uint32_t w = (patchSize - 1);
+    terrain_.indexCount = w * w * 4;
+    std::vector<uint32_t> indices(terrain_.indexCount);
+    for (auto x = 0; x < w; x++) {
+      for (auto y = 0; y < w; y++) {
+        uint32_t index = (x + y * w) * 4;
+        indices[index] = (x + y * patchSize);
+        indices[index + 1] = indices[index] + patchSize;
+        indices[index + 2] = indices[index + 1] + 1;
+        indices[index + 3] = indices[index] + 1;
+      }
+    }
+
     terrain_.indexCount = (uint32_t)indices.size();
 
     // Allocate buffer space for vertices and indices
@@ -207,6 +195,13 @@ class VulkanExample : public VulkanExampleBase {
             VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT |
                 VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
             0),
+        // Binding 1 : Height map
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT |
+                VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT |
+                VK_SHADER_STAGE_FRAGMENT_BIT,
+            1),
     };
     descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
         setLayoutBindings.data(),
@@ -243,6 +238,11 @@ class VulkanExample : public VulkanExampleBase {
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i].terrain, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
               &uniformBuffers_[i].terrain.descriptor),
+          // Binding 1 : Height map
+          vks::initializers::writeDescriptorSet(
+              descriptorSets_[i].terrain,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1,
+              &textures_.heightMap.descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -342,7 +342,7 @@ class VulkanExample : public VulkanExampleBase {
     pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineCI.pStages = shaderStages.data();
     pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState(
-        {vkglTF::VertexComponent::Position});
+        {vkglTF::VertexComponent::Position, vkglTF::VertexComponent::UV});
 
     // Dynamic rendering. New create info to define color, depth and stencil
     // attachments at pipeline create time
@@ -583,7 +583,7 @@ class VulkanExample : public VulkanExampleBase {
   void loadAssets() {
     // Height data is stored in a one-channel texture
     textures_.heightMap.loadFromFile(
-        getAssetPath() + "textures/iceland_heightmap.ktx", VK_FORMAT_R8_UINT,
+        getAssetPath() + "textures/iceland_heightmap.ktx", VK_FORMAT_R8_UNORM,
         vulkanDevice_, queue_);
 
     VkSamplerCreateInfo samplerInfo = vks::initializers::samplerCreateInfo();
