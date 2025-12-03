@@ -90,7 +90,7 @@ class VulkanExample : public VulkanExampleBase {
     uint32_t TEXTURE_HEIGHT = ktxTexture->baseHeight;
     ktxTexture_Destroy(ktxTexture);
 
-    const uint32_t n_patches{64};
+    const uint32_t n_patches{128};
     const float patch_width = (float)TEXTURE_WIDTH / n_patches;
     const float patch_height = (float)TEXTURE_HEIGHT / n_patches;
     // We use the Vertex definition from the glTF model loader, so we can re-use
@@ -612,7 +612,8 @@ class VulkanExample : public VulkanExampleBase {
   VulkanExample() : VulkanExampleBase() {
     title = "Dynamic terrain tessellation 2";
     camera_.type_ = Camera::CameraType::firstperson;
-    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
+    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f,
+                           1024.0f);
     camera_.setTranslation(glm::vec3(18.0f, 64.5f, 57.5f));
     camera_.movementSpeed = 100.0f;
 
