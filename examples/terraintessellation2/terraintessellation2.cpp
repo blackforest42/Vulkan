@@ -32,11 +32,12 @@ class VulkanExample : public VulkanExampleBase {
     vks::Texture2D heightMap{};
   } textures_;
 
-  struct ModelViewProjectionUBO {
-    glm::mat4 mvp;
+  struct ModelViewPerspectiveUBO {
+    glm::mat4 perspective;
+    glm::mat4 view;
   };
   struct {
-    ModelViewProjectionUBO terrain, skyBox;
+    ModelViewPerspectiveUBO terrain, skyBox;
   } ubos_;
 
   struct UniformBuffers {
@@ -241,7 +242,7 @@ class VulkanExample : public VulkanExampleBase {
       VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
                                                &descriptorSets_[i].terrain));
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-          // Binding 0 : MVP (model x view x projection) mat4
+          // Binding 0 : MVP (model x view x perspective) mat4
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i].terrain, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
               &uniformBuffers_[i].terrain.descriptor),
@@ -404,7 +405,7 @@ class VulkanExample : public VulkanExampleBase {
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer.terrain, sizeof(ModelViewProjectionUBO)));
+          &buffer.terrain, sizeof(ModelViewPerspectiveUBO)));
       VK_CHECK_RESULT(buffer.terrain.map());
 
       // Skybox vertex shader uniform buffer
@@ -418,15 +419,15 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    ubos_.terrain.mvp = camera_.matrices_.perspective *
-                        glm::mat4(camera_.matrices_.view * glm::mat4(1.0f));
+    ubos_.terrain.perspective = camera_.matrices_.perspective;
+    ubos_.terrain.view = camera_.matrices_.view;
     memcpy(uniformBuffers_[currentBuffer_].terrain.mapped, &ubos_.terrain,
-           sizeof(ModelViewProjectionUBO));
+           sizeof(ModelViewPerspectiveUBO));
 
-    ubos_.skyBox.mvp = camera_.matrices_.perspective *
-                       glm::mat4(glm::mat3(camera_.matrices_.view));
+    ubos_.skyBox.perspective = camera_.matrices_.perspective;
+    ubos_.skyBox.view = glm::mat4(glm::mat3(camera_.matrices_.view));
     memcpy(uniformBuffers_[currentBuffer_].skybox.mapped, &ubos_.skyBox,
-           sizeof(ModelViewProjectionUBO));
+           sizeof(ModelViewPerspectiveUBO));
   }
 
   void prepare() {

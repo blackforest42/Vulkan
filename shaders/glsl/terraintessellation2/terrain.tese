@@ -8,7 +8,8 @@ layout (location = 0) out vec2 outUV;
 
 layout (set = 0, binding = 0) uniform UBO 
 {
-	mat4 mvp;
+	mat4 perspective;
+	mat4 view;
 } ubo; 
 
 layout(set = 0, binding = 1) uniform sampler2D heightMap;
@@ -34,7 +35,6 @@ void main()
 	//pos.y -= (cos(outUV.y * ubo.time / 10.f)) * height_scale;
 	pos.y -= textureLod(heightMap, outUV, 0.0).r * height_scale;
 
-	// Perspective projection
-	gl_Position = ubo.mvp * pos;
+	gl_Position = ubo.perspective * ubo.view * pos;
 
 }
