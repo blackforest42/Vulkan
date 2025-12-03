@@ -90,26 +90,24 @@ class VulkanExample : public VulkanExampleBase {
     ktxTexture_Destroy(ktxTexture);
 
     const uint32_t n_patches{64};
-    const uint32_t vertexCount = n_patches * n_patches;
+    const float patch_width = (float)TEXTURE_WIDTH / n_patches;
+    const float patch_height = (float)TEXTURE_HEIGHT / n_patches;
     // We use the Vertex definition from the glTF model loader, so we can re-use
     // the vertex input state
+    const uint32_t vertexCount = n_patches * n_patches;
     std::vector<vkglTF::Vertex> vertices(vertexCount);
 
-    const float wx = 2.0f;
-    const float wy = 2.0f;
-
     // Generate a two-dimensional vertex patch
-    for (auto x = 0; x < n_patches; x++) {
-      for (auto y = 0; y < n_patches; y++) {
-        uint32_t index = (x + y * n_patches);
-        vertices[index].pos[0] =
-            x * wx + wx / 2.0f - (float)n_patches * wx / 2.0f;
+    for (auto row = 0; row < n_patches; row++) {
+      for (auto col = 0; col < n_patches; col++) {
+        uint32_t index = (row + col * n_patches);
+        vertices[index].pos[0] = row * patch_width + patch_width / 2.0f -
+                                 (float)n_patches * patch_width / 2.0f;
         vertices[index].pos[1] = 0.0f;
-        vertices[index].pos[2] =
-            y * wy + wy / 2.0f - (float)n_patches * wy / 2.0f;
+        vertices[index].pos[2] = col * patch_height + patch_height / 2.0f -
+                                 (float)n_patches * patch_height / 2.0f;
         vertices[index].uv =
-            glm::vec2((float)x / (n_patches - 1), (float)y / (n_patches - 1)) *
-            1.f;
+            glm::vec2((float)row / (n_patches), (float)col / (n_patches));
       }
     }
 
@@ -613,8 +611,7 @@ class VulkanExample : public VulkanExampleBase {
   VulkanExample() : VulkanExampleBase() {
     title = "Dynamic terrain tessellation 2";
     camera_.type_ = Camera::CameraType::firstperson;
-    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f,
-                           1024.0f);
+    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
     camera_.setTranslation(glm::vec3(18.0f, 64.5f, 57.5f));
     camera_.movementSpeed = 100.0f;
 
