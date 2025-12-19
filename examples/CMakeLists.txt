@@ -162,6 +162,7 @@ set(EXAMPLES
 	shadowmapping
 	shadowmappingomni
 	shadowmappingcascade
+	smoke
 	specializationconstants
 	sphericalenvmapping
 	ssao

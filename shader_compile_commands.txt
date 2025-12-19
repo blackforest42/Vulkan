@@ -1,7 +1,2 @@
-glslc -g terrain.vert -o terrain.vert.spv
-glslc -g terrain.frag -o terrain.frag.spv
-glslc -g terrain.tesc -o terrain.tesc.spv
-glslc -g terrain.tese -o terrain.tese.spv
-glslc -g skybox.vert -o skybox.vert.spv
-glslc -g skybox.frag -o skybox.frag.spv
-
+glslc -g smoke.vert -o smoke.vert.spv
+glslc -g smoke.frag -o smoke.frag.spv
