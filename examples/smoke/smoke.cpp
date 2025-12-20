@@ -12,7 +12,7 @@
 #include "vulkanexamplebase.h"
 
 const int VOXEL_CUBOID_WIDTH = 5;
-const int VOXEL_CUBOID_HEIGHT = 2;
+const int VOXEL_CUBOID_HEIGHT = 10;
 const int VOXEL_INSTANCES =
     VOXEL_CUBOID_WIDTH * VOXEL_CUBOID_WIDTH * VOXEL_CUBOID_HEIGHT;
 const float VOXEL_SCALE = 1.0f;
@@ -202,11 +202,6 @@ class VulkanExample : public VulkanExampleBase {
 
     pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
     pipelineCreateInfo.pVertexInputState = &vertexInputStateCI;
-    // pipelineCreateInfo.pVertexInputState =
-    // vkglTF::Vertex::getPipelineVertexInputState(
-    //    {vkglTF::VertexComponent::Position, vkglTF::VertexComponent::UV,
-    //     vkglTF::VertexComponent::Color, vkglTF::VertexComponent::Normal});
-    pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
     pipelineCreateInfo.pRasterizationState = &rasterizationState;
     pipelineCreateInfo.pColorBlendState = &colorBlendState;
     pipelineCreateInfo.pMultisampleState = &multisampleState;
@@ -215,6 +210,17 @@ class VulkanExample : public VulkanExampleBase {
     pipelineCreateInfo.pDynamicState = &dynamicState;
     pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineCreateInfo.pStages = shaderStages.data();
+
+    // Alpha blending for enabling opacity control in frag shader
+    blendAttachmentState.colorWriteMask = 0xF;
+    blendAttachmentState.blendEnable = VK_TRUE;
+    blendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+    blendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    blendAttachmentState.dstColorBlendFactor =
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    blendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+    blendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    blendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
     // New create info to define color, depth and stencil attachments at
     // pipeline create time
@@ -303,8 +309,8 @@ class VulkanExample : public VulkanExampleBase {
           glm::vec3 voxel_size = glm::vec3(1.f);
 
           // Update matrices
-          glm::vec3 pos =
-              glm::vec3(x * voxel_size.x, y * voxel_size.y, z * voxel_size.z);
+          glm::vec3 pos = glm::vec3(x * voxel_size.x, -1.f * y * voxel_size.y,
+                                    z * voxel_size.z);
           *modelMat = glm::translate(
               glm::scale(glm::mat4(1.0), glm::vec3(VOXEL_SCALE)), pos);
         }
@@ -498,7 +504,7 @@ class VulkanExample : public VulkanExampleBase {
     title = "Smoke Simulation";
     camera_.type_ = Camera::CameraType::firstperson;
     camera_.setMovementSpeed(25.f);
-    camera_.setPosition(glm::vec3(0.0f, 0.0f, -16.f));
+    camera_.setPosition(glm::vec3(0.0f, 0.0f, -10.f));
     camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 
