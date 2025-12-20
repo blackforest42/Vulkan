@@ -15,7 +15,7 @@ const int VOXEL_CUBOID_WIDTH = 5;
 const int VOXEL_CUBOID_HEIGHT = 10;
 const int VOXEL_INSTANCES =
     VOXEL_CUBOID_WIDTH * VOXEL_CUBOID_WIDTH * VOXEL_CUBOID_HEIGHT;
-const float VOXEL_SCALE = 1.0f;
+const float VOXEL_DIM = 1.0f;
 
 // Wrapper functions for aligned memory allocation
 // There is currently no standard for this in C++ that works across all
@@ -306,13 +306,10 @@ class VulkanExample : public VulkanExampleBase {
               (glm::mat4*)(((uint64_t)graphics_.uniformModel_.model +
                             (index * graphics_.dynamicAlignment)));
 
-          glm::vec3 voxel_size = glm::vec3(1.f);
-
           // Update matrices
-          glm::vec3 pos = glm::vec3(x * voxel_size.x, -1.f * y * voxel_size.y,
-                                    z * voxel_size.z);
+          glm::vec3 pos = glm::vec3(x, -1.f * y, z);
           *modelMat = glm::translate(
-              glm::scale(glm::mat4(1.0), glm::vec3(VOXEL_SCALE)), pos);
+              glm::scale(glm::mat4(1.0), glm::vec3(VOXEL_DIM)), pos);
         }
       }
     }
