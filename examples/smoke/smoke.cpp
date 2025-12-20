@@ -11,8 +11,8 @@
 #include "VulkanglTFModel.h"
 #include "vulkanexamplebase.h"
 
-const int VOXEL_CUBOID_WIDTH = 40;
-const int VOXEL_CUBOID_HEIGHT = 40;
+const int VOXEL_CUBOID_WIDTH = 5;
+const int VOXEL_CUBOID_HEIGHT = 2;
 const int VOXEL_INSTANCES =
     VOXEL_CUBOID_WIDTH * VOXEL_CUBOID_WIDTH * VOXEL_CUBOID_HEIGHT;
 const float VOXEL_SCALE = 1.0f;
@@ -268,10 +268,22 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
+    // static buffers
     graphics_.uniformView_.projection = camera_.matrices_.perspective;
     graphics_.uniformView_.view = camera_.matrices_.view;
     memcpy(graphics_.uniformBuffers_[currentBuffer_].view.mapped,
            &graphics_.uniformView_, sizeof(Graphics::UniformBufferView));
+
+    // update dynamic buffer
+    memcpy(graphics_.uniformBuffers_[currentBuffer_].dynamic.mapped,
+           graphics_.uniformModel_.model,
+           graphics_.uniformBuffers_[currentBuffer_].dynamic.size);
+    // Flush to make changes visible to the host
+    VkMappedMemoryRange memoryRange = vks::initializers::mappedMemoryRange();
+    memoryRange.memory =
+        graphics_.uniformBuffers_[currentBuffer_].dynamic.memory;
+    memoryRange.size = graphics_.uniformBuffers_[currentBuffer_].dynamic.size;
+    vkFlushMappedMemoryRanges(device_, 1, &memoryRange);
   }
 
   void prepareVoxelPositions() {
