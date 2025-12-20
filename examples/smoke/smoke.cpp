@@ -11,8 +11,8 @@
 #include "VulkanglTFModel.h"
 #include "vulkanexamplebase.h"
 
-const int VOXEL_CUBOID_WIDTH = 10;
-const int VOXEL_CUBOID_HEIGHT = 3;
+const int VOXEL_CUBOID_WIDTH = 40;
+const int VOXEL_CUBOID_HEIGHT = 40;
 const int VOXEL_INSTANCES =
     VOXEL_CUBOID_WIDTH * VOXEL_CUBOID_WIDTH * VOXEL_CUBOID_HEIGHT;
 const float VOXEL_SCALE = 1.0f;
@@ -57,12 +57,12 @@ class VulkanExample : public VulkanExampleBase {
 
   // resources for rendering the compute outputs
   struct Graphics {
-    struct UniformView {
+    struct UniformBufferView {
       glm::mat4 projection;
       glm::mat4 view;
     } uniformView_;
 
-    struct UniformModel {
+    struct UniformBufferModel {
       glm::mat4* model{nullptr};
     } uniformModel_;
 
@@ -236,10 +236,6 @@ class VulkanExample : public VulkanExampleBase {
 
   // Prepare and initialize uniform buffer containing shader uniforms
   void prepareUniformBuffers() {
-    // Allocate data for the dynamic uniform buffer object
-    // We allocate this manually as the alignment of the offset differs
-    // between GPUs
-
     // Calculate required alignment based on minimum device offset alignment
     graphics_.dynamicAlignment = sizeof(glm::mat4);
 
@@ -254,7 +250,7 @@ class VulkanExample : public VulkanExampleBase {
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer.view, sizeof(Graphics::UniformView),
+          &buffer.view, sizeof(Graphics::UniformBufferView),
           &graphics_.uniformView_));
 
       // Uniform buffer object with per-object matrices
@@ -275,17 +271,17 @@ class VulkanExample : public VulkanExampleBase {
     graphics_.uniformView_.projection = camera_.matrices_.perspective;
     graphics_.uniformView_.view = camera_.matrices_.view;
     memcpy(graphics_.uniformBuffers_[currentBuffer_].view.mapped,
-           &graphics_.uniformView_, sizeof(Graphics::UniformView));
+           &graphics_.uniformView_, sizeof(Graphics::UniformBufferView));
   }
 
   void prepareVoxelPositions() {
     // Dynamic ubo with per-object model matrices indexed by offsets in the
     // command buffer
-    for (uint32_t y = 0; y < VOXEL_CUBOID_HEIGHT; y++) {
-      for (uint32_t x = 0; x < VOXEL_CUBOID_WIDTH; x++) {
-        for (uint32_t z = 0; z < VOXEL_CUBOID_WIDTH; z++) {
+    for (uint32_t x = 0; x < VOXEL_CUBOID_WIDTH; x++) {
+      for (uint32_t z = 0; z < VOXEL_CUBOID_WIDTH; z++) {
+        for (uint32_t y = 0; y < VOXEL_CUBOID_HEIGHT; y++) {
           const uint32_t index = y * VOXEL_CUBOID_WIDTH * VOXEL_CUBOID_WIDTH +
-                                 x * VOXEL_CUBOID_WIDTH + z;
+                                 z * VOXEL_CUBOID_WIDTH + x;
 
           // Aligned offset
           glm::mat4* modelMat =
@@ -424,9 +420,10 @@ class VulkanExample : public VulkanExampleBase {
                          VK_INDEX_TYPE_UINT32);
 
     // Draw all cubes with dynamic uniform buffer (model matrix)
-    for (uint32_t j = 0; j < VOXEL_INSTANCES; j++) {
+    for (uint32_t i = 0; i < VOXEL_INSTANCES; i++) {
       uint32_t dynamicOffset =
-          j * static_cast<uint32_t>(graphics_.dynamicAlignment);
+          i * static_cast<uint32_t>(graphics_.dynamicAlignment);
+
       vkCmdBindDescriptorSets(
           cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_.pipelineLayout_,
           0, 1, &graphics_.descriptorSets_[currentBuffer_], 1, &dynamicOffset);

@@ -4,6 +4,7 @@ TODO:
 - ray march the voxels
 	- use 3d perlin noise to test
 - cube mesh flickering bug :(
+	- when rendering using normal buffers instead of dynamic, flickering stops
 - compute pipeline to write to a 3d texture
 
 DONE:

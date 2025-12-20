@@ -21,7 +21,7 @@
 
 #include "vulkanexamplebase.h"
 
-constexpr auto OBJECT_INSTANCES = 125;
+constexpr auto OBJECT_INSTANCES = 40 * 40 * 40;
 
 // Vertex layout for this example
 struct Vertex {
