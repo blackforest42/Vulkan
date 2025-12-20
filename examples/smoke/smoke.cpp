@@ -13,6 +13,11 @@
 
 class VulkanExample : public VulkanExampleBase {
  public:
+  PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR{VK_NULL_HANDLE};
+  PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR{VK_NULL_HANDLE};
+  VkPhysicalDeviceDynamicRenderingFeaturesKHR
+      enabledDynamicRenderingFeaturesKHR{};
+
   vkglTF::Model cube_;
 
   struct UniformData {
@@ -34,6 +39,27 @@ class VulkanExample : public VulkanExampleBase {
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -16.f));
     camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
+
+    enabledInstanceExtensions_.push_back(
+        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+
+    // The sample uses the extension (instead of Vulkan 1.2, where dynamic
+    // rendering is core)
+    enabledDeviceExtensions_.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
+    enabledDeviceExtensions_.push_back(VK_KHR_MAINTENANCE2_EXTENSION_NAME);
+    enabledDeviceExtensions_.push_back(VK_KHR_MULTIVIEW_EXTENSION_NAME);
+    enabledDeviceExtensions_.push_back(
+        VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME);
+    enabledDeviceExtensions_.push_back(
+        VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME);
+
+    // in addition to the extension, the feature needs to be explicitly enabled
+    // too by chaining the extension structure into device creation
+    enabledDynamicRenderingFeaturesKHR.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
+    enabledDynamicRenderingFeaturesKHR.dynamicRendering = VK_TRUE;
+
+    deviceCreatepNextChain_ = &enabledDynamicRenderingFeaturesKHR;
   }
 
   ~VulkanExample() {
@@ -175,6 +201,14 @@ class VulkanExample : public VulkanExampleBase {
 
   void prepare() {
     VulkanExampleBase::prepare();
+
+    // Since we use an extension, we need to expliclity load the function
+    // pointers for extension related Vulkan commands
+    vkCmdBeginRenderingKHR = reinterpret_cast<PFN_vkCmdBeginRenderingKHR>(
+        vkGetDeviceProcAddr(device_, "vkCmdBeginRenderingKHR"));
+    vkCmdEndRenderingKHR = reinterpret_cast<PFN_vkCmdEndRenderingKHR>(
+        vkGetDeviceProcAddr(device_, "vkCmdEndRenderingKHR"));
+
     loadAssets();
     prepareUniformBuffers();
     setupDescriptors();
@@ -187,26 +221,61 @@ class VulkanExample : public VulkanExampleBase {
 
     VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
-
-    VkClearValue clearValues[2]{};
-    clearValues[0].color = defaultClearColor;
-    clearValues[1].depthStencil = {1.0f, 0};
-
-    VkRenderPassBeginInfo renderPassBeginInfo =
-        vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = renderPass_;
-    renderPassBeginInfo.renderArea.offset.x = 0;
-    renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.renderArea.extent.width = width_;
-    renderPassBeginInfo.renderArea.extent.height = height_;
-    renderPassBeginInfo.clearValueCount = 2;
-    renderPassBeginInfo.pClearValues = clearValues;
-    renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
-
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
-    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
-                         VK_SUBPASS_CONTENTS_INLINE);
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, swapChain_.images_[currentImageIndex_], 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, depthStencil_.image, 0,
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        VkImageSubresourceRange{
+            VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0,
+            1});
+
+    // New structures are used to define the attachments used in dynamic
+    // rendering
+    VkRenderingAttachmentInfoKHR colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    colorAttachment.imageView = swapChain_.imageViews_[currentImageIndex_];
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    // A single depth stencil attachment info can be used, but they can also be
+    // specified separately. When both are specified separately, the only
+    // requirement is that the image view is identical.
+    VkRenderingAttachmentInfoKHR depthStencilAttachment{};
+    depthStencilAttachment.sType =
+        VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    depthStencilAttachment.imageView = depthStencil_.view;
+    depthStencilAttachment.imageLayout =
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depthStencilAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthStencilAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    depthStencilAttachment.clearValue.depthStencil = {1.0f, 0};
+
+    VkRenderingInfoKHR renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderingInfo.renderArea = {0, 0, width_, height_};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
+    renderingInfo.pDepthAttachment = &depthStencilAttachment;
+    renderingInfo.pStencilAttachment = &depthStencilAttachment;
+
+    // Begin dynamic rendering
+    vkCmdBeginRenderingKHR(cmdBuffer, &renderingInfo);
 
     VkViewport viewport =
         vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
@@ -225,7 +294,8 @@ class VulkanExample : public VulkanExampleBase {
 
     drawUI(cmdBuffer);
 
-    vkCmdEndRenderPass(cmdBuffer);
+    // End dynamic rendering
+    vkCmdEndRenderingKHR(cmdBuffer);
 
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }

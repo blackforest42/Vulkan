@@ -1,5 +1,8 @@
-Nov 26
+Dec 19
 TODO: 
-	- rescale dimensions of terrain to be the same as the height map texture
+- render multiple voxels in a cuboid
+- ray march the voxels
+- compute pipeline to write to a 3d texture
 
 DONE:
+- cube mesh aka "voxel" renderer done
