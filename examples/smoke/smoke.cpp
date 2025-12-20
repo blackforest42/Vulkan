@@ -15,7 +15,7 @@ const int VOXEL_CUBOID_WIDTH = 10;
 const int VOXEL_CUBOID_HEIGHT = 3;
 const int VOXEL_INSTANCES =
     VOXEL_CUBOID_WIDTH * VOXEL_CUBOID_WIDTH * VOXEL_CUBOID_HEIGHT;
-const float VOXEL_SCALE = .1f;
+const float VOXEL_SCALE = 1.0f;
 
 // Wrapper functions for aligned memory allocation
 // There is currently no standard for this in C++ that works across all
@@ -40,6 +40,10 @@ void alignedFree(void* data) {
 #endif
 }
 
+struct Vertex {
+  float pos[3];
+};
+
 class VulkanExample : public VulkanExampleBase {
  public:
   PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR{VK_NULL_HANDLE};
@@ -47,7 +51,9 @@ class VulkanExample : public VulkanExampleBase {
   VkPhysicalDeviceDynamicRenderingFeaturesKHR
       enabledDynamicRenderingFeaturesKHR{};
 
-  vkglTF::Model voxel_;
+  vks::Buffer vertexBuffer;
+  vks::Buffer indexBuffer;
+  uint32_t indexCount{0};
 
   // resources for rendering the compute outputs
   struct Graphics {
@@ -72,59 +78,6 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorSetLayout descriptorSetLayout_{VK_NULL_HANDLE};
     std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
   } graphics_;
-
-  // Resources for the compute part of the example
-  struct Compute {
-    // Used to check if compute and graphics queue
-    // families differ and require additional barriers
-    uint32_t queueFamilyIndex;
-    // Separate queue for compute commands (queue family may
-    // differ from the one used for graphics)
-    VkQueue queue;
-    // Use a separate command pool (queue family may
-    // differ from the one used for graphics)
-    VkCommandPool commandPool;
-    // Command buffer storing the dispatch commands and
-    // barriers
-    std::array<VkCommandBuffer, MAX_CONCURRENT_FRAMES> commandBuffers;
-    // Compute shader binding layout
-    VkDescriptorSetLayout descriptorSetLayout;
-    // Compute shader bindings
-    std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets;
-    // Fences to make sure command buffers are done
-    std::array<VkFence, MAX_CONCURRENT_FRAMES> fences{};
-
-    // Semaphores for submission ordering
-    struct ComputeSemaphores {
-      VkSemaphore ready{VK_NULL_HANDLE};
-      VkSemaphore complete{VK_NULL_HANDLE};
-    };
-
-    std::array<ComputeSemaphores, MAX_CONCURRENT_FRAMES> semaphores{};
-
-    // Layout of the compute pipeline
-    VkPipelineLayout pipelineLayout;
-    // Compute pipeline for N-Body velocity
-    // calculation (1st pass)
-    VkPipeline pipelineCalculate;
-    // Compute pipeline for euler integration (2nd pass)
-    VkPipeline pipelineIntegrate;
-
-    // Compute shader uniform block object
-    struct UniformData {
-      // Frame delta time
-      float deltaT{0.0f};
-      int32_t particleCount{0};
-      // Parameters used to control the behaviour of the particle system
-      float gravity{0.002f};
-      float power{0.75f};
-      float soften{0.05f};
-    } uniformView_;
-
-    // Uniform buffer object containing particle system
-    // parameters
-    std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers;
-  } compute_;
 
   void setupDescriptors() {
     // Pool
@@ -151,6 +104,7 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
             VK_SHADER_STAGE_VERTEX_BIT, 1)};
+
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
     VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
@@ -218,6 +172,24 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
+    // Vertex bindings and attributes
+    VkVertexInputBindingDescription vertexInputBinding = {
+        vks::initializers::vertexInputBindingDescription(
+            0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX)};
+    std::vector<VkVertexInputAttributeDescription> vertexInputAttributes = {
+        vks::initializers::vertexInputAttributeDescription(
+            0, 0, VK_FORMAT_R32G32B32_SFLOAT,
+            offsetof(Vertex, pos)),  // Location 0 : Position
+    };
+    VkPipelineVertexInputStateCreateInfo vertexInputStateCI =
+        vks::initializers::pipelineVertexInputStateCreateInfo();
+    vertexInputStateCI.vertexBindingDescriptionCount = 1;
+    vertexInputStateCI.pVertexBindingDescriptions = &vertexInputBinding;
+    vertexInputStateCI.vertexAttributeDescriptionCount =
+        static_cast<uint32_t>(vertexInputAttributes.size());
+    vertexInputStateCI.pVertexAttributeDescriptions =
+        vertexInputAttributes.data();
+
     // Shaders
     shaderStages[0] = loadShader(getShadersPath() + "smoke/smoke.vert.spv",
                                  VK_SHADER_STAGE_VERTEX_BIT);
@@ -227,10 +199,13 @@ class VulkanExample : public VulkanExampleBase {
     VkGraphicsPipelineCreateInfo pipelineCreateInfo =
         vks::initializers::pipelineCreateInfo(graphics_.pipelineLayout_,
                                               renderPass_, 0);
-    pipelineCreateInfo.pVertexInputState =
-        vkglTF::Vertex::getPipelineVertexInputState(
-            {vkglTF::VertexComponent::Position, vkglTF::VertexComponent::UV,
-             vkglTF::VertexComponent::Color, vkglTF::VertexComponent::Normal});
+
+    pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
+    pipelineCreateInfo.pVertexInputState = &vertexInputStateCI;
+    // pipelineCreateInfo.pVertexInputState =
+    // vkglTF::Vertex::getPipelineVertexInputState(
+    //    {vkglTF::VertexComponent::Position, vkglTF::VertexComponent::UV,
+    //     vkglTF::VertexComponent::Color, vkglTF::VertexComponent::Normal});
     pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
     pipelineCreateInfo.pRasterizationState = &rasterizationState;
     pipelineCreateInfo.pColorBlendState = &colorBlendState;
@@ -317,7 +292,7 @@ class VulkanExample : public VulkanExampleBase {
               (glm::mat4*)(((uint64_t)graphics_.uniformModel_.model +
                             (index * graphics_.dynamicAlignment)));
 
-          glm::vec3 voxel_size = glm::abs(voxel_.dimensions.size);
+          glm::vec3 voxel_size = glm::vec3(1.f);
 
           // Update matrices
           glm::vec3 pos =
@@ -367,6 +342,7 @@ class VulkanExample : public VulkanExampleBase {
     prepareDyanmicRendering();
     loadAssets();
     prepareUniformBuffers();
+    generateCube();
     prepareVoxelPositions();
     setupDescriptors();
     preparePipelines();
@@ -442,37 +418,61 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       graphics_.pipeline_);
 
+    VkDeviceSize offsets[1] = {0};
+    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer.buffer, offsets);
+    vkCmdBindIndexBuffer(cmdBuffer, indexBuffer.buffer, 0,
+                         VK_INDEX_TYPE_UINT32);
+
+    // Draw all cubes with dynamic uniform buffer (model matrix)
     for (uint32_t j = 0; j < VOXEL_INSTANCES; j++) {
       uint32_t dynamicOffset =
           j * static_cast<uint32_t>(graphics_.dynamicAlignment);
       vkCmdBindDescriptorSets(
           cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_.pipelineLayout_,
           0, 1, &graphics_.descriptorSets_[currentBuffer_], 1, &dynamicOffset);
-      voxel_.draw(cmdBuffer);
+      vkCmdDrawIndexed(cmdBuffer, indexCount, 1, 0, 0, 0);
     }
+
     drawUI(cmdBuffer);
+
     // End dynamic rendering
     vkCmdEndRenderingKHR(cmdBuffer);
-
-    vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, swapChain_.images_[currentImageIndex_],
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0,
-        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
 
-  void loadAssets() {
-    const uint32_t glTFLoadingFlags =
-        vkglTF::FileLoadingFlags::PreTransformVertices |
-        vkglTF::FileLoadingFlags::PreMultiplyVertexColors |
-        vkglTF::FileLoadingFlags::FlipY;
-    voxel_.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice_,
-                        queue_, glTFLoadingFlags);
+  void generateCube() {
+    // Setup vertices indices for a colored cube
+    std::vector<Vertex> vertices = {
+        {{-1.0f, -1.0f, 1.0f}}, {{1.0f, -1.0f, 1.0f}},   {{1.0f, 1.0f, 1.0f}},
+        {{-1.0f, 1.0f, 1.0f}},  {{-1.0f, -1.0f, -1.0f}}, {{1.0f, -1.0f, -1.0f}},
+        {{1.0f, 1.0f, -1.0f}},  {{-1.0f, 1.0f, -1.0f}},
+    };
+
+    std::vector<uint32_t> indices = {
+        0, 1, 2, 2, 3, 0, 1, 5, 6, 6, 2, 1, 7, 6, 5, 5, 4, 7,
+        4, 0, 3, 3, 7, 4, 4, 5, 1, 1, 0, 4, 3, 2, 6, 6, 7, 3,
+    };
+
+    indexCount = static_cast<uint32_t>(indices.size());
+
+    // Create buffers
+    // For the sake of simplicity we won't stage the vertex data to the gpu
+    // memory Vertex buffer
+    VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        &vertexBuffer, vertices.size() * sizeof(Vertex), vertices.data()));
+    // Index buffer
+    VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        &indexBuffer, indices.size() * sizeof(uint32_t), indices.data()));
   }
+
+  void loadAssets() {}
 
   virtual void render() {
     if (!prepared_)
@@ -517,10 +517,15 @@ class VulkanExample : public VulkanExampleBase {
 
   ~VulkanExample() {
     if (device_) {
+      if (graphics_.uniformModel_.model) {
+        alignedFree(graphics_.uniformModel_.model);
+      }
       vkDestroyPipeline(device_, graphics_.pipeline_, nullptr);
       vkDestroyPipelineLayout(device_, graphics_.pipelineLayout_, nullptr);
       vkDestroyDescriptorSetLayout(device_, graphics_.descriptorSetLayout_,
                                    nullptr);
+      vertexBuffer.destroy();
+      indexBuffer.destroy();
       for (auto& buffer : graphics_.uniformBuffers_) {
         buffer.view.destroy();
         buffer.dynamic.destroy();
