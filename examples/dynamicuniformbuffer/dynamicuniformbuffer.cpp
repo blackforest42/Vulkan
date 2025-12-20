@@ -1,20 +1,23 @@
 /*
-* Vulkan Example - Dynamic uniform buffers
-*
-* Copyright (C) 2016-2025 by Sascha Willems - www.saschawillems.de
-*
-* This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
-*
-* Summary:
-* Demonstrates the use of dynamic uniform buffers.
-*
-* Instead of using one uniform buffer per-object, this example allocates one big uniform buffer
-* with respect to the alignment reported by the device via minUniformBufferOffsetAlignment that
-* contains all matrices for the objects in the scene.
-*
-* The used descriptor type VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC then allows to set a dynamic
-* offset used to pass data from the single uniform buffer to the connected shader binding point.
-*/
+ * Vulkan Example - Dynamic uniform buffers
+ *
+ * Copyright (C) 2016-2025 by Sascha Willems - www.saschawillems.de
+ *
+ * This code is licensed under the MIT license (MIT)
+ * (http://opensource.org/licenses/MIT)
+ *
+ * Summary:
+ * Demonstrates the use of dynamic uniform buffers.
+ *
+ * Instead of using one uniform buffer per-object, this example allocates one
+ * big uniform buffer with respect to the alignment reported by the device via
+ * minUniformBufferOffsetAlignment that contains all matrices for the objects in
+ * the scene.
+ *
+ * The used descriptor type VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC then
+ * allows to set a dynamic offset used to pass data from the single uniform
+ * buffer to the connected shader binding point.
+ */
 
 #include "vulkanexamplebase.h"
 
@@ -22,387 +25,449 @@ constexpr auto OBJECT_INSTANCES = 125;
 
 // Vertex layout for this example
 struct Vertex {
-	float pos[3];
-	float color[3];
+  float pos[3];
+  float color[3];
 };
 
 // Wrapper functions for aligned memory allocation
-// There is currently no standard for this in C++ that works across all platforms and vendors, so we abstract this
-void* alignedAlloc(size_t size, size_t alignment)
-{
-	void *data = nullptr;
+// There is currently no standard for this in C++ that works across all
+// platforms and vendors, so we abstract this
+void* alignedAlloc(size_t size, size_t alignment) {
+  void* data = nullptr;
 #if defined(_MSC_VER) || defined(__MINGW32__)
-	data = _aligned_malloc(size, alignment);
+  data = _aligned_malloc(size, alignment);
 #else
-	int res = posix_memalign(&data, alignment, size);
-	if (res != 0)
-		data = nullptr;
+  int res = posix_memalign(&data, alignment, size);
+  if (res != 0)
+    data = nullptr;
 #endif
-	return data;
+  return data;
 }
 
-void alignedFree(void* data)
-{
-#if	defined(_MSC_VER) || defined(__MINGW32__)
-	_aligned_free(data);
+void alignedFree(void* data) {
+#if defined(_MSC_VER) || defined(__MINGW32__)
+  _aligned_free(data);
 #else
-	free(data);
+  free(data);
 #endif
 }
 
-class VulkanExample : public VulkanExampleBase
-{
-public:
-	vks::Buffer vertexBuffer;
-	vks::Buffer indexBuffer;
-	uint32_t indexCount{ 0 };
+class VulkanExample : public VulkanExampleBase {
+ public:
+  vks::Buffer vertexBuffer;
+  vks::Buffer indexBuffer;
+  uint32_t indexCount{0};
 
-	struct UniformBuffers {
-		vks::Buffer view;
-		vks::Buffer dynamic;
-	};
-	std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+  struct UniformBuffers {
+    vks::Buffer view;
+    vks::Buffer dynamic;
+  };
+  std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
-	struct {
-		glm::mat4 projection;
-		glm::mat4 view;
-	} uboVS;
+  struct {
+    glm::mat4 projection;
+    glm::mat4 view;
+  } uboVS;
 
-	// Store random per-object rotations
-	glm::vec3 rotations[OBJECT_INSTANCES];
-	glm::vec3 rotationSpeeds[OBJECT_INSTANCES];
+  // Store random per-object rotations
+  glm::vec3 rotations[OBJECT_INSTANCES];
+  glm::vec3 rotationSpeeds[OBJECT_INSTANCES];
 
-	// One big uniform buffer that contains all matrices
-	// Note that we need to manually allocate the data to cope for GPU-specific uniform buffer offset alignments
-	struct UboDataDynamic {
-		glm::mat4* model{ nullptr };
-	} uboDataDynamic;
+  // One big uniform buffer that contains all matrices
+  // Note that we need to manually allocate the data to cope for GPU-specific
+  // uniform buffer offset alignments
+  struct UboDataDynamic {
+    glm::mat4* model{nullptr};
+  } uboDataDynamic;
 
-	VkPipeline pipeline{ VK_NULL_HANDLE };
-	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
-	VkDescriptorSet descriptorSet{ VK_NULL_HANDLE };
-	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
+  VkPipeline pipeline{VK_NULL_HANDLE};
+  VkPipelineLayout pipelineLayout{VK_NULL_HANDLE};
+  VkDescriptorSet descriptorSet{VK_NULL_HANDLE};
+  VkDescriptorSetLayout descriptorSetLayout{VK_NULL_HANDLE};
 
-	size_t dynamicAlignment{ 0 };
+  size_t dynamicAlignment{0};
 
-	VulkanExample() : VulkanExampleBase()
-	{
-		title = "Dynamic uniform buffers";
-		camera_.type_ = Camera::CameraType::lookat;
-		camera_.setPosition(glm::vec3(0.0f, 0.0f, -30.0f));
-		camera_.setRotation(glm::vec3(0.0f));
-		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
-	}
+  VulkanExample() : VulkanExampleBase() {
+    title = "Dynamic uniform buffers";
+    camera_.type_ = Camera::CameraType::lookat;
+    camera_.setPosition(glm::vec3(0.0f, 0.0f, -30.0f));
+    camera_.setRotation(glm::vec3(0.0f));
+    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
+  }
 
-	~VulkanExample()
-	{
-		if (device_) {
-			if (uboDataDynamic.model) {
-				alignedFree(uboDataDynamic.model);
-			}
-			vkDestroyPipeline(device_, pipeline, nullptr);
-			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
-			vertexBuffer.destroy();
-			indexBuffer.destroy();
-			for (auto& buffer : uniformBuffers_) {
-				buffer.view.destroy();
-				buffer.dynamic.destroy();
-			}
-		}
-	}
+  ~VulkanExample() {
+    if (device_) {
+      if (uboDataDynamic.model) {
+        alignedFree(uboDataDynamic.model);
+      }
+      vkDestroyPipeline(device_, pipeline, nullptr);
+      vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
+      vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
+      vertexBuffer.destroy();
+      indexBuffer.destroy();
+      for (auto& buffer : uniformBuffers_) {
+        buffer.view.destroy();
+        buffer.dynamic.destroy();
+      }
+    }
+  }
 
-	void generateCube()
-	{
-		// Setup vertices indices for a colored cube
-		std::vector<Vertex> vertices = {
-			{ { -1.0f, -1.0f,  1.0f },{ 1.0f, 0.0f, 0.0f } },
-			{ {  1.0f, -1.0f,  1.0f },{ 0.0f, 1.0f, 0.0f } },
-			{ {  1.0f,  1.0f,  1.0f },{ 0.0f, 0.0f, 1.0f } },
-			{ { -1.0f,  1.0f,  1.0f },{ 0.0f, 0.0f, 0.0f } },
-			{ { -1.0f, -1.0f, -1.0f },{ 1.0f, 0.0f, 0.0f } },
-			{ {  1.0f, -1.0f, -1.0f },{ 0.0f, 1.0f, 0.0f } },
-			{ {  1.0f,  1.0f, -1.0f },{ 0.0f, 0.0f, 1.0f } },
-			{ { -1.0f,  1.0f, -1.0f },{ 0.0f, 0.0f, 0.0f } },
-		};
+  void generateCube() {
+    // Setup vertices indices for a colored cube
+    std::vector<Vertex> vertices = {
+        {{-1.0f, -1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}},
+        {{1.0f, -1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}},
+        {{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
+        {{-1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}},
+        {{-1.0f, -1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}},
+        {{1.0f, -1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}},
+        {{1.0f, 1.0f, -1.0f}, {0.0f, 0.0f, 1.0f}},
+        {{-1.0f, 1.0f, -1.0f}, {0.0f, 0.0f, 0.0f}},
+    };
 
-		std::vector<uint32_t> indices = {
-			0,1,2, 2,3,0, 1,5,6, 6,2,1, 7,6,5, 5,4,7, 4,0,3, 3,7,4, 4,5,1, 1,0,4, 3,2,6, 6,7,3,
-		};
+    std::vector<uint32_t> indices = {
+        0, 1, 2, 2, 3, 0, 1, 5, 6, 6, 2, 1, 7, 6, 5, 5, 4, 7,
+        4, 0, 3, 3, 7, 4, 4, 5, 1, 1, 0, 4, 3, 2, 6, 6, 7, 3,
+    };
 
-		indexCount = static_cast<uint32_t>(indices.size());
+    indexCount = static_cast<uint32_t>(indices.size());
 
-		// Create buffers
-		// For the sake of simplicity we won't stage the vertex data to the gpu memory
-		// Vertex buffer
-		VK_CHECK_RESULT(vulkanDevice_->createBuffer(
-			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			&vertexBuffer,
-			vertices.size() * sizeof(Vertex),
-			vertices.data()));
-		// Index buffer
-		VK_CHECK_RESULT(vulkanDevice_->createBuffer(
-			VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			&indexBuffer,
-			indices.size() * sizeof(uint32_t),
-			indices.data()));
-	}
-	void setupDescriptors()
-	{
-		// Pool
-		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES),
-			// Dynamic uniform buffers require a different descriptor type
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, MAX_CONCURRENT_FRAMES)
-		};
+    // Create buffers
+    // For the sake of simplicity we won't stage the vertex data to the gpu
+    // memory Vertex buffer
+    VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        &vertexBuffer, vertices.size() * sizeof(Vertex), vertices.data()));
+    // Index buffer
+    VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        &indexBuffer, indices.size() * sizeof(uint32_t), indices.data()));
+  }
+  void setupDescriptors() {
+    // Pool
+    std::vector<VkDescriptorPoolSize> poolSizes = {
+        vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                              MAX_CONCURRENT_FRAMES),
+        // Dynamic uniform buffers require a different descriptor type
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, MAX_CONCURRENT_FRAMES)};
 
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, MAX_CONCURRENT_FRAMES);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
+    VkDescriptorPoolCreateInfo descriptorPoolInfo =
+        vks::initializers::descriptorPoolCreateInfo(poolSizes,
+                                                    MAX_CONCURRENT_FRAMES);
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
+                                           nullptr, &descriptorPool_));
 
-		// Layout
-		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
-			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0),
-			// Dynamic uniform buffer
-			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT, 1)
-		};
+    // Layout
+    std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0),
+        // Dynamic uniform buffer
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            VK_SHADER_STAGE_VERTEX_BIT, 1)};
 
-		VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr, &descriptorSetLayout));
+    VkDescriptorSetLayoutCreateInfo descriptorLayout =
+        vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout,
+                                                nullptr, &descriptorSetLayout));
 
-		// Sets per frame, just like the buffers themselves
-		// Images do not need to be duplicated per frame, we reuse the same one for each frame
-		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayout, 1);
-		for (auto i = 0; i < uniformBuffers_.size(); i++) {
-			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayout, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSet));
-			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-				// Binding 0 : Projection/View matrix as uniform buffer
-				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[currentBuffer_].view.descriptor),
-				// Binding 1 : Instance matrix as dynamic uniform buffer
-				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, &uniformBuffers_[currentBuffer_].dynamic.descriptor),
-			};
-			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
-		}
-	}
+    // Sets per frame, just like the buffers themselves
+    // Images do not need to be duplicated per frame, we reuse the same one for
+    // each frame
+    VkDescriptorSetAllocateInfo allocInfo =
+        vks::initializers::descriptorSetAllocateInfo(descriptorPool_,
+                                                     &descriptorSetLayout, 1);
+    for (auto i = 0; i < uniformBuffers_.size(); i++) {
+      VkDescriptorSetAllocateInfo allocInfo =
+          vks::initializers::descriptorSetAllocateInfo(descriptorPool_,
+                                                       &descriptorSetLayout, 1);
+      VK_CHECK_RESULT(
+          vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSet));
+      std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+          // Binding 0 : Projection/View matrix as uniform buffer
+          vks::initializers::writeDescriptorSet(
+              descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
+              &uniformBuffers_[currentBuffer_].view.descriptor),
+          // Binding 1 : Instance matrix as dynamic uniform buffer
+          vks::initializers::writeDescriptorSet(
+              descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1,
+              &uniformBuffers_[currentBuffer_].dynamic.descriptor),
+      };
+      vkUpdateDescriptorSets(device_,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
+    }
+  }
 
-	void preparePipelines()
-	{
-		// Layout
-		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+  void preparePipelines() {
+    // Layout
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
+        vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo,
+                                           nullptr, &pipelineLayout));
 
-		// Pipeline
-		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0,  VK_FALSE);
-		VkPipelineRasterizationStateCreateInfo rasterizationState = vks::initializers::pipelineRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE, VK_FRONT_FACE_COUNTER_CLOCKWISE, 0);
-		VkPipelineColorBlendAttachmentState blendAttachmentState = vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
-		VkPipelineColorBlendStateCreateInfo colorBlendState = vks::initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
-		VkPipelineDepthStencilStateCreateInfo depthStencilState = vks::initializers::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
-		VkPipelineViewportStateCreateInfo viewportState = vks::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
-		VkPipelineMultisampleStateCreateInfo multisampleState = vks::initializers::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT, 0);
-		std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-		VkPipelineDynamicStateCreateInfo dynamicState = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
-		std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{};
+    // Pipeline
+    VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
+        vks::initializers::pipelineInputAssemblyStateCreateInfo(
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
+    VkPipelineRasterizationStateCreateInfo rasterizationState =
+        vks::initializers::pipelineRasterizationStateCreateInfo(
+            VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE,
+            VK_FRONT_FACE_COUNTER_CLOCKWISE, 0);
+    VkPipelineColorBlendAttachmentState blendAttachmentState =
+        vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
+    VkPipelineColorBlendStateCreateInfo colorBlendState =
+        vks::initializers::pipelineColorBlendStateCreateInfo(
+            1, &blendAttachmentState);
+    VkPipelineDepthStencilStateCreateInfo depthStencilState =
+        vks::initializers::pipelineDepthStencilStateCreateInfo(
+            VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
+    VkPipelineViewportStateCreateInfo viewportState =
+        vks::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
+    VkPipelineMultisampleStateCreateInfo multisampleState =
+        vks::initializers::pipelineMultisampleStateCreateInfo(
+            VK_SAMPLE_COUNT_1_BIT, 0);
+    std::vector<VkDynamicState> dynamicStateEnables = {
+        VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dynamicState =
+        vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
+    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{};
 
-		// Vertex bindings and attributes
-		VkVertexInputBindingDescription vertexInputBinding = { 
-			vks::initializers::vertexInputBindingDescription(0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX)
-		};
-		std::vector<VkVertexInputAttributeDescription> vertexInputAttributes = {
-			vks::initializers::vertexInputAttributeDescription(0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)),	// Location 0 : Position
-			vks::initializers::vertexInputAttributeDescription(0, 1, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color)),	// Location 1 : Color
-		};
-		VkPipelineVertexInputStateCreateInfo vertexInputStateCI = vks::initializers::pipelineVertexInputStateCreateInfo();
-		vertexInputStateCI.vertexBindingDescriptionCount = 1;
-		vertexInputStateCI.pVertexBindingDescriptions = &vertexInputBinding;
-		vertexInputStateCI.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributes.size());
-		vertexInputStateCI.pVertexAttributeDescriptions = vertexInputAttributes.data();
+    // Vertex bindings and attributes
+    VkVertexInputBindingDescription vertexInputBinding = {
+        vks::initializers::vertexInputBindingDescription(
+            0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX)};
+    std::vector<VkVertexInputAttributeDescription> vertexInputAttributes = {
+        vks::initializers::vertexInputAttributeDescription(
+            0, 0, VK_FORMAT_R32G32B32_SFLOAT,
+            offsetof(Vertex, pos)),  // Location 0 : Position
+        vks::initializers::vertexInputAttributeDescription(
+            0, 1, VK_FORMAT_R32G32B32_SFLOAT,
+            offsetof(Vertex, color)),  // Location 1 : Color
+    };
+    VkPipelineVertexInputStateCreateInfo vertexInputStateCI =
+        vks::initializers::pipelineVertexInputStateCreateInfo();
+    vertexInputStateCI.vertexBindingDescriptionCount = 1;
+    vertexInputStateCI.pVertexBindingDescriptions = &vertexInputBinding;
+    vertexInputStateCI.vertexAttributeDescriptionCount =
+        static_cast<uint32_t>(vertexInputAttributes.size());
+    vertexInputStateCI.pVertexAttributeDescriptions =
+        vertexInputAttributes.data();
 
-		shaderStages[0] = loadShader(getShadersPath() + "dynamicuniformbuffer/base.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		shaderStages[1] = loadShader(getShadersPath() + "dynamicuniformbuffer/base.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+    shaderStages[0] =
+        loadShader(getShadersPath() + "dynamicuniformbuffer/base.vert.spv",
+                   VK_SHADER_STAGE_VERTEX_BIT);
+    shaderStages[1] =
+        loadShader(getShadersPath() + "dynamicuniformbuffer/base.frag.spv",
+                   VK_SHADER_STAGE_FRAGMENT_BIT);
 
-		VkGraphicsPipelineCreateInfo pipelineCreateInfo = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_, 0);
-		pipelineCreateInfo.pVertexInputState = &vertexInputStateCI;
-		pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-		pipelineCreateInfo.pRasterizationState = &rasterizationState;
-		pipelineCreateInfo.pColorBlendState = &colorBlendState;
-		pipelineCreateInfo.pMultisampleState = &multisampleState;
-		pipelineCreateInfo.pViewportState = &viewportState;
-		pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-		pipelineCreateInfo.pDynamicState = &dynamicState;
-		pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
-		pipelineCreateInfo.pStages = shaderStages.data();
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &pipelineCreateInfo, nullptr, &pipeline));
-	}
+    VkGraphicsPipelineCreateInfo pipelineCreateInfo =
+        vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_, 0);
+    pipelineCreateInfo.pVertexInputState = &vertexInputStateCI;
+    pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
+    pipelineCreateInfo.pRasterizationState = &rasterizationState;
+    pipelineCreateInfo.pColorBlendState = &colorBlendState;
+    pipelineCreateInfo.pMultisampleState = &multisampleState;
+    pipelineCreateInfo.pViewportState = &viewportState;
+    pipelineCreateInfo.pDepthStencilState = &depthStencilState;
+    pipelineCreateInfo.pDynamicState = &dynamicState;
+    pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
+    pipelineCreateInfo.pStages = shaderStages.data();
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
+        device_, pipelineCache_, 1, &pipelineCreateInfo, nullptr, &pipeline));
+  }
 
-	// Prepare and initialize uniform buffer containing shader uniforms
-	void prepareUniformBuffers()
-	{
-		// Allocate data for the dynamic uniform buffer object
-		// We allocate this manually as the alignment of the offset differs between GPUs
+  // Prepare and initialize uniform buffer containing shader uniforms
+  void prepareUniformBuffers() {
+    // Allocate data for the dynamic uniform buffer object
+    // We allocate this manually as the alignment of the offset differs between
+    // GPUs
 
-		// Calculate required alignment based on minimum device offset alignment
-		size_t minUboAlignment = vulkanDevice_->properties.limits.minUniformBufferOffsetAlignment;
-		dynamicAlignment = sizeof(glm::mat4);
-		if (minUboAlignment > 0) {
-			dynamicAlignment = (dynamicAlignment + minUboAlignment - 1) & ~(minUboAlignment - 1);
-		}
+    // Calculate required alignment based on minimum device offset alignment
+    size_t minUboAlignment =
+        vulkanDevice_->properties.limits.minUniformBufferOffsetAlignment;
+    dynamicAlignment = sizeof(glm::mat4);
+    if (minUboAlignment > 0) {
+      dynamicAlignment =
+          (dynamicAlignment + minUboAlignment - 1) & ~(minUboAlignment - 1);
+    }
 
-		size_t bufferSize = OBJECT_INSTANCES * dynamicAlignment;
+    size_t bufferSize = OBJECT_INSTANCES * dynamicAlignment;
 
-		uboDataDynamic.model = (glm::mat4*)alignedAlloc(bufferSize, dynamicAlignment);
-		assert(uboDataDynamic.model);
+    uboDataDynamic.model =
+        (glm::mat4*)alignedAlloc(bufferSize, dynamicAlignment);
+    assert(uboDataDynamic.model);
 
-		std::cout << "minUniformBufferOffsetAlignment = " << minUboAlignment << std::endl;
-		std::cout << "dynamicAlignment = " << dynamicAlignment << std::endl;
+    std::cout << "minUniformBufferOffsetAlignment = " << minUboAlignment
+              << std::endl;
+    std::cout << "dynamicAlignment = " << dynamicAlignment << std::endl;
 
-		for (auto& buffer : uniformBuffers_) {
-			// Static shared uniform buffer object with projection and view matrix
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(
-				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				&buffer.view,
-				sizeof(uboVS)));
+    for (auto& buffer : uniformBuffers_) {
+      // Static shared uniform buffer object with projection and view matrix
+      VK_CHECK_RESULT(
+          vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                      &buffer.view, sizeof(uboVS)));
 
-			// Uniform buffer object with per-object matrices
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(
-				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-				&buffer.dynamic,
-				bufferSize));
+      // Uniform buffer object with per-object matrices
+      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &buffer.dynamic, bufferSize));
 
-			// Override descriptor range to [base, base + dynamicAlignment]
-			buffer.dynamic.descriptor.range = dynamicAlignment;
+      // Override descriptor range to [base, base + dynamicAlignment]
+      buffer.dynamic.descriptor.range = dynamicAlignment;
 
-			// Map persistent
-			VK_CHECK_RESULT(buffer.view.map());
-			VK_CHECK_RESULT(buffer.dynamic.map());
-		}
+      // Map persistent
+      VK_CHECK_RESULT(buffer.view.map());
+      VK_CHECK_RESULT(buffer.dynamic.map());
+    }
 
-		// Prepare per-object matrices with offsets and random rotations
-		std::default_random_engine rndEngine(benchmark.active ? 0 : (unsigned)time(nullptr));
-		std::normal_distribution<float> rndDist(-1.0f, 1.0f);
-		for (uint32_t i = 0; i < OBJECT_INSTANCES; i++) {
-			rotations[i] = glm::vec3(rndDist(rndEngine), rndDist(rndEngine), rndDist(rndEngine)) * 2.0f * (float)M_PI;
-			rotationSpeeds[i] = glm::vec3(rndDist(rndEngine), rndDist(rndEngine), rndDist(rndEngine));
-		}
-	}
+    // Prepare per-object matrices with offsets and random rotations
+    std::default_random_engine rndEngine(
+        benchmark.active ? 0 : (unsigned)time(nullptr));
+    std::normal_distribution<float> rndDist(-1.0f, 1.0f);
+    for (uint32_t i = 0; i < OBJECT_INSTANCES; i++) {
+      rotations[i] = glm::vec3(rndDist(rndEngine), rndDist(rndEngine),
+                               rndDist(rndEngine)) *
+                     2.0f * (float)M_PI;
+      rotationSpeeds[i] =
+          glm::vec3(rndDist(rndEngine), rndDist(rndEngine), rndDist(rndEngine));
+    }
+  }
 
-	void updateUniformBuffers()
-	{
-		// Fixed ubo with projection and view matrices
-		uboVS.projection = camera_.matrices_.perspective;
-		uboVS.view = camera_.matrices_.view;
-		memcpy(uniformBuffers_[currentBuffer_].view.mapped, &uboVS, sizeof(uboVS));
-	}
+  void updateUniformBuffers() {
+    // Fixed ubo with projection and view matrices
+    uboVS.projection = camera_.matrices_.perspective;
+    uboVS.view = camera_.matrices_.view;
+    memcpy(uniformBuffers_[currentBuffer_].view.mapped, &uboVS, sizeof(uboVS));
+  }
 
-	void updateDynamicUniformBuffer()
-	{
-		// Dynamic ubo with per-object model matrices indexed by offsets in the command buffer
-		uint32_t dim = static_cast<uint32_t>(pow(OBJECT_INSTANCES, (1.0f / 3.0f)));
-		glm::vec3 offset(5.0f);
-		for (uint32_t x = 0; x < dim; x++) {
-			for (uint32_t y = 0; y < dim; y++) {
-				for (uint32_t z = 0; z < dim; z++) {
-					const uint32_t index = x * dim * dim + y * dim + z;
+  void updateDynamicUniformBuffer() {
+    // Dynamic ubo with per-object model matrices indexed by offsets in the
+    // command buffer
+    uint32_t dim = static_cast<uint32_t>(pow(OBJECT_INSTANCES, (1.0f / 3.0f)));
+    glm::vec3 offset(5.0f);
+    for (uint32_t x = 0; x < dim; x++) {
+      for (uint32_t y = 0; y < dim; y++) {
+        for (uint32_t z = 0; z < dim; z++) {
+          const uint32_t index = x * dim * dim + y * dim + z;
 
-					// Aligned offset
-					glm::mat4* modelMat = (glm::mat4*)(((uint64_t)uboDataDynamic.model + (index * dynamicAlignment)));
+          // Aligned offset
+          glm::mat4* modelMat = (glm::mat4*)(((uint64_t)uboDataDynamic.model +
+                                              (index * dynamicAlignment)));
 
-					// Update rotations
-					rotations[index] += frameTimer * rotationSpeeds[index];
+          // Update rotations
+          rotations[index] += frameTimer * rotationSpeeds[index];
 
-					// Update matrices
-					glm::vec3 pos = glm::vec3(-((dim * offset.x) / 2.0f) + offset.x / 2.0f + x * offset.x, -((dim * offset.y) / 2.0f) + offset.y / 2.0f + y * offset.y, -((dim * offset.z) / 2.0f) + offset.z / 2.0f + z * offset.z);
-					*modelMat = glm::translate(glm::mat4(1.0f), pos);
-					*modelMat = glm::rotate(*modelMat, rotations[index].x, glm::vec3(1.0f, 1.0f, 0.0f));
-					*modelMat = glm::rotate(*modelMat, rotations[index].y, glm::vec3(0.0f, 1.0f, 0.0f));
-					*modelMat = glm::rotate(*modelMat, rotations[index].z, glm::vec3(0.0f, 0.0f, 1.0f));
-				}
-			}
-		}
-		memcpy(uniformBuffers_[currentBuffer_].dynamic.mapped, uboDataDynamic.model, uniformBuffers_[currentBuffer_].dynamic.size);
-		// Flush to make changes visible to the host
-		VkMappedMemoryRange memoryRange = vks::initializers::mappedMemoryRange();
-		memoryRange.memory = uniformBuffers_[currentBuffer_].dynamic.memory;
-		memoryRange.size = uniformBuffers_[currentBuffer_].dynamic.size;
-		vkFlushMappedMemoryRanges(device_, 1, &memoryRange);
-	}
+          // Update matrices
+          glm::vec3 pos = glm::vec3(
+              -((dim * offset.x) / 2.0f) + offset.x / 2.0f + x * offset.x,
+              -((dim * offset.y) / 2.0f) + offset.y / 2.0f + y * offset.y,
+              -((dim * offset.z) / 2.0f) + offset.z / 2.0f + z * offset.z);
+          *modelMat = glm::translate(glm::mat4(1.0f), pos);
+          *modelMat = glm::rotate(*modelMat, rotations[index].x,
+                                  glm::vec3(1.0f, 1.0f, 0.0f));
+          *modelMat = glm::rotate(*modelMat, rotations[index].y,
+                                  glm::vec3(0.0f, 1.0f, 0.0f));
+          *modelMat = glm::rotate(*modelMat, rotations[index].z,
+                                  glm::vec3(0.0f, 0.0f, 1.0f));
+        }
+      }
+    }
+    memcpy(uniformBuffers_[currentBuffer_].dynamic.mapped, uboDataDynamic.model,
+           uniformBuffers_[currentBuffer_].dynamic.size);
+    // Flush to make changes visible to the host
+    VkMappedMemoryRange memoryRange = vks::initializers::mappedMemoryRange();
+    memoryRange.memory = uniformBuffers_[currentBuffer_].dynamic.memory;
+    memoryRange.size = uniformBuffers_[currentBuffer_].dynamic.size;
+    vkFlushMappedMemoryRanges(device_, 1, &memoryRange);
+  }
 
-	void prepare()
-	{
-		VulkanExampleBase::prepare();
-		generateCube();
-		prepareUniformBuffers();
-		setupDescriptors();
-		preparePipelines();
-		prepared_ = true;
-	}
+  void prepare() {
+    VulkanExampleBase::prepare();
+    generateCube();
+    prepareUniformBuffers();
+    setupDescriptors();
+    preparePipelines();
+    prepared_ = true;
+  }
 
-	void buildCommandBuffer()
-	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
-		
-		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
+  void buildCommandBuffer() {
+    VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
 
-		VkClearValue clearValues[2]{};
-		clearValues[0].color = defaultClearColor;
-		clearValues[1].depthStencil = { 1.0f, 0 };
+    VkCommandBufferBeginInfo cmdBufInfo =
+        vks::initializers::commandBufferBeginInfo();
 
-		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass_;
-		renderPassBeginInfo.renderArea.offset.x = 0;
-		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width_;
-		renderPassBeginInfo.renderArea.extent.height = height_;
-		renderPassBeginInfo.clearValueCount = 2;
-		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+    VkClearValue clearValues[2]{};
+    clearValues[0].color = defaultClearColor;
+    clearValues[1].depthStencil = {1.0f, 0};
 
-		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
+    VkRenderPassBeginInfo renderPassBeginInfo =
+        vks::initializers::renderPassBeginInfo();
+    renderPassBeginInfo.renderPass = renderPass_;
+    renderPassBeginInfo.renderArea.offset.x = 0;
+    renderPassBeginInfo.renderArea.offset.y = 0;
+    renderPassBeginInfo.renderArea.extent.width = width_;
+    renderPassBeginInfo.renderArea.extent.height = height_;
+    renderPassBeginInfo.clearValueCount = 2;
+    renderPassBeginInfo.pClearValues = clearValues;
+    renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
 
-		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
-		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
-		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
+                         VK_SUBPASS_CONTENTS_INLINE);
 
-		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
-		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+    VkViewport viewport =
+        vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
-		VkDeviceSize offsets[1] = { 0 };
-		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer.buffer, offsets);
-		vkCmdBindIndexBuffer(cmdBuffer, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-		// Render multiple objects using different model matrices by dynamically offsetting into one uniform buffer
-		for (uint32_t j = 0; j < OBJECT_INSTANCES; j++) {
-			// One dynamic offset per dynamic descriptor to offset into the ubo containing all model matrices
-			uint32_t dynamicOffset = j * static_cast<uint32_t>(dynamicAlignment);
-			// Bind the descriptor set for rendering a mesh using the dynamic offset
-			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
+    VkDeviceSize offsets[1] = {0};
+    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer.buffer, offsets);
+    vkCmdBindIndexBuffer(cmdBuffer, indexBuffer.buffer, 0,
+                         VK_INDEX_TYPE_UINT32);
 
-			vkCmdDrawIndexed(cmdBuffer, indexCount, 1, 0, 0, 0);
-		}
+    // Render multiple objects using different model matrices by dynamically
+    // offsetting into one uniform buffer
+    for (uint32_t j = 0; j < OBJECT_INSTANCES; j++) {
+      // One dynamic offset per dynamic descriptor to offset into the ubo
+      // containing all model matrices
+      uint32_t dynamicOffset = j * static_cast<uint32_t>(dynamicAlignment);
+      // Bind the descriptor set for rendering a mesh using the dynamic offset
+      vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              pipelineLayout, 0, 1, &descriptorSet, 1,
+                              &dynamicOffset);
 
-		drawUI(cmdBuffer);
+      vkCmdDrawIndexed(cmdBuffer, indexCount, 1, 0, 0, 0);
+    }
 
-		vkCmdEndRenderPass(cmdBuffer);
+    drawUI(cmdBuffer);
 
-		VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
-	}
+    vkCmdEndRenderPass(cmdBuffer);
 
-	virtual void render()
-	{
-		if (!prepared_)
-			return;
-		VulkanExampleBase::prepareFrame();
-		updateUniformBuffers();
-		updateDynamicUniformBuffer();
-		buildCommandBuffer();
-		VulkanExampleBase::submitFrame();
-	}
+    VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
+  }
+
+  virtual void render() {
+    if (!prepared_)
+      return;
+    VulkanExampleBase::prepareFrame();
+    updateUniformBuffers();
+    updateDynamicUniformBuffer();
+    buildCommandBuffer();
+    VulkanExampleBase::submitFrame();
+  }
 };
 
 VULKAN_EXAMPLE_MAIN()

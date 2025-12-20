@@ -5,14 +5,19 @@ layout (location = 1) in vec2 inUV;
 layout (location = 2) in vec3 inColor;
 layout (location = 3) in vec3 inNormal;
 
-layout (binding = 0) uniform UBO 
+layout (binding = 0) uniform UBOView
 {
 	mat4 projection;
 	mat4 view;
-	mat4 model;
-} ubo;
+} uboView;
+
+
+layout (binding = 1) uniform UBOModel
+{
+	mat4 model; 
+} uboModel;
 
 void main() 
 {
-	gl_Position = ubo.projection * ubo.view * ubo.model * vec4(inPos, 1.0);
+	gl_Position = uboView.projection * uboView.view * uboModel.model * vec4(inPos, 1.0);
 }

@@ -11,6 +11,35 @@
 #include "VulkanglTFModel.h"
 #include "vulkanexamplebase.h"
 
+const int VOXEL_CUBOID_WIDTH = 5;
+const int VOXEL_CUBOID_HEIGHT = 2;
+const int VOXEL_INSTANCES =
+    VOXEL_CUBOID_WIDTH * VOXEL_CUBOID_WIDTH * VOXEL_CUBOID_HEIGHT;
+const float VOXEL_SCALE = .1f;
+
+// Wrapper functions for aligned memory allocation
+// There is currently no standard for this in C++ that works across all
+// platforms and vendors, so we abstract this
+void* alignedAlloc(size_t size, size_t alignment) {
+  void* data = nullptr;
+#if defined(_MSC_VER) || defined(__MINGW32__)
+  data = _aligned_malloc(size, alignment);
+#else
+  int res = posix_memalign(&data, alignment, size);
+  if (res != 0)
+    data = nullptr;
+#endif
+  return data;
+}
+
+void alignedFree(void* data) {
+#if defined(_MSC_VER) || defined(__MINGW32__)
+  _aligned_free(data);
+#else
+  free(data);
+#endif
+}
+
 class VulkanExample : public VulkanExampleBase {
  public:
   PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR{VK_NULL_HANDLE};
@@ -18,20 +47,31 @@ class VulkanExample : public VulkanExampleBase {
   VkPhysicalDeviceDynamicRenderingFeaturesKHR
       enabledDynamicRenderingFeaturesKHR{};
 
-  vkglTF::Model cube_;
+  vkglTF::Model voxel_;
 
+  // resources for rendering the compute outputs
   struct Graphics {
-    struct UniformData {
+    struct UniformView {
       glm::mat4 projection;
       glm::mat4 view;
-      glm::mat4 model;
-    } uniformData_;
-    std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+    } uniformView_;
 
+    struct UniformModel {
+      glm::mat4* model{nullptr};
+    } uniformModel_;
+
+    struct UniformBuffers {
+      vks::Buffer view;
+      vks::Buffer dynamic;
+    };
+    std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+
+    size_t dynamicAlignment{0};
     VkPipeline pipeline_{VK_NULL_HANDLE};
     VkPipelineLayout pipelineLayout_{VK_NULL_HANDLE};
     VkDescriptorSetLayout descriptorSetLayout_{VK_NULL_HANDLE};
-    std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+    std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{
+        VK_NULL_HANDLE};
   } graphics_;
 
   // Resources for the compute part of the example
@@ -80,65 +120,26 @@ class VulkanExample : public VulkanExampleBase {
       float gravity{0.002f};
       float power{0.75f};
       float soften{0.05f};
-    } uniformData_;
+    } uniformView_;
 
     // Uniform buffer object containing particle system
     // parameters
     std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers;
   } compute_;
 
-  VulkanExample() : VulkanExampleBase() {
-    title = "Smoke Simulation";
-    camera_.type_ = Camera::CameraType::firstperson;
-    camera_.setMovementSpeed(50.f);
-    camera_.setPosition(glm::vec3(0.0f, 0.0f, -16.f));
-    camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
-    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
-
-    enabledInstanceExtensions_.push_back(
-        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-
-    // The sample uses the extension (instead of Vulkan 1.2, where dynamic
-    // rendering is core)
-    enabledDeviceExtensions_.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
-    enabledDeviceExtensions_.push_back(VK_KHR_MAINTENANCE2_EXTENSION_NAME);
-    enabledDeviceExtensions_.push_back(VK_KHR_MULTIVIEW_EXTENSION_NAME);
-    enabledDeviceExtensions_.push_back(
-        VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME);
-    enabledDeviceExtensions_.push_back(
-        VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME);
-
-    // in addition to the extension, the feature needs to be explicitly enabled
-    // too by chaining the extension structure into device creation
-    enabledDynamicRenderingFeaturesKHR.sType =
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
-    enabledDynamicRenderingFeaturesKHR.dynamicRendering = VK_TRUE;
-
-    deviceCreatepNextChain_ = &enabledDynamicRenderingFeaturesKHR;
-  }
-
-  ~VulkanExample() {
-    if (device_) {
-      vkDestroyPipeline(device_, graphics_.pipeline_, nullptr);
-      vkDestroyPipelineLayout(device_, graphics_.pipelineLayout_, nullptr);
-      vkDestroyDescriptorSetLayout(device_, graphics_.descriptorSetLayout_,
-                                   nullptr);
-      for (auto& buffer : graphics_.uniformBuffers_) {
-        buffer.destroy();
-      }
-    }
-  }
-
   void setupDescriptors() {
     // Pool
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                              MAX_CONCURRENT_FRAMES),
+                                              1 * MAX_CONCURRENT_FRAMES),
+        // Dynamic uniform buffers require a different descriptor type
         vks::initializers::descriptorPoolSize(
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_CONCURRENT_FRAMES)};
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            1 * MAX_CONCURRENT_FRAMES)};
+
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(poolSizes,
-                                                    MAX_CONCURRENT_FRAMES);
+                                                    1 * MAX_CONCURRENT_FRAMES);
     VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
                                            nullptr, &descriptorPool_));
 
@@ -147,18 +148,18 @@ class VulkanExample : public VulkanExampleBase {
         // Binding 0 : Vertex shader uniform buffer
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0),
-        // Binding 1 : Fragment shader image sampler
+        // Binding 1 : Dynamic uniform buffer
         vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_FRAGMENT_BIT, 1)};
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            VK_SHADER_STAGE_VERTEX_BIT, 1)};
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
     VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
         device_, &descriptorLayout, nullptr, &graphics_.descriptorSetLayout_));
 
     // Sets per frame, just like the buffers themselves
-    // Images do not need to be duplicated per frame, we reuse the same one for
-    // each frame
+    // Images do not need to be duplicated per frame, we reuse the same one
+    // for each frame
     VkDescriptorSetAllocateInfo allocInfo =
         vks::initializers::descriptorSetAllocateInfo(
             descriptorPool_, &graphics_.descriptorSetLayout_, 1);
@@ -166,9 +167,15 @@ class VulkanExample : public VulkanExampleBase {
       VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
                                                &graphics_.descriptorSets_[i]));
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+          // Binding 0 : Projection/View matrix as uniform buffer
           vks::initializers::writeDescriptorSet(
               graphics_.descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-              0, &graphics_.uniformBuffers_[i].descriptor),
+              /*binding id*/ 0, &graphics_.uniformBuffers_[i].view.descriptor),
+          // Binding 1 : Instance matrix as dynamic uniform buffer
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptorSets_[i],
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, /*binding id*/ 1,
+              &graphics_.uniformBuffers_[i].dynamic.descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -241,37 +248,105 @@ class VulkanExample : public VulkanExampleBase {
 
   // Prepare and initialize uniform buffer containing shader uniforms
   void prepareUniformBuffers() {
+    // Allocate data for the dynamic uniform buffer object
+    // We allocate this manually as the alignment of the offset differs
+    // between GPUs
+
+    // Calculate required alignment based on minimum device offset alignment
+    size_t minUboAlignment =
+        vulkanDevice_->properties.limits.minUniformBufferOffsetAlignment;
+    graphics_.dynamicAlignment = sizeof(glm::mat4);
+    if (minUboAlignment > 0) {
+      graphics_.dynamicAlignment =
+          (graphics_.dynamicAlignment + minUboAlignment - 1) &
+          ~(minUboAlignment - 1);
+    }
+
+    size_t bufferSize = VOXEL_INSTANCES * graphics_.dynamicAlignment;
+
+    graphics_.uniformModel_.model =
+        (glm::mat4*)alignedAlloc(bufferSize, graphics_.dynamicAlignment);
+    assert(graphics_.uniformModel_.model);
+
     for (auto& buffer : graphics_.uniformBuffers_) {
       VK_CHECK_RESULT(vulkanDevice_->createBuffer(
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer, sizeof(Graphics::UniformData), &graphics_.uniformData_));
-      VK_CHECK_RESULT(buffer.map());
+          &buffer.view, sizeof(Graphics::UniformView),
+          &graphics_.uniformView_));
+
+      // Uniform buffer object with per-object matrices
+      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &buffer.dynamic, bufferSize));
+
+      // Override descriptor range to [base, base + dynamicAlignment]
+      buffer.dynamic.descriptor.range = graphics_.dynamicAlignment;
+
+      // Map persistent
+      VK_CHECK_RESULT(buffer.view.map());
+      VK_CHECK_RESULT(buffer.dynamic.map());
     }
   }
 
   void updateUniformBuffers() {
-    graphics_.uniformData_.projection = camera_.matrices_.perspective;
-    graphics_.uniformData_.view = camera_.matrices_.view;
-    graphics_.uniformData_.model =
-        glm::scale(glm::mat4(1.0f), glm::vec3(.5f, .5f, .5f));
-    memcpy(graphics_.uniformBuffers_[currentBuffer_].mapped,
-           &graphics_.uniformData_, sizeof(Graphics::UniformData));
+    graphics_.uniformView_.projection = camera_.matrices_.perspective;
+    graphics_.uniformView_.view = camera_.matrices_.view;
+    memcpy(graphics_.uniformBuffers_[currentBuffer_].view.mapped,
+           &graphics_.uniformView_, sizeof(Graphics::UniformView));
   }
 
-  void prepare() {
-    VulkanExampleBase::prepare();
+  void preapreDynamicUniformBuffer() {
+    // Dynamic ubo with per-object model matrices indexed by offsets in the
+    // command buffer
+    for (uint32_t y = 0; y < VOXEL_CUBOID_HEIGHT; y++) {
+      for (uint32_t x = 0; x < VOXEL_CUBOID_WIDTH; x++) {
+        for (uint32_t z = 0; z < VOXEL_CUBOID_WIDTH; z++) {
+          const uint32_t index = y * VOXEL_CUBOID_WIDTH * VOXEL_CUBOID_WIDTH +
+                                 x * VOXEL_CUBOID_WIDTH + z;
 
+          // Aligned offset
+          glm::mat4* modelMat =
+              (glm::mat4*)(((uint64_t)graphics_.uniformModel_.model +
+                            (index * graphics_.dynamicAlignment)));
+
+          glm::vec3 voxel_size = glm::abs(voxel_.dimensions.size);
+
+          // Update matrices
+          glm::vec3 pos =
+              glm::vec3(x * voxel_size.x, y * voxel_size.y, z * voxel_size.z);
+          *modelMat = glm::translate(
+              glm::scale(glm::mat4(1.0), glm::vec3(VOXEL_SCALE)), pos);
+        }
+      }
+    }
+    memcpy(graphics_.uniformBuffers_[currentBuffer_].dynamic.mapped,
+           graphics_.uniformModel_.model,
+           graphics_.uniformBuffers_[currentBuffer_].dynamic.size);
+    // Flush to make changes visible to the host
+    VkMappedMemoryRange memoryRange = vks::initializers::mappedMemoryRange();
+    memoryRange.memory =
+        graphics_.uniformBuffers_[currentBuffer_].dynamic.memory;
+    memoryRange.size = graphics_.uniformBuffers_[currentBuffer_].dynamic.size;
+    vkFlushMappedMemoryRanges(device_, 1, &memoryRange);
+  }
+
+  void prepareDyanmicRendering() {
     // Since we use an extension, we need to expliclity load the function
     // pointers for extension related Vulkan commands
     vkCmdBeginRenderingKHR = reinterpret_cast<PFN_vkCmdBeginRenderingKHR>(
         vkGetDeviceProcAddr(device_, "vkCmdBeginRenderingKHR"));
     vkCmdEndRenderingKHR = reinterpret_cast<PFN_vkCmdEndRenderingKHR>(
         vkGetDeviceProcAddr(device_, "vkCmdEndRenderingKHR"));
+  }
 
+  void prepare() {
+    VulkanExampleBase::prepare();
+    prepareDyanmicRendering();
     loadAssets();
     prepareUniformBuffers();
+    preapreDynamicUniformBuffer();
     setupDescriptors();
     preparePipelines();
     prepared_ = true;
@@ -313,8 +388,8 @@ class VulkanExample : public VulkanExampleBase {
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
 
-    // A single depth stencil attachment info can be used, but they can also be
-    // specified separately. When both are specified separately, the only
+    // A single depth stencil attachment info can be used, but they can also
+    // be specified separately. When both are specified separately, the only
     // requirement is that the image view is identical.
     VkRenderingAttachmentInfoKHR depthStencilAttachment{};
     depthStencilAttachment.sType =
@@ -337,27 +412,26 @@ class VulkanExample : public VulkanExampleBase {
 
     // Begin dynamic rendering
     vkCmdBeginRenderingKHR(cmdBuffer, &renderingInfo);
-
     VkViewport viewport =
         vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
     VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
-
-    vkCmdBindDescriptorSets(
-        cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_.pipelineLayout_,
-        0, 1, &graphics_.descriptorSets_[currentBuffer_], 0, nullptr);
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       graphics_.pipeline_);
-    cube_.draw(cmdBuffer);
 
-    VkDeviceSize offsets[1] = {0};
-
-    drawUI(cmdBuffer);
-
+    for (uint32_t j = 0; j < VOXEL_INSTANCES; j++) {
+      uint32_t dynamicOffset =
+          j * static_cast<uint32_t>(graphics_.dynamicAlignment);
+      vkCmdBindDescriptorSets(
+          cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_.pipelineLayout_,
+          0, 1, &graphics_.descriptorSets_[currentBuffer_], 0, &dynamicOffset);
+      voxel_.draw(cmdBuffer);
+    }
     // End dynamic rendering
     vkCmdEndRenderingKHR(cmdBuffer);
+    drawUI(cmdBuffer);
 
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
@@ -367,8 +441,8 @@ class VulkanExample : public VulkanExampleBase {
         vkglTF::FileLoadingFlags::PreTransformVertices |
         vkglTF::FileLoadingFlags::PreMultiplyVertexColors |
         vkglTF::FileLoadingFlags::FlipY;
-    cube_.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice_,
-                       queue_, glTFLoadingFlags);
+    voxel_.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice_,
+                        queue_, glTFLoadingFlags);
   }
 
   virtual void render() {
@@ -381,6 +455,38 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {}
+
+  VulkanExample() : VulkanExampleBase() {
+    title = "Smoke Simulation";
+    camera_.type_ = Camera::CameraType::firstperson;
+    camera_.setMovementSpeed(50.f);
+    camera_.setPosition(glm::vec3(0.0f, 0.0f, -16.f));
+    camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
+    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
+
+    enabledInstanceExtensions_.push_back(
+        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+
+    // The sample uses the extension (instead of Vulkan 1.2, where dynamic
+    // rendering is core)
+    enabledDeviceExtensions_.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
+    enabledDeviceExtensions_.push_back(VK_KHR_MAINTENANCE2_EXTENSION_NAME);
+    enabledDeviceExtensions_.push_back(VK_KHR_MULTIVIEW_EXTENSION_NAME);
+    enabledDeviceExtensions_.push_back(
+        VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME);
+    enabledDeviceExtensions_.push_back(
+        VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME);
+
+    // in addition to the extension, the feature needs to be explicitly
+    // enabled too by chaining the extension structure into device creation
+    enabledDynamicRenderingFeaturesKHR.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
+    enabledDynamicRenderingFeaturesKHR.dynamicRendering = VK_TRUE;
+
+    deviceCreatepNextChain_ = &enabledDynamicRenderingFeaturesKHR;
+  }
+
+  //~VulkanExample() {}
 };
 
 VULKAN_EXAMPLE_MAIN()
