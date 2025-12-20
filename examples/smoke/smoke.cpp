@@ -20,17 +20,72 @@ class VulkanExample : public VulkanExampleBase {
 
   vkglTF::Model cube_;
 
-  struct UniformData {
-    glm::mat4 projection;
-    glm::mat4 view;
-    glm::mat4 model;
-  } uniformData_;
-  std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+  struct Graphics {
+    struct UniformData {
+      glm::mat4 projection;
+      glm::mat4 view;
+      glm::mat4 model;
+    } uniformData_;
+    std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
-  VkPipeline pipeline_{VK_NULL_HANDLE};
-  VkPipelineLayout pipelineLayout_{VK_NULL_HANDLE};
-  VkDescriptorSetLayout descriptorSetLayout_{VK_NULL_HANDLE};
-  std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+    VkPipeline pipeline_{VK_NULL_HANDLE};
+    VkPipelineLayout pipelineLayout_{VK_NULL_HANDLE};
+    VkDescriptorSetLayout descriptorSetLayout_{VK_NULL_HANDLE};
+    std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+  } graphics_;
+
+  // Resources for the compute part of the example
+  struct Compute {
+    // Used to check if compute and graphics queue
+    // families differ and require additional barriers
+    uint32_t queueFamilyIndex;
+    // Separate queue for compute commands (queue family may
+    // differ from the one used for graphics)
+    VkQueue queue;
+    // Use a separate command pool (queue family may
+    // differ from the one used for graphics)
+    VkCommandPool commandPool;
+    // Command buffer storing the dispatch commands and
+    // barriers
+    std::array<VkCommandBuffer, MAX_CONCURRENT_FRAMES> commandBuffers;
+    // Compute shader binding layout
+    VkDescriptorSetLayout descriptorSetLayout;
+    // Compute shader bindings
+    std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets;
+    // Fences to make sure command buffers are done
+    std::array<VkFence, MAX_CONCURRENT_FRAMES> fences{};
+
+    // Semaphores for submission ordering
+    struct ComputeSemaphores {
+      VkSemaphore ready{VK_NULL_HANDLE};
+      VkSemaphore complete{VK_NULL_HANDLE};
+    };
+
+    std::array<ComputeSemaphores, MAX_CONCURRENT_FRAMES> semaphores{};
+
+    // Layout of the compute pipeline
+    VkPipelineLayout pipelineLayout;
+    // Compute pipeline for N-Body velocity
+    // calculation (1st pass)
+    VkPipeline pipelineCalculate;
+    // Compute pipeline for euler integration (2nd pass)
+    VkPipeline pipelineIntegrate;
+
+    // Compute shader uniform block object
+    struct UniformData {
+      // Frame delta time
+      float deltaT{0.0f};
+      int32_t particleCount{0};
+      // Parameters used to control the behaviour of the particle system
+      float gravity{0.002f};
+      float power{0.75f};
+      float soften{0.05f};
+    } uniformData_;
+
+    // Uniform buffer object containing particle system
+    // parameters
+    std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers;
+  } compute_;
 
   VulkanExample() : VulkanExampleBase() {
     title = "Smoke Simulation";
@@ -64,10 +119,11 @@ class VulkanExample : public VulkanExampleBase {
 
   ~VulkanExample() {
     if (device_) {
-      vkDestroyPipeline(device_, pipeline_, nullptr);
-      vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayout_, nullptr);
-      for (auto& buffer : uniformBuffers_) {
+      vkDestroyPipeline(device_, graphics_.pipeline_, nullptr);
+      vkDestroyPipelineLayout(device_, graphics_.pipelineLayout_, nullptr);
+      vkDestroyDescriptorSetLayout(device_, graphics_.descriptorSetLayout_,
+                                   nullptr);
+      for (auto& buffer : graphics_.uniformBuffers_) {
         buffer.destroy();
       }
     }
@@ -98,21 +154,21 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
     VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
-        device_, &descriptorLayout, nullptr, &descriptorSetLayout_));
+        device_, &descriptorLayout, nullptr, &graphics_.descriptorSetLayout_));
 
     // Sets per frame, just like the buffers themselves
     // Images do not need to be duplicated per frame, we reuse the same one for
     // each frame
     VkDescriptorSetAllocateInfo allocInfo =
-        vks::initializers::descriptorSetAllocateInfo(descriptorPool_,
-                                                     &descriptorSetLayout_, 1);
-    for (auto i = 0; i < uniformBuffers_.size(); i++) {
-      VK_CHECK_RESULT(
-          vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
+        vks::initializers::descriptorSetAllocateInfo(
+            descriptorPool_, &graphics_.descriptorSetLayout_, 1);
+    for (auto i = 0; i < graphics_.uniformBuffers_.size(); i++) {
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
+                                               &graphics_.descriptorSets_[i]));
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
           vks::initializers::writeDescriptorSet(
-              descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
-              &uniformBuffers_[i].descriptor),
+              graphics_.descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+              0, &graphics_.uniformBuffers_[i].descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -123,9 +179,11 @@ class VulkanExample : public VulkanExampleBase {
   void preparePipelines() {
     // Layout
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
-        vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout_, 1);
+        vks::initializers::pipelineLayoutCreateInfo(
+            &graphics_.descriptorSetLayout_, 1);
     VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo,
-                                           nullptr, &pipelineLayout_));
+                                           nullptr,
+                                           &graphics_.pipelineLayout_));
 
     // Pipeline
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
@@ -161,7 +219,8 @@ class VulkanExample : public VulkanExampleBase {
                                  VK_SHADER_STAGE_FRAGMENT_BIT);
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo =
-        vks::initializers::pipelineCreateInfo(pipelineLayout_, renderPass_, 0);
+        vks::initializers::pipelineCreateInfo(graphics_.pipelineLayout_,
+                                              renderPass_, 0);
     pipelineCreateInfo.pVertexInputState =
         vkglTF::Vertex::getPipelineVertexInputState(
             {vkglTF::VertexComponent::Position, vkglTF::VertexComponent::UV,
@@ -175,28 +234,30 @@ class VulkanExample : public VulkanExampleBase {
     pipelineCreateInfo.pDynamicState = &dynamicState;
     pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineCreateInfo.pStages = shaderStages.data();
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-        device_, pipelineCache_, 1, &pipelineCreateInfo, nullptr, &pipeline_));
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
+                                              &pipelineCreateInfo, nullptr,
+                                              &graphics_.pipeline_));
   }
 
   // Prepare and initialize uniform buffer containing shader uniforms
   void prepareUniformBuffers() {
-    for (auto& buffer : uniformBuffers_) {
+    for (auto& buffer : graphics_.uniformBuffers_) {
       VK_CHECK_RESULT(vulkanDevice_->createBuffer(
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer, sizeof(UniformData), &uniformData_));
+          &buffer, sizeof(Graphics::UniformData), &graphics_.uniformData_));
       VK_CHECK_RESULT(buffer.map());
     }
   }
 
   void updateUniformBuffers() {
-    uniformData_.projection = camera_.matrices_.perspective;
-    uniformData_.view = camera_.matrices_.view;
-    uniformData_.model = glm::scale(glm::mat4(1.0f), glm::vec3(.5f, .5f, .5f));
-    memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_,
-           sizeof(UniformData));
+    graphics_.uniformData_.projection = camera_.matrices_.perspective;
+    graphics_.uniformData_.view = camera_.matrices_.view;
+    graphics_.uniformData_.model =
+        glm::scale(glm::mat4(1.0f), glm::vec3(.5f, .5f, .5f));
+    memcpy(graphics_.uniformBuffers_[currentBuffer_].mapped,
+           &graphics_.uniformData_, sizeof(Graphics::UniformData));
   }
 
   void prepare() {
@@ -284,10 +345,11 @@ class VulkanExample : public VulkanExampleBase {
     VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
-    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            pipelineLayout_, 0, 1,
-                            &descriptorSets_[currentBuffer_], 0, nullptr);
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
+    vkCmdBindDescriptorSets(
+        cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_.pipelineLayout_,
+        0, 1, &graphics_.descriptorSets_[currentBuffer_], 0, nullptr);
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      graphics_.pipeline_);
     cube_.draw(cmdBuffer);
 
     VkDeviceSize offsets[1] = {0};
