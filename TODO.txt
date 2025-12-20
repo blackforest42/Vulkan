@@ -1,8 +1,11 @@
 Dec 19
+
 TODO: 
-- render multiple voxels in a cuboid
 - ray march the voxels
+	- use 3d perlin noise to test
+- cube mesh flickering bug :(
 - compute pipeline to write to a 3d texture
 
 DONE:
 - cube mesh aka "voxel" renderer done
+- turned on validation layers default for debugging

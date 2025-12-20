@@ -147,6 +147,7 @@ class VulkanExample : public VulkanExampleBase {
             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         &indexBuffer, indices.size() * sizeof(uint32_t), indices.data()));
   }
+
   void setupDescriptors() {
     // Pool
     std::vector<VkDescriptorPoolSize> poolSizes = {

@@ -11,8 +11,8 @@
 #include "VulkanglTFModel.h"
 #include "vulkanexamplebase.h"
 
-const int VOXEL_CUBOID_WIDTH = 5;
-const int VOXEL_CUBOID_HEIGHT = 2;
+const int VOXEL_CUBOID_WIDTH = 10;
+const int VOXEL_CUBOID_HEIGHT = 3;
 const int VOXEL_INSTANCES =
     VOXEL_CUBOID_WIDTH * VOXEL_CUBOID_WIDTH * VOXEL_CUBOID_HEIGHT;
 const float VOXEL_SCALE = .1f;
@@ -70,8 +70,7 @@ class VulkanExample : public VulkanExampleBase {
     VkPipeline pipeline_{VK_NULL_HANDLE};
     VkPipelineLayout pipelineLayout_{VK_NULL_HANDLE};
     VkDescriptorSetLayout descriptorSetLayout_{VK_NULL_HANDLE};
-    std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{
-        VK_NULL_HANDLE};
+    std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
   } graphics_;
 
   // Resources for the compute part of the example
@@ -241,6 +240,20 @@ class VulkanExample : public VulkanExampleBase {
     pipelineCreateInfo.pDynamicState = &dynamicState;
     pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineCreateInfo.pStages = shaderStages.data();
+
+    // New create info to define color, depth and stencil attachments at
+    // pipeline create time
+    VkPipelineRenderingCreateInfoKHR pipelineRenderingCreateInfo{};
+    pipelineRenderingCreateInfo.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+    pipelineRenderingCreateInfo.colorAttachmentCount = 1;
+    pipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &swapChain_.colorFormat_;
+    pipelineRenderingCreateInfo.depthAttachmentFormat = depthFormat_;
+    pipelineRenderingCreateInfo.stencilAttachmentFormat = depthFormat_;
+    // Chain into the pipeline creat einfo
+    pipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
+
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCreateInfo, nullptr,
                                               &graphics_.pipeline_));
@@ -253,14 +266,7 @@ class VulkanExample : public VulkanExampleBase {
     // between GPUs
 
     // Calculate required alignment based on minimum device offset alignment
-    size_t minUboAlignment =
-        vulkanDevice_->properties.limits.minUniformBufferOffsetAlignment;
     graphics_.dynamicAlignment = sizeof(glm::mat4);
-    if (minUboAlignment > 0) {
-      graphics_.dynamicAlignment =
-          (graphics_.dynamicAlignment + minUboAlignment - 1) &
-          ~(minUboAlignment - 1);
-    }
 
     size_t bufferSize = VOXEL_INSTANCES * graphics_.dynamicAlignment;
 
@@ -297,7 +303,7 @@ class VulkanExample : public VulkanExampleBase {
            &graphics_.uniformView_, sizeof(Graphics::UniformView));
   }
 
-  void preapreDynamicUniformBuffer() {
+  void prepareVoxelPositions() {
     // Dynamic ubo with per-object model matrices indexed by offsets in the
     // command buffer
     for (uint32_t y = 0; y < VOXEL_CUBOID_HEIGHT; y++) {
@@ -341,12 +347,27 @@ class VulkanExample : public VulkanExampleBase {
         vkGetDeviceProcAddr(device_, "vkCmdEndRenderingKHR"));
   }
 
+  void setupRenderPass() override {
+    // With VK_KHR_dynamic_rendering we no longer need a render pass, so skip
+    // the sample base render pass setup
+    renderPass_ = VK_NULL_HANDLE;
+  }
+
+  void setupFrameBuffer() override {
+    // With VK_KHR_dynamic_rendering we no longer need a frame buffer, so skip
+    // the sample base framebuffer setup
+  }
+
+  void getEnabledFeatures() override {
+    enabledFeatures_.fillModeNonSolid = deviceFeatures_.fillModeNonSolid;
+  }
+
   void prepare() {
     VulkanExampleBase::prepare();
     prepareDyanmicRendering();
     loadAssets();
     prepareUniformBuffers();
-    preapreDynamicUniformBuffer();
+    prepareVoxelPositions();
     setupDescriptors();
     preparePipelines();
     prepared_ = true;
@@ -362,7 +383,7 @@ class VulkanExample : public VulkanExampleBase {
     vks::tools::insertImageMemoryBarrier(
         cmdBuffer, swapChain_.images_[currentImageIndex_], 0,
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
@@ -426,12 +447,20 @@ class VulkanExample : public VulkanExampleBase {
           j * static_cast<uint32_t>(graphics_.dynamicAlignment);
       vkCmdBindDescriptorSets(
           cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_.pipelineLayout_,
-          0, 1, &graphics_.descriptorSets_[currentBuffer_], 0, &dynamicOffset);
+          0, 1, &graphics_.descriptorSets_[currentBuffer_], 1, &dynamicOffset);
       voxel_.draw(cmdBuffer);
     }
+    drawUI(cmdBuffer);
     // End dynamic rendering
     vkCmdEndRenderingKHR(cmdBuffer);
-    drawUI(cmdBuffer);
+
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, swapChain_.images_[currentImageIndex_],
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
@@ -459,7 +488,7 @@ class VulkanExample : public VulkanExampleBase {
   VulkanExample() : VulkanExampleBase() {
     title = "Smoke Simulation";
     camera_.type_ = Camera::CameraType::firstperson;
-    camera_.setMovementSpeed(50.f);
+    camera_.setMovementSpeed(25.f);
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -16.f));
     camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
@@ -486,7 +515,18 @@ class VulkanExample : public VulkanExampleBase {
     deviceCreatepNextChain_ = &enabledDynamicRenderingFeaturesKHR;
   }
 
-  //~VulkanExample() {}
+  ~VulkanExample() {
+    if (device_) {
+      vkDestroyPipeline(device_, graphics_.pipeline_, nullptr);
+      vkDestroyPipelineLayout(device_, graphics_.pipelineLayout_, nullptr);
+      vkDestroyDescriptorSetLayout(device_, graphics_.descriptorSetLayout_,
+                                   nullptr);
+      for (auto& buffer : graphics_.uniformBuffers_) {
+        buffer.view.destroy();
+        buffer.dynamic.destroy();
+      }
+    }
+  }
 };
 
 VULKAN_EXAMPLE_MAIN()

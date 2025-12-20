@@ -824,7 +824,7 @@ VulkanExampleBase::VulkanExampleBase() {
     std::cin.get();
     exit(0);
   }
-  if (commandLineParser.isSet("validation")) {
+  if (true) {
     settings_.validation = true;
   }
   if (commandLineParser.isSet("validationlogfile")) {
