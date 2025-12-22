@@ -49,7 +49,7 @@ struct Ring {
 
 vec4 permute(vec4 x);
 vec4 taylorInvSqrt(vec4 r);
-float snoise(vec3 v);
+float snoise(vec3 pos);
 float ringDistance(vec3 rayOrigin, vec3 rayDir, Ring ring);
 vec3 computeAcceleration(float h2, vec3 pos);
 vec4 quadFromAxisAngle(vec3 axis, float angle);
@@ -219,13 +219,13 @@ vec4 taylorInvSqrt(vec4 r) {
   return 1.79284291400159 - 0.85373472095314 * r;
 }
 
-float snoise(vec3 v) {
+float snoise(vec3 pos) {
   const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
   const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
 
   // First corner
-  vec3 i = floor(v + dot(v, C.yyy));
-  vec3 x0 = v - i + dot(i, C.xxx);
+  vec3 i = floor(pos + dot(pos, C.yyy));
+  vec3 x0 = pos - i + dot(i, C.xxx);
 
   // Other corners
   vec3 g = step(x0.yzx, x0.xyz);

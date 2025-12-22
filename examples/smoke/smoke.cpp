@@ -310,7 +310,9 @@ class VulkanExample : public VulkanExampleBase {
                             (index * graphics_.dynamicAlignment)));
 
           // Update matrices
-          glm::vec3 pos = glm::vec3(x, -1.f * y, z);
+          glm::vec3 pos = glm::vec3(x - VOXEL_CUBOID_WIDTH / 2.f,
+                                    -1.f * y + VOXEL_CUBOID_HEIGHT / 2.f,
+                                    z - VOXEL_CUBOID_WIDTH / 2.f);
           *modelMat = glm::translate(
               glm::scale(glm::mat4(1.0), glm::vec3(VOXEL_DIM)), pos);
         }
@@ -502,7 +504,7 @@ class VulkanExample : public VulkanExampleBase {
 
   VulkanExample() : VulkanExampleBase() {
     title = "Smoke Simulation";
-    camera_.type_ = Camera::CameraType::firstperson;
+    camera_.type_ = Camera::CameraType::lookat;
     camera_.setMovementSpeed(25.f);
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -10.f));
     camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
