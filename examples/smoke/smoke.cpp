@@ -60,6 +60,7 @@ class VulkanExample : public VulkanExampleBase {
     struct UniformBufferView {
       glm::mat4 projection;
       glm::mat4 view;
+      glm::mat4 invModelView;
     } uniformView_;
 
     struct UniformBufferModel {
@@ -277,6 +278,8 @@ class VulkanExample : public VulkanExampleBase {
     // static buffers
     graphics_.uniformView_.projection = camera_.matrices_.perspective;
     graphics_.uniformView_.view = camera_.matrices_.view;
+    graphics_.uniformView_.invModelView =
+        glm::inverse(camera_.matrices_.view * *graphics_.uniformModel_.model);
     memcpy(graphics_.uniformBuffers_[currentBuffer_].view.mapped,
            &graphics_.uniformView_, sizeof(Graphics::UniformBufferView));
 
