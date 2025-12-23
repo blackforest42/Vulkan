@@ -61,6 +61,7 @@ class VulkanExample : public VulkanExampleBase {
       glm::mat4 projection;
       glm::mat4 view;
       glm::mat4 invModelView;
+      glm::vec3 cameraPos;
     } uniformView_;
 
     struct UniformBufferModel {
@@ -100,11 +101,14 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
         // Binding 0 : Vertex shader uniform buffer
         vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0),
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding_id*/ 0),
         // Binding 1 : Dynamic uniform buffer
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-            VK_SHADER_STAGE_VERTEX_BIT, 1)};
+            VK_SHADER_STAGE_VERTEX_BIT, /*binding_id*/ 1),
+    };
 
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
@@ -280,6 +284,8 @@ class VulkanExample : public VulkanExampleBase {
     graphics_.uniformView_.view = camera_.matrices_.view;
     graphics_.uniformView_.invModelView =
         glm::inverse(camera_.matrices_.view * *graphics_.uniformModel_.model);
+
+    graphics_.uniformView_.cameraPos = camera_.position_;
     memcpy(graphics_.uniformBuffers_[currentBuffer_].view.mapped,
            &graphics_.uniformView_, sizeof(Graphics::UniformBufferView));
 
