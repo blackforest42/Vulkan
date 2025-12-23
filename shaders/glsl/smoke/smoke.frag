@@ -13,20 +13,19 @@ layout (binding = 0) uniform UBOView
 } ubo;
 
 
-const float MARCH_SIZE = 0.1;
-const float MAX_STEPS = 250;
-const vec4 SKY_BLUE = vec4(135.f/255., 206.f/255, 235.f/255, 1);
+const float MARCH_SIZE = 0.05;
+const float MAX_STEPS = 200;
+const vec4 SKY_BLUE = vec4(135.0/255, 206.0/255, 235.0/255, 1);
 const float EPSILON = 0.0001;
 
 vec4 permute(vec4 x);
 vec4 taylorInvSqrt(vec4 r);
 float snoise(vec3 pos);
-float fbm(vec3 p);
+float fbm(vec3 pos);
 float sdSphere(vec3 pos, float radius);
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection);
 
-void main() 
-{
+void main() {
     // gl_FragCoord is in window coordinates where (0,0) is bottom-left
     // xy is in NDC [-1, +1].
     vec2 xy = 2*(gl_FragCoord.xy / ubo.screenRes.xy - vec2(0.5));
@@ -49,6 +48,56 @@ void main()
 
 float sdSphere(vec3 p, float radius) {
   return length(p) - radius;
+}
+
+// Fractal Brownian Motion
+float fbm(vec3 pos) {
+  vec3 q = p + ubo.time * 0.5 * vec3(1.0, -0.2, -1.0);
+  float g = snoise(q);
+
+  float f = 0.0;
+  float scale = 0.5;
+  float factor = 2.02;
+
+  for (int i = 0; i < 6; i++) {
+      f += scale * snoise(q);
+      q *= factor;
+      factor += 0.21;
+      scale *= 0.5;
+  }
+
+  return f;
+}
+
+float scene(vec3 pos) {
+  float distance = sdSphere(pos, 1.0);
+
+  float f = fbm(pos);
+
+  return -distance + f;
+}
+
+vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection) {
+  float depth = 0.0;
+  vec3 pos = rayOrigin + depth * rayDirection;
+
+  vec4 res = vec4(0.0);
+
+  for (int i = 0; i < MAX_STEPS; i++) {
+    float density = scene(pos);
+
+    // We only draw the density if it's greater than 0
+    if (density > 0.0) {
+      vec4 color = vec4(mix(vec3(1.0, 1.0, 1.0), vec3(0.0, 0.0, 0.0), density), density );
+      color.rgb *= color.a;
+      res += color * (1.0 - res.a);
+    }
+
+    depth += MARCH_SIZE;
+    pos = rayOrigin + depth * rayDirection;
+  }
+
+  return res;
 }
 
 ///----
@@ -133,51 +182,3 @@ float snoise(vec3 pos) {
 }
 
 
-float fbm(vec3 p) {
-  vec3 q = p + ubo.time * 0.5 * vec3(1.0, -0.2, -1.0);
-  float g = snoise(q);
-
-  float f = 0.0;
-  float scale = 0.5;
-  float factor = 2.02;
-
-  for (int i = 0; i < 6; i++) {
-      f += scale * snoise(q);
-      q *= factor;
-      factor += 0.21;
-      scale *= 0.5;
-  }
-
-  return f;
-}
-
-float scene(vec3 p) {
-  float distance = sdSphere(p, 1.0);
-
-  float f = fbm(p);
-
-  return -distance + f;
-}
-
-vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection) {
-  float depth = 0.0;
-  vec3 p = rayOrigin + depth * rayDirection;
-
-  vec4 res = vec4(0.0);
-
-  for (int i = 0; i < MAX_STEPS; i++) {
-    float density = scene(p);
-
-    // We only draw the density if it's greater than 0
-    if (density > 0.0) {
-      vec4 color = vec4(mix(vec3(1.0,1.0,1.0), vec3(0.0, 0.0, 0.0), density), density );
-      color.rgb *= color.a;
-      res += color * (1.0 - res.a);
-    }
-
-    depth += MARCH_SIZE;
-    p = rayOrigin + depth * rayDirection;
-  }
-
-  return res;
-}

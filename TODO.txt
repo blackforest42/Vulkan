@@ -1,12 +1,11 @@
-Dec 19
+Dec 22
 
 TODO: 
-- ray march the voxels
-	- use 3d perlin noise to test
-- cube mesh flickering bug :(
-	- when rendering using normal buffers instead of dynamic, flickering stops
+- finish cloud marching clouds tutorial
 - compute pipeline to write to a 3d texture
 
 DONE:
 - cube mesh aka "voxel" renderer done
 - turned on validation layers default for debugging
+- Working ray marcher w/ perlin noise to test
+- Pivoted away from voxels
