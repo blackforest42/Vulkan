@@ -21,10 +21,9 @@ class VulkanExample : public VulkanExampleBase {
   // resources for rendering the compute outputs
   struct Graphics {
     struct UniformBufferView {
-      glm::mat4 projection;
-      glm::mat4 view;
-      glm::mat4 invModelView;
-      glm::vec3 cameraPos;
+      alignas(16) glm::mat4 cameraView;
+      alignas(16) glm::vec3 cameraPos;
+      alignas(8) glm::vec2 screenRes;
     } uniformView_;
 
     struct UniformBuffers {
@@ -193,9 +192,8 @@ class VulkanExample : public VulkanExampleBase {
 
   void updateUniformBuffers() {
     // static buffers
-    graphics_.uniformView_.projection = camera_.matrices_.perspective;
-    graphics_.uniformView_.view = camera_.matrices_.view;
-
+    graphics_.uniformView_.cameraView = camera_.matrices_.view;
+    graphics_.uniformView_.screenRes = glm::vec2(width_, height_);
     graphics_.uniformView_.cameraPos = camera_.position_;
     memcpy(graphics_.uniformBuffers_[currentBuffer_].view.mapped,
            &graphics_.uniformView_, sizeof(Graphics::UniformBufferView));
@@ -336,7 +334,7 @@ class VulkanExample : public VulkanExampleBase {
     title = "Smoke Simulation";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setMovementSpeed(25.f);
-    camera_.setPosition(glm::vec3(0.0f, 0.0f, -10.f));
+    camera_.setPosition(glm::vec3(0.0f, 0.0f, -3.f));
     camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 
