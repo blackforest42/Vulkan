@@ -1,6 +1,6 @@
 #version 450
 
-layout (location = 0) in vec3 inLookAt;
+layout (location = 0) in vec2 outUV;
 
 layout (location = 0) out vec4 outFragColor;
 
@@ -21,10 +21,6 @@ vec4 raymarch(vec3 rayOrigin, vec3 rayDirection);
 
 void main() 
 {
-	vec3 lookAt = normalize(inLookAt);
-
-    raymarch(uboView.cameraPos, lookAt);
-
 	outFragColor = vec4(1.0, 0, 0, .3f);
 }
 
