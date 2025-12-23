@@ -20,11 +20,12 @@ class VulkanExample : public VulkanExampleBase {
 
   // resources for rendering the compute outputs
   struct Graphics {
-    struct UniformBufferView {
+    struct UniformBuffer {
       alignas(16) glm::mat4 cameraView;
       alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
-    } uniformView_;
+      float time;
+    } ubo_;
 
     struct UniformBuffers {
       vks::Buffer view;
@@ -182,8 +183,7 @@ class VulkanExample : public VulkanExampleBase {
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer.view, sizeof(Graphics::UniformBufferView),
-          &graphics_.uniformView_));
+          &buffer.view, sizeof(Graphics::UniformBuffer), &graphics_.ubo_));
 
       // Map persistent
       VK_CHECK_RESULT(buffer.view.map());
@@ -192,11 +192,15 @@ class VulkanExample : public VulkanExampleBase {
 
   void updateUniformBuffers() {
     // static buffers
-    graphics_.uniformView_.cameraView = camera_.matrices_.view;
-    graphics_.uniformView_.screenRes = glm::vec2(width_, height_);
-    graphics_.uniformView_.cameraPos = camera_.position_;
+    graphics_.ubo_.cameraView = camera_.matrices_.view;
+    graphics_.ubo_.screenRes = glm::vec2(width_, height_);
+    graphics_.ubo_.cameraPos = camera_.position_;
+    graphics_.ubo_.time =
+        std::chrono::duration<float>(
+            std::chrono::high_resolution_clock::now().time_since_epoch())
+            .count();
     memcpy(graphics_.uniformBuffers_[currentBuffer_].view.mapped,
-           &graphics_.uniformView_, sizeof(Graphics::UniformBufferView));
+           &graphics_.ubo_, sizeof(Graphics::UniformBuffer));
   }
 
   void setupRenderPass() override {
@@ -334,7 +338,7 @@ class VulkanExample : public VulkanExampleBase {
     title = "Smoke Simulation";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setMovementSpeed(25.f);
-    camera_.setPosition(glm::vec3(0.0f, 0.0f, -3.f));
+    camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.f));
     camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 
