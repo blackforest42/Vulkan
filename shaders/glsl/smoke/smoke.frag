@@ -15,13 +15,16 @@ layout (binding = 0) uniform UBOView
 
 const float MARCH_SIZE = 0.05;
 const float MAX_STEPS = 200;
-const vec4 SKY_BLUE = vec4(135.0/255, 206.0/255, 235.0/255, 1);
+const vec3 SKY_COLOR = vec3(0.7, 0.7, 0.90);
+const vec3 SUNLIGHT_DIRECTION = vec3(1.0, 0.0, 0.0);
+const vec3 SUN_COLOR = vec3(1., .6, .0);
 const float EPSILON = 0.0001;
 
 vec4 permute(vec4 x);
 vec4 taylorInvSqrt(vec4 r);
 float snoise(vec3 pos);
 float fbm(vec3 pos);
+float sdCube(vec3 p, float cube_dim);
 float sdSphere(vec3 pos, float radius);
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection);
 
@@ -41,32 +44,48 @@ void main() {
     // Keeps camera focal point at the center of screen
     vec3 newCameraPos = mat3(ubo.cameraView) * ubo.cameraPos;
 
-    vec4 res = rayMarch(newCameraPos, dir);
+    vec3 color = vec3(0.0);
 
-	outFragColor = vec4(res.rgb, 1.0);
+	// Sun and Sky
+	float sun = clamp(dot(SUNLIGHT_DIRECTION, dir), 0.0, 1.0 );
+	// Base sky color
+	color = SKY_COLOR;
+	// Add sun color to sky
+	color += 0.5 * SUN_COLOR * pow(sun, 15.0);
+
+    // Cloud
+    vec4 res = rayMarch(newCameraPos, dir);
+    color = color * (1.0 - res.a) + res.rgb;
+
+	outFragColor = vec4(color, 1.0);
 }
 
+// returns positive if point is outside sphere, negative inside
 float sdSphere(vec3 p, float radius) {
   return length(p) - radius;
 }
 
+float sdCube(vec3 pos, float cube_dim) {
+    vec3 q = abs(pos) - vec3(cube_dim / 2.f);
+    return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+
 // Fractal Brownian Motion
 float fbm(vec3 pos) {
-  vec3 q = p + ubo.time * 0.5 * vec3(1.0, -0.2, -1.0);
-  float g = snoise(q);
+  vec3 q = pos + ubo.time * 0.5 * vec3(1.0, -0.2, -1.0);
 
-  float f = 0.0;
+  float result = 0.0;
   float scale = 0.5;
   float factor = 2.02;
 
   for (int i = 0; i < 6; i++) {
-      f += scale * snoise(q);
+      result += scale * snoise(q);
       q *= factor;
       factor += 0.21;
       scale *= 0.5;
   }
 
-  return f;
+  return result;
 }
 
 float scene(vec3 pos) {
@@ -84,13 +103,21 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection) {
   vec4 res = vec4(0.0);
 
   for (int i = 0; i < MAX_STEPS; i++) {
-    float density = scene(pos);
+    // +0.3 adds more base density to cloud
+    float density = scene(pos) + 0.3;
 
     // We only draw the density if it's greater than 0
     if (density > 0.0) {
-      vec4 color = vec4(mix(vec3(1.0, 1.0, 1.0), vec3(0.0, 0.0, 0.0), density), density );
-      color.rgb *= color.a;
-      res += color * (1.0 - res.a);
+        // high to low density == low occlusion == more diffusion
+        // low to high density == high occlusion == less diffusion
+        float diffuse = clamp((scene(pos) - scene(pos + 0.3 * SUNLIGHT_DIRECTION)) / 0.3, 0.0, 1.0 );
+        // interpolate sky color and sun color
+        vec3 lerp = SKY_COLOR * 1.1 + 0.6 * SUN_COLOR * diffuse;
+        // Smoke color (white to black) interpolated by density
+        vec4 color = vec4(mix(vec3(1.0, 1.0, 1.0), vec3(0.0, 0.0, 0.0), density), density);
+        color.rgb *= lerp;
+        color.rgb *= color.a;
+        res += color * (1.0 - res.a);
     }
 
     depth += MARCH_SIZE;

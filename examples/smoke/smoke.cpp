@@ -338,7 +338,7 @@ class VulkanExample : public VulkanExampleBase {
     title = "Smoke Simulation";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setMovementSpeed(25.f);
-    camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.f));
+    camera_.setPosition(glm::vec3(0.0f, 0.0f, -3.f));
     camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 
