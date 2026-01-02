@@ -2,7 +2,6 @@
  * Vulkan Example - Smoke simulation with voxels and ray marching
  * example
  *
- * Copyright (C) 2016-2025 by Sascha Willems - www.saschawillems.de
  *
  * This code is licensed under the MIT license (MIT)
  * (http://opensource.org/licenses/MIT)
@@ -26,7 +25,7 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::mat4 cameraView;
       alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
-      float time;
+      float time{0};
     };
 
     struct UBO {
