@@ -19,7 +19,9 @@ class VulkanExample : public VulkanExampleBase {
 
   // resources for rendering the compute outputs
   struct Graphics {
-    struct PreMarchUBO {};
+    struct PreMarchUBO {
+      alignas(8) glm::vec2 screenRes;
+    };
 
     struct RayMarchUBO {
       alignas(16) glm::mat4 cameraView;
@@ -29,11 +31,13 @@ class VulkanExample : public VulkanExampleBase {
     };
 
     struct UBO {
+      PreMarchUBO preMarch;
       RayMarchUBO rayMarch;
     } ubos_;
 
     struct UniformBuffers {
       vks::Buffer rayMarch;
+      vks::Buffer preMarch;
     };
     std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
@@ -309,10 +313,16 @@ class VulkanExample : public VulkanExampleBase {
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.preMarch, sizeof(Graphics::PreMarchUBO),
+          &graphics_.ubos_.preMarch));
+      VK_CHECK_RESULT(buffer.preMarch.map());
+
+      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
           &buffer.rayMarch, sizeof(Graphics::RayMarchUBO),
           &graphics_.ubos_.rayMarch));
-
-      // Map persistent
       VK_CHECK_RESULT(buffer.rayMarch.map());
     }
   }
@@ -518,6 +528,7 @@ class VulkanExample : public VulkanExampleBase {
       vkDestroySampler(device_, graphics_.preMarchPass_.sampler, nullptr);
       for (auto& buffer : graphics_.uniformBuffers_) {
         buffer.rayMarch.destroy();
+        buffer.preMarch.destroy();
       }
     }
   }

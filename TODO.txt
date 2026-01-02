@@ -2,7 +2,8 @@ Dec 22
 
 TODO: 
 - cube marching
-	- need two 2D textures for front (ray entry) and back (ray exit)
+	- finish premarch pipeline and descriptor sets
+	- command buffer
 	- When rendering, toggle VK_CULL_MODE_BACK_BIT/FRONT_BIT for ray entry/exit
 	- in cube frag shader, write ray intersection (frag position - camera position)
 	- optional: cube map
