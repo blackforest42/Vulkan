@@ -1,11 +1,17 @@
 Dec 22
 
 TODO: 
-- finish cloud marching clouds tutorial
-- compute pipeline to write to a 3d texture
+- cube marching
+	- need two 2D textures for front (ray entry) and back (ray exit)
+	- When rendering, toggle VK_CULL_MODE_BACK_BIT/FRONT_BIT for ray entry/exit
+	- in cube frag shader, write ray intersection (frag position - camera position)
+	- optional: cube map
+- compute shader pipeline to write to a 3d texture
+	- 
 
 DONE:
 - cube mesh aka "voxel" renderer done
 - turned on validation layers default for debugging
 - Working ray marcher w/ perlin noise to test
 - Pivoted away from voxels
+- finish cloud marching clouds tutorial

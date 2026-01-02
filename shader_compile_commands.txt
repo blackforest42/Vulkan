@@ -1,2 +1,2 @@
-glslc -g smoke.vert -o smoke.vert.spv
-glslc -g smoke.frag -o smoke.frag.spv
+glslc -g raymarch.vert -o raymarch.vert.spv
+glslc -g raymarch.frag -o raymarch.frag.spv

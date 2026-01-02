@@ -32,10 +32,9 @@ class VulkanExample : public VulkanExampleBase {
     };
     std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
-    size_t dynamicAlignment{0};
-    VkPipeline pipeline_{VK_NULL_HANDLE};
-    VkPipelineLayout pipelineLayout_{VK_NULL_HANDLE};
-    VkDescriptorSetLayout descriptorSetLayout_{VK_NULL_HANDLE};
+    VkPipeline pipelines_{VK_NULL_HANDLE};
+    VkPipelineLayout pipelineLayouts_{VK_NULL_HANDLE};
+    VkDescriptorSetLayout descriptorSetLayouts_{VK_NULL_HANDLE};
     std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
   } graphics_;
 
@@ -64,14 +63,14 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
     VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
-        device_, &descriptorLayout, nullptr, &graphics_.descriptorSetLayout_));
+        device_, &descriptorLayout, nullptr, &graphics_.descriptorSetLayouts_));
 
     // Sets per frame, just like the buffers themselves
     // Images do not need to be duplicated per frame, we reuse the same one
     // for each frame
     VkDescriptorSetAllocateInfo allocInfo =
         vks::initializers::descriptorSetAllocateInfo(
-            descriptorPool_, &graphics_.descriptorSetLayout_, 1);
+            descriptorPool_, &graphics_.descriptorSetLayouts_, 1);
     for (auto i = 0; i < graphics_.uniformBuffers_.size(); i++) {
       VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
                                                &graphics_.descriptorSets_[i]));
@@ -91,10 +90,10 @@ class VulkanExample : public VulkanExampleBase {
     // Layout
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
         vks::initializers::pipelineLayoutCreateInfo(
-            &graphics_.descriptorSetLayout_, 1);
+            &graphics_.descriptorSetLayouts_, 1);
     VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo,
                                            nullptr,
-                                           &graphics_.pipelineLayout_));
+                                           &graphics_.pipelineLayouts_));
 
     // Pipeline
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
@@ -124,13 +123,13 @@ class VulkanExample : public VulkanExampleBase {
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
     // Shaders
-    shaderStages[0] = loadShader(getShadersPath() + "smoke/smoke.vert.spv",
+    shaderStages[0] = loadShader(getShadersPath() + "smoke/raymarch.vert.spv",
                                  VK_SHADER_STAGE_VERTEX_BIT);
-    shaderStages[1] = loadShader(getShadersPath() + "smoke/smoke.frag.spv",
+    shaderStages[1] = loadShader(getShadersPath() + "smoke/raymarch.frag.spv",
                                  VK_SHADER_STAGE_FRAGMENT_BIT);
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo =
-        vks::initializers::pipelineCreateInfo(graphics_.pipelineLayout_,
+        vks::initializers::pipelineCreateInfo(graphics_.pipelineLayouts_,
                                               renderPass_, 0);
 
     // Vertex bindings and attributes
@@ -173,7 +172,7 @@ class VulkanExample : public VulkanExampleBase {
 
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCreateInfo, nullptr,
-                                              &graphics_.pipeline_));
+                                              &graphics_.pipelines_));
   }
 
   // Prepare and initialize uniform buffer containing shader uniforms
@@ -307,10 +306,10 @@ class VulkanExample : public VulkanExampleBase {
     VkDeviceSize offsets[1] = {0};
 
     vkCmdBindDescriptorSets(
-        cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_.pipelineLayout_,
+        cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_.pipelineLayouts_,
         0, 1, &graphics_.descriptorSets_[currentBuffer_], 0, nullptr);
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      graphics_.pipeline_);
+                      graphics_.pipelines_);
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
 
     drawUI(cmdBuffer);
@@ -366,9 +365,9 @@ class VulkanExample : public VulkanExampleBase {
 
   ~VulkanExample() {
     if (device_) {
-      vkDestroyPipeline(device_, graphics_.pipeline_, nullptr);
-      vkDestroyPipelineLayout(device_, graphics_.pipelineLayout_, nullptr);
-      vkDestroyDescriptorSetLayout(device_, graphics_.descriptorSetLayout_,
+      vkDestroyPipeline(device_, graphics_.pipelines_, nullptr);
+      vkDestroyPipelineLayout(device_, graphics_.pipelineLayouts_, nullptr);
+      vkDestroyDescriptorSetLayout(device_, graphics_.descriptorSetLayouts_,
                                    nullptr);
       for (auto& buffer : graphics_.uniformBuffers_) {
         buffer.view.destroy();
