@@ -20,21 +20,38 @@ class VulkanExample : public VulkanExampleBase {
 
   // resources for rendering the compute outputs
   struct Graphics {
-    struct UniformBuffer {
+    struct PreMarchUBO {};
+
+    struct RayMarchUBO {
       alignas(16) glm::mat4 cameraView;
       alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
       float time;
-    } ubo_;
+    };
+
+    struct UBO {
+      RayMarchUBO rayMarch;
+    } ubos_;
 
     struct UniformBuffers {
-      vks::Buffer view;
+      vks::Buffer rayMarch;
     };
     std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
-    VkPipeline pipelines_{VK_NULL_HANDLE};
-    VkPipelineLayout pipelineLayouts_{VK_NULL_HANDLE};
-    VkDescriptorSetLayout descriptorSetLayouts_{VK_NULL_HANDLE};
+    struct {
+      // offscreen pass to generate entry/exit rays for ray marcher
+      VkPipeline preMarch{VK_NULL_HANDLE};
+      VkPipeline rayMarch{VK_NULL_HANDLE};
+    } pipelines_{};
+    struct {
+      VkPipelineLayout preMarch{VK_NULL_HANDLE};
+      VkPipelineLayout rayMarch{VK_NULL_HANDLE};
+    } pipelineLayouts_;
+
+    struct {
+      VkDescriptorSetLayout preMarch{VK_NULL_HANDLE};
+      VkDescriptorSetLayout rayMarch{VK_NULL_HANDLE};
+    } descriptorSetLayouts_;
     std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
   } graphics_;
 
@@ -43,6 +60,9 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                               1 * MAX_CONCURRENT_FRAMES),
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            1 * MAX_CONCURRENT_FRAMES),
     };
 
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
@@ -62,15 +82,16 @@ class VulkanExample : public VulkanExampleBase {
 
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
-        device_, &descriptorLayout, nullptr, &graphics_.descriptorSetLayouts_));
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr,
+                                    &graphics_.descriptorSetLayouts_.rayMarch));
 
     // Sets per frame, just like the buffers themselves
     // Images do not need to be duplicated per frame, we reuse the same one
     // for each frame
     VkDescriptorSetAllocateInfo allocInfo =
         vks::initializers::descriptorSetAllocateInfo(
-            descriptorPool_, &graphics_.descriptorSetLayouts_, 1);
+            descriptorPool_, &graphics_.descriptorSetLayouts_.rayMarch, 1);
     for (auto i = 0; i < graphics_.uniformBuffers_.size(); i++) {
       VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
                                                &graphics_.descriptorSets_[i]));
@@ -78,7 +99,8 @@ class VulkanExample : public VulkanExampleBase {
           // Binding 0 : Projection/View matrix as uniform buffer
           vks::initializers::writeDescriptorSet(
               graphics_.descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-              /*binding id*/ 0, &graphics_.uniformBuffers_[i].view.descriptor),
+              /*binding id*/ 0,
+              &graphics_.uniformBuffers_[i].rayMarch.descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -90,10 +112,10 @@ class VulkanExample : public VulkanExampleBase {
     // Layout
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
         vks::initializers::pipelineLayoutCreateInfo(
-            &graphics_.descriptorSetLayouts_, 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo,
-                                           nullptr,
-                                           &graphics_.pipelineLayouts_));
+            &graphics_.descriptorSetLayouts_.rayMarch, 1);
+    VK_CHECK_RESULT(
+        vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
+                               &graphics_.pipelineLayouts_.rayMarch));
 
     // Pipeline
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
@@ -129,8 +151,8 @@ class VulkanExample : public VulkanExampleBase {
                                  VK_SHADER_STAGE_FRAGMENT_BIT);
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo =
-        vks::initializers::pipelineCreateInfo(graphics_.pipelineLayouts_,
-                                              renderPass_, 0);
+        vks::initializers::pipelineCreateInfo(
+            graphics_.pipelineLayouts_.rayMarch, renderPass_, 0);
 
     // Vertex bindings and attributes
     VkPipelineVertexInputStateCreateInfo emptyInputState =
@@ -172,7 +194,7 @@ class VulkanExample : public VulkanExampleBase {
 
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCreateInfo, nullptr,
-                                              &graphics_.pipelines_));
+                                              &graphics_.pipelines_.rayMarch));
   }
 
   // Prepare and initialize uniform buffer containing shader uniforms
@@ -182,24 +204,25 @@ class VulkanExample : public VulkanExampleBase {
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer.view, sizeof(Graphics::UniformBuffer), &graphics_.ubo_));
+          &buffer.rayMarch, sizeof(Graphics::RayMarchUBO),
+          &graphics_.ubos_.rayMarch));
 
       // Map persistent
-      VK_CHECK_RESULT(buffer.view.map());
+      VK_CHECK_RESULT(buffer.rayMarch.map());
     }
   }
 
   void updateUniformBuffers() {
     // static buffers
-    graphics_.ubo_.cameraView = camera_.matrices_.view;
-    graphics_.ubo_.screenRes = glm::vec2(width_, height_);
-    graphics_.ubo_.cameraPos = camera_.position_;
-    graphics_.ubo_.time =
+    graphics_.ubos_.rayMarch.cameraView = camera_.matrices_.view;
+    graphics_.ubos_.rayMarch.screenRes = glm::vec2(width_, height_);
+    graphics_.ubos_.rayMarch.cameraPos = camera_.position_;
+    graphics_.ubos_.rayMarch.time =
         std::chrono::duration<float>(
             std::chrono::high_resolution_clock::now().time_since_epoch())
             .count();
-    memcpy(graphics_.uniformBuffers_[currentBuffer_].view.mapped,
-           &graphics_.ubo_, sizeof(Graphics::UniformBuffer));
+    memcpy(graphics_.uniformBuffers_[currentBuffer_].rayMarch.mapped,
+           &graphics_.ubos_.rayMarch, sizeof(Graphics::RayMarchUBO));
   }
 
   void setupRenderPass() override {
@@ -305,11 +328,12 @@ class VulkanExample : public VulkanExampleBase {
 
     VkDeviceSize offsets[1] = {0};
 
-    vkCmdBindDescriptorSets(
-        cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_.pipelineLayouts_,
-        0, 1, &graphics_.descriptorSets_[currentBuffer_], 0, nullptr);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            graphics_.pipelineLayouts_.rayMarch, 0, 1,
+                            &graphics_.descriptorSets_[currentBuffer_], 0,
+                            nullptr);
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      graphics_.pipelines_);
+                      graphics_.pipelines_.rayMarch);
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
 
     drawUI(cmdBuffer);
@@ -365,12 +389,18 @@ class VulkanExample : public VulkanExampleBase {
 
   ~VulkanExample() {
     if (device_) {
-      vkDestroyPipeline(device_, graphics_.pipelines_, nullptr);
-      vkDestroyPipelineLayout(device_, graphics_.pipelineLayouts_, nullptr);
-      vkDestroyDescriptorSetLayout(device_, graphics_.descriptorSetLayouts_,
-                                   nullptr);
+      vkDestroyPipeline(device_, graphics_.pipelines_.rayMarch, nullptr);
+      vkDestroyPipeline(device_, graphics_.pipelines_.preMarch, nullptr);
+      vkDestroyPipelineLayout(device_, graphics_.pipelineLayouts_.preMarch,
+                              nullptr);
+      vkDestroyPipelineLayout(device_, graphics_.pipelineLayouts_.rayMarch,
+                              nullptr);
+      vkDestroyDescriptorSetLayout(
+          device_, graphics_.descriptorSetLayouts_.preMarch, nullptr);
+      vkDestroyDescriptorSetLayout(
+          device_, graphics_.descriptorSetLayouts_.rayMarch, nullptr);
       for (auto& buffer : graphics_.uniformBuffers_) {
-        buffer.view.destroy();
+        buffer.rayMarch.destroy();
       }
     }
   }
