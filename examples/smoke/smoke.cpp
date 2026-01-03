@@ -21,6 +21,8 @@ class VulkanExample : public VulkanExampleBase {
   struct Graphics {
     struct PreMarchUBO {
       alignas(8) glm::vec2 screenRes;
+      // toggle front and back face marching
+      alignas(4) uint32_t enableFrontMarch;
     };
 
     struct RayMarchUBO {
@@ -43,7 +45,8 @@ class VulkanExample : public VulkanExampleBase {
 
     struct {
       // offscreen pass to generate entry/exit rays for ray marcher
-      VkPipeline preMarch{VK_NULL_HANDLE};
+      VkPipeline preMarchFront{VK_NULL_HANDLE};
+      VkPipeline preMarchBack{VK_NULL_HANDLE};
       VkPipeline rayMarch{VK_NULL_HANDLE};
     } pipelines_{};
     struct {
@@ -255,13 +258,19 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void preparePipelines() {
-    // Layout
+    // Layout: Ray march
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
         vks::initializers::pipelineLayoutCreateInfo(
             &graphics_.descriptorSetLayouts_.rayMarch, 1);
     VK_CHECK_RESULT(
         vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
                                &graphics_.pipelineLayouts_.rayMarch));
+    // Layout: Pre march
+    pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
+        &graphics_.descriptorSetLayouts_.preMarch, 1);
+    VK_CHECK_RESULT(
+        vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
+                               &graphics_.pipelineLayouts_.preMarch));
 
     // Pipeline
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
@@ -278,7 +287,7 @@ class VulkanExample : public VulkanExampleBase {
             1, &blendAttachmentState);
     VkPipelineDepthStencilStateCreateInfo depthStencilState =
         vks::initializers::pipelineDepthStencilStateCreateInfo(
-            VK_FALSE, VK_FALSE, VK_COMPARE_OP_LESS_OR_EQUAL);
+            VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
     VkPipelineViewportStateCreateInfo viewportState =
         vks::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
     VkPipelineMultisampleStateCreateInfo multisampleState =
@@ -290,21 +299,20 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
-    // Shaders
-    shaderStages[0] = loadShader(getShadersPath() + "smoke/raymarch.vert.spv",
+    // Pipeline: Pre march front
+    shaderStages[0] = loadShader(getShadersPath() + "smoke/premarch.vert.spv",
                                  VK_SHADER_STAGE_VERTEX_BIT);
-    shaderStages[1] = loadShader(getShadersPath() + "smoke/raymarch.frag.spv",
+    shaderStages[1] = loadShader(getShadersPath() + "smoke/premarch.frag.spv",
                                  VK_SHADER_STAGE_FRAGMENT_BIT);
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo =
-        vks::initializers::pipelineCreateInfo(
-            graphics_.pipelineLayouts_.rayMarch, renderPass_, 0);
-
-    // Vertex bindings and attributes
+        vks::initializers::pipelineCreateInfo();
+    pipelineCreateInfo.layout = graphics_.pipelineLayouts_.preMarch;
     VkPipelineVertexInputStateCreateInfo emptyInputState =
         vks::initializers::pipelineVertexInputStateCreateInfo();
     pipelineCreateInfo.pVertexInputState = &emptyInputState;
     pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
+    rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
     pipelineCreateInfo.pRasterizationState = &rasterizationState;
     pipelineCreateInfo.pColorBlendState = &colorBlendState;
     pipelineCreateInfo.pMultisampleState = &multisampleState;
@@ -313,17 +321,6 @@ class VulkanExample : public VulkanExampleBase {
     pipelineCreateInfo.pDynamicState = &dynamicState;
     pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineCreateInfo.pStages = shaderStages.data();
-
-    // Alpha blending for enabling opacity control in frag shader
-    blendAttachmentState.colorWriteMask = 0xF;
-    blendAttachmentState.blendEnable = VK_TRUE;
-    blendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-    blendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-    blendAttachmentState.dstColorBlendFactor =
-        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    blendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
-    blendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    blendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
     // New create info to define color, depth and stencil attachments at
     // pipeline create time
@@ -335,8 +332,41 @@ class VulkanExample : public VulkanExampleBase {
         &swapChain_.colorFormat_;
     pipelineRenderingCreateInfo.depthAttachmentFormat = depthFormat_;
     pipelineRenderingCreateInfo.stencilAttachmentFormat = depthFormat_;
-    // Chain into the pipeline creat einfo
+    // Chain into the pipeline create info
     pipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
+
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
+        device_, pipelineCache_, 1, &pipelineCreateInfo, nullptr,
+        &graphics_.pipelines_.preMarchFront));
+
+    // Pipeline: Pre march back
+    rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
+    pipelineCreateInfo.pRasterizationState = &rasterizationState;
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
+        device_, pipelineCache_, 1, &pipelineCreateInfo, nullptr,
+        &graphics_.pipelines_.preMarchBack));
+
+    // Pipeline: Ray march
+    pipelineCreateInfo.layout = graphics_.pipelineLayouts_.rayMarch;
+    shaderStages[0] = loadShader(getShadersPath() + "smoke/raymarch.vert.spv",
+                                 VK_SHADER_STAGE_VERTEX_BIT);
+    shaderStages[1] = loadShader(getShadersPath() + "smoke/raymarch.frag.spv",
+                                 VK_SHADER_STAGE_FRAGMENT_BIT);
+
+    rasterizationState.cullMode = VK_CULL_MODE_NONE;
+    depthStencilState.depthTestEnable = VK_FALSE;
+    depthStencilState.depthWriteEnable = VK_FALSE;
+
+    // Alpha blending for enabling opacity control in frag shader
+    blendAttachmentState.colorWriteMask = 0xF;
+    blendAttachmentState.blendEnable = VK_TRUE;
+    blendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+    blendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    blendAttachmentState.dstColorBlendFactor =
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    blendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+    blendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    blendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCreateInfo, nullptr,
@@ -366,6 +396,8 @@ class VulkanExample : public VulkanExampleBase {
 
   void updateUniformBuffers() {
     // static buffers
+    graphics_.ubos_.preMarch.screenRes = glm::vec2(width_, height_);
+
     graphics_.ubos_.rayMarch.cameraView = camera_.matrices_.view;
     graphics_.ubos_.rayMarch.screenRes = glm::vec2(width_, height_);
     graphics_.ubos_.rayMarch.cameraPos = camera_.position_;
@@ -377,30 +409,6 @@ class VulkanExample : public VulkanExampleBase {
            &graphics_.ubos_.rayMarch, sizeof(Graphics::RayMarchUBO));
   }
 
-  void setupRenderPass() override {
-    // With VK_KHR_dynamic_rendering we no longer need a render pass, so skip
-    // the sample base render pass setup
-    renderPass_ = VK_NULL_HANDLE;
-  }
-
-  void setupFrameBuffer() override {
-    // With VK_KHR_dynamic_rendering we no longer need a frame buffer, so skip
-    // the sample base framebuffer setup
-  }
-
-  void getEnabledFeatures() override {
-    enabledFeatures_.fillModeNonSolid = deviceFeatures_.fillModeNonSolid;
-  }
-
-  void prepareDyanmicRendering() {
-    // Since we use an extension, we need to expliclity load the function
-    // pointers for extension related Vulkan commands
-    vkCmdBeginRenderingKHR = reinterpret_cast<PFN_vkCmdBeginRenderingKHR>(
-        vkGetDeviceProcAddr(device_, "vkCmdBeginRenderingKHR"));
-    vkCmdEndRenderingKHR = reinterpret_cast<PFN_vkCmdEndRenderingKHR>(
-        vkGetDeviceProcAddr(device_, "vkCmdEndRenderingKHR"));
-  }
-
   void prepare() {
     VulkanExampleBase::prepare();
     prepareDyanmicRendering();
@@ -410,6 +418,17 @@ class VulkanExample : public VulkanExampleBase {
     setupDescriptors();
     preparePipelines();
     prepared_ = true;
+  }
+
+  void loadAssets() {}
+
+  virtual void render() {
+    if (!prepared_)
+      return;
+    VulkanExampleBase::prepareFrame();
+    updateUniformBuffers();
+    buildCommandBuffer();
+    VulkanExampleBase::submitFrame();
   }
 
   void buildCommandBuffer() {
@@ -497,18 +516,31 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
 
-  void loadAssets() {}
+  virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {}
 
-  virtual void render() {
-    if (!prepared_)
-      return;
-    VulkanExampleBase::prepareFrame();
-    updateUniformBuffers();
-    buildCommandBuffer();
-    VulkanExampleBase::submitFrame();
+  void setupRenderPass() override {
+    // With VK_KHR_dynamic_rendering we no longer need a render pass, so skip
+    // the sample base render pass setup
+    renderPass_ = VK_NULL_HANDLE;
   }
 
-  virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {}
+  void setupFrameBuffer() override {
+    // With VK_KHR_dynamic_rendering we no longer need a frame buffer, so skip
+    // the sample base framebuffer setup
+  }
+
+  void getEnabledFeatures() override {
+    enabledFeatures_.fillModeNonSolid = deviceFeatures_.fillModeNonSolid;
+  }
+
+  void prepareDyanmicRendering() {
+    // Since we use an extension, we need to expliclity load the function
+    // pointers for extension related Vulkan commands
+    vkCmdBeginRenderingKHR = reinterpret_cast<PFN_vkCmdBeginRenderingKHR>(
+        vkGetDeviceProcAddr(device_, "vkCmdBeginRenderingKHR"));
+    vkCmdEndRenderingKHR = reinterpret_cast<PFN_vkCmdEndRenderingKHR>(
+        vkGetDeviceProcAddr(device_, "vkCmdEndRenderingKHR"));
+  }
 
   VulkanExample() : VulkanExampleBase() {
     title = "Smoke Simulation";
@@ -543,7 +575,8 @@ class VulkanExample : public VulkanExampleBase {
   ~VulkanExample() {
     if (device_) {
       vkDestroyPipeline(device_, graphics_.pipelines_.rayMarch, nullptr);
-      vkDestroyPipeline(device_, graphics_.pipelines_.preMarch, nullptr);
+      vkDestroyPipeline(device_, graphics_.pipelines_.preMarchFront, nullptr);
+      vkDestroyPipeline(device_, graphics_.pipelines_.preMarchBack, nullptr);
       vkDestroyPipelineLayout(device_, graphics_.pipelineLayouts_.preMarch,
                               nullptr);
       vkDestroyPipelineLayout(device_, graphics_.pipelineLayouts_.rayMarch,
