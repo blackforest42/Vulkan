@@ -2,25 +2,24 @@
 #extension GL_EXT_debug_printf : enable
 
 // in
+layout (location = 0) in vec3 inPos;
 
 // out
 layout (location = 0) out vec2 outUV;
 
-vec2 positions[6] = vec2[](
-    // bottom left tri
-    vec2(-1, -1),
-    vec2(-1, 1),
-    vec2(1, 1),
+layout (binding = 0) uniform UBO
+{
+	mat4 model;
+	mat4 view;
+	mat4 perspective;
+	vec3 cameraPos;
+	vec2 screenRes;
+	int enableFrontMarch;
+} ubo;
 
-    // top right tri
-    vec2(1, 1),
-    vec2(1, -1),
-    vec2(-1, -1)
-);
 
 void main() {
-    outUV = (positions[gl_VertexIndex].xy + 1.0) * 0.5;
-    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
+    gl_Position = ubo.perspective * ubo.view * ubo.model * vec4(inPos, 1.);
 }
 
 

@@ -17,9 +17,15 @@ class VulkanExample : public VulkanExampleBase {
   VkPhysicalDeviceDynamicRenderingFeaturesKHR
       enabledDynamicRenderingFeaturesKHR{};
 
+  vkglTF::Model cube_;
+
   // resources for rendering the compute outputs
   struct Graphics {
     struct PreMarchUBO {
+      alignas(16) glm::mat4 model;
+      alignas(16) glm::mat4 cameraView;
+      alignas(16) glm::mat4 perspective;
+      alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
       // toggle front and back face marching
       alignas(4) uint32_t enableFrontMarch;
@@ -210,7 +216,8 @@ class VulkanExample : public VulkanExampleBase {
     setLayoutBindings = {
         // Binding 0 : Fragment shader ubo
         vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT,
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
             /*binding id*/ 0)};
 
     descriptorLayout =
@@ -298,6 +305,8 @@ class VulkanExample : public VulkanExampleBase {
     VkPipelineDynamicStateCreateInfo dynamicState =
         vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
+    VkGraphicsPipelineCreateInfo pipelineCreateInfo =
+        vks::initializers::pipelineCreateInfo();
 
     // Pipeline: Pre march front
     shaderStages[0] = loadShader(getShadersPath() + "smoke/premarch.vert.spv",
@@ -305,12 +314,11 @@ class VulkanExample : public VulkanExampleBase {
     shaderStages[1] = loadShader(getShadersPath() + "smoke/premarch.frag.spv",
                                  VK_SHADER_STAGE_FRAGMENT_BIT);
 
-    VkGraphicsPipelineCreateInfo pipelineCreateInfo =
-        vks::initializers::pipelineCreateInfo();
     pipelineCreateInfo.layout = graphics_.pipelineLayouts_.preMarch;
-    VkPipelineVertexInputStateCreateInfo emptyInputState =
-        vks::initializers::pipelineVertexInputStateCreateInfo();
-    pipelineCreateInfo.pVertexInputState = &emptyInputState;
+    pipelineCreateInfo.pVertexInputState =
+        vkglTF::Vertex::getPipelineVertexInputState({
+            vkglTF::VertexComponent::Position,
+        });
     pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
     rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
     pipelineCreateInfo.pRasterizationState = &rasterizationState;
@@ -348,6 +356,9 @@ class VulkanExample : public VulkanExampleBase {
 
     // Pipeline: Ray march
     pipelineCreateInfo.layout = graphics_.pipelineLayouts_.rayMarch;
+    VkPipelineVertexInputStateCreateInfo emptyInputState =
+        vks::initializers::pipelineVertexInputStateCreateInfo();
+    pipelineCreateInfo.pVertexInputState = &emptyInputState;
     shaderStages[0] = loadShader(getShadersPath() + "smoke/raymarch.vert.spv",
                                  VK_SHADER_STAGE_VERTEX_BIT);
     shaderStages[1] = loadShader(getShadersPath() + "smoke/raymarch.frag.spv",
@@ -396,6 +407,10 @@ class VulkanExample : public VulkanExampleBase {
 
   void updateUniformBuffers() {
     // static buffers
+    graphics_.ubos_.preMarch.model = glm::mat4(1.f);
+    graphics_.ubos_.preMarch.cameraView = camera_.matrices_.view;
+    graphics_.ubos_.preMarch.perspective = camera_.matrices_.perspective;
+    graphics_.ubos_.preMarch.cameraPos = camera_.position_;
     graphics_.ubos_.preMarch.screenRes = glm::vec2(width_, height_);
 
     graphics_.ubos_.rayMarch.cameraView = camera_.matrices_.view;
@@ -420,11 +435,19 @@ class VulkanExample : public VulkanExampleBase {
     prepared_ = true;
   }
 
-  void loadAssets() {}
+  void loadAssets() {
+    const uint32_t glTFLoadingFlags =
+        vkglTF::FileLoadingFlags::PreTransformVertices |
+        vkglTF::FileLoadingFlags::PreMultiplyVertexColors |
+        vkglTF::FileLoadingFlags::FlipY;
+    cube_.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice_,
+                       queue_, glTFLoadingFlags);
+  }
 
   virtual void render() {
-    if (!prepared_)
+    if (!prepared_) {
       return;
+    }
     VulkanExampleBase::prepareFrame();
     updateUniformBuffers();
     buildCommandBuffer();
