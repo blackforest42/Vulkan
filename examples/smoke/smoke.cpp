@@ -55,7 +55,12 @@ class VulkanExample : public VulkanExampleBase {
       VkDescriptorSetLayout preMarch{VK_NULL_HANDLE};
       VkDescriptorSetLayout rayMarch{VK_NULL_HANDLE};
     } descriptorSetLayouts_;
-    std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+
+    struct DescriptorSets {
+      VkDescriptorSet preMarch{VK_NULL_HANDLE};
+      VkDescriptorSet rayMarch{VK_NULL_HANDLE};
+    };
+    std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
     // Structure to hold offscreen velocity buffer
     struct VelocityBuffer {
@@ -170,17 +175,20 @@ class VulkanExample : public VulkanExampleBase {
   void setupDescriptors() {
     // Pool
     std::vector<VkDescriptorPoolSize> poolSizes = {
-        vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                              1 * MAX_CONCURRENT_FRAMES),
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            /*total ubo count (across all pipelines) */ 2 *
+                MAX_CONCURRENT_FRAMES),
     };
 
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
-        vks::initializers::descriptorPoolCreateInfo(poolSizes,
-                                                    1 * MAX_CONCURRENT_FRAMES);
+        vks::initializers::descriptorPoolCreateInfo(
+            poolSizes,
+            /*total descriptor count*/ 2 * MAX_CONCURRENT_FRAMES);
     VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
                                            nullptr, &descriptorPool_));
 
-    // Layout
+    // Layout: Ray march
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
         // Binding 0 : Vertex shader uniform buffer
         vks::initializers::descriptorSetLayoutBinding(
@@ -195,21 +203,50 @@ class VulkanExample : public VulkanExampleBase {
         vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr,
                                     &graphics_.descriptorSetLayouts_.rayMarch));
 
+    // Layout: Pre march
+    setLayoutBindings = {
+        // Binding 0 : Fragment shader ubo
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding id*/ 0)};
+
+    descriptorLayout =
+        vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr,
+                                    &graphics_.descriptorSetLayouts_.preMarch));
+
     // Sets per frame, just like the buffers themselves
     // Images do not need to be duplicated per frame, we reuse the same one
     // for each frame
-    VkDescriptorSetAllocateInfo allocInfo =
-        vks::initializers::descriptorSetAllocateInfo(
-            descriptorPool_, &graphics_.descriptorSetLayouts_.rayMarch, 1);
     for (auto i = 0; i < graphics_.uniformBuffers_.size(); i++) {
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
-                                               &graphics_.descriptorSets_[i]));
+      VkDescriptorSetAllocateInfo allocInfo =
+          vks::initializers::descriptorSetAllocateInfo(
+              descriptorPool_, &graphics_.descriptorSetLayouts_.rayMarch, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device_, &allocInfo, &graphics_.descriptorSets_[i].rayMarch));
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
           // Binding 0 : Projection/View matrix as uniform buffer
           vks::initializers::writeDescriptorSet(
-              graphics_.descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+              graphics_.descriptorSets_[i].rayMarch,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
               /*binding id*/ 0,
               &graphics_.uniformBuffers_[i].rayMarch.descriptor),
+      };
+      vkUpdateDescriptorSets(device_,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
+
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool_, &graphics_.descriptorSetLayouts_.preMarch, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device_, &allocInfo, &graphics_.descriptorSets_[i].preMarch));
+      writeDescriptorSets = {
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptorSets_[i].preMarch,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+              /*binding id*/ 0,
+              &graphics_.uniformBuffers_[i].preMarch.descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -446,8 +483,8 @@ class VulkanExample : public VulkanExampleBase {
 
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             graphics_.pipelineLayouts_.rayMarch, 0, 1,
-                            &graphics_.descriptorSets_[currentBuffer_], 0,
-                            nullptr);
+                            &graphics_.descriptorSets_[currentBuffer_].rayMarch,
+                            0, nullptr);
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       graphics_.pipelines_.rayMarch);
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
