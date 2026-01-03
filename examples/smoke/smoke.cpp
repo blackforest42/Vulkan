@@ -52,7 +52,6 @@ class VulkanExample : public VulkanExampleBase {
     struct {
       // offscreen pass to generate entry/exit rays for ray marcher
       VkPipeline preMarchFront{VK_NULL_HANDLE};
-      VkPipeline preMarchBack{VK_NULL_HANDLE};
       VkPipeline rayMarch{VK_NULL_HANDLE};
     } pipelines_{};
     struct {
@@ -272,9 +271,10 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(
         vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
                                &graphics_.pipelineLayouts_.rayMarch));
+
     // Layout: Pre march
     pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
-        &graphics_.descriptorSetLayouts_.preMarch, 1);
+        &graphics_.descriptorSetLayouts_.preMarch, 2);
     VK_CHECK_RESULT(
         vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
                                &graphics_.pipelineLayouts_.preMarch));
@@ -337,7 +337,7 @@ class VulkanExample : public VulkanExampleBase {
         VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
     pipelineRenderingCreateInfo.colorAttachmentCount = 1;
     pipelineRenderingCreateInfo.pColorAttachmentFormats =
-        &swapChain_.colorFormat_;
+        &graphics_.preMarchPass_.incoming.format;
     pipelineRenderingCreateInfo.depthAttachmentFormat = depthFormat_;
     pipelineRenderingCreateInfo.stencilAttachmentFormat = depthFormat_;
     // Chain into the pipeline create info
@@ -346,13 +346,6 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(
         device_, pipelineCache_, 1, &pipelineCreateInfo, nullptr,
         &graphics_.pipelines_.preMarchFront));
-
-    // Pipeline: Pre march back
-    rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
-    pipelineCreateInfo.pRasterizationState = &rasterizationState;
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-        device_, pipelineCache_, 1, &pipelineCreateInfo, nullptr,
-        &graphics_.pipelines_.preMarchBack));
 
     // Pipeline: Ray march
     pipelineCreateInfo.layout = graphics_.pipelineLayouts_.rayMarch;
@@ -364,6 +357,8 @@ class VulkanExample : public VulkanExampleBase {
     shaderStages[1] = loadShader(getShadersPath() + "smoke/raymarch.frag.spv",
                                  VK_SHADER_STAGE_FRAGMENT_BIT);
 
+    pipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &swapChain_.colorFormat_;
     rasterizationState.cullMode = VK_CULL_MODE_NONE;
     depthStencilState.depthTestEnable = VK_FALSE;
     depthStencilState.depthWriteEnable = VK_FALSE;
@@ -461,6 +456,91 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::commandBufferBeginInfo();
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
+    preMarchFrontCmd(cmdBuffer);
+    rayMarchCmd(cmdBuffer);
+
+    VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
+  }
+
+  void preMarchFrontCmd(VkCommandBuffer& cmdBuffer) {
+    // With dynamic rendering there are no subpass dependencies, so we need to
+    // take care of proper layout transitions by using barriers This set of
+    // barriers prepares the color and depth images for output
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, swapChain_.images_[currentImageIndex_], 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, depthStencil_.image, 0,
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        VkImageSubresourceRange{
+            VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0,
+            1});
+
+    // New structures are used to define the attachments used in dynamic
+    // rendering
+    VkRenderingAttachmentInfoKHR colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    colorAttachment.imageView = graphics_.preMarchPass_.incoming.imageView;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    // A single depth stencil attachment info can be used, but they can also be
+    // specified separately. When both are specified separately, the only
+    // requirement is that the image view is identical.
+    VkRenderingAttachmentInfoKHR depthStencilAttachment{};
+    depthStencilAttachment.sType =
+        VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    depthStencilAttachment.imageView = depthStencil_.view;
+    depthStencilAttachment.imageLayout =
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depthStencilAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthStencilAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    depthStencilAttachment.clearValue.depthStencil = {1.0f, 0};
+
+    VkRenderingInfoKHR renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderingInfo.renderArea = {0, 0, width_, height_};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
+    renderingInfo.pDepthAttachment = &depthStencilAttachment;
+    renderingInfo.pStencilAttachment = &depthStencilAttachment;
+
+    vkCmdBeginRenderingKHR(cmdBuffer, &renderingInfo);
+
+    // Set viewport and scissor
+    VkViewport viewport{0.0f, 0.0f, (float)width_, (float)height_, 0.0f, 1.0f};
+    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      graphics_.pipelines_.preMarchFront);
+
+    assert(&graphics_.descriptorSets_[currentBuffer_].preMarch);
+
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            graphics_.pipelineLayouts_.preMarch, 0, 1,
+                            &graphics_.descriptorSets_[currentBuffer_].preMarch,
+                            0, nullptr);
+
+    cube_.draw(cmdBuffer);
+
+    vkCmdEndRenderingKHR(cmdBuffer);
+  }
+
+  void rayMarchCmd(VkCommandBuffer& cmdBuffer) {
     vks::tools::insertImageMemoryBarrier(
         cmdBuffer, swapChain_.images_[currentImageIndex_], 0,
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
@@ -530,13 +610,10 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       graphics_.pipelines_.rayMarch);
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
-
     drawUI(cmdBuffer);
 
     // End dynamic rendering
     vkCmdEndRenderingKHR(cmdBuffer);
-
-    VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
 
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {}
@@ -599,7 +676,6 @@ class VulkanExample : public VulkanExampleBase {
     if (device_) {
       vkDestroyPipeline(device_, graphics_.pipelines_.rayMarch, nullptr);
       vkDestroyPipeline(device_, graphics_.pipelines_.preMarchFront, nullptr);
-      vkDestroyPipeline(device_, graphics_.pipelines_.preMarchBack, nullptr);
       vkDestroyPipelineLayout(device_, graphics_.pipelineLayouts_.preMarch,
                               nullptr);
       vkDestroyPipelineLayout(device_, graphics_.pipelineLayouts_.rayMarch,

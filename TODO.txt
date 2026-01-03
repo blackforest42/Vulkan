@@ -1,14 +1,23 @@
 Dec 22
 
 TODO: 
-- cube marching
-	- finish premarch pipeline and descriptor sets
-	- command buffer
-	- When rendering, toggle VK_CULL_MODE_BACK_BIT/FRONT_BIT for ray entry/exit
-	- in cube frag shader, write ray intersection (frag position - camera position)
-	- optional: cube map
-- compute shader pipeline to write to a 3d texture
-	- 
+- remove 2 pipeline rendering, just use 1
+
+VkDynamicState dynamicStates[] = {
+    VK_DYNAMIC_STATE_VIEWPORT,
+    VK_DYNAMIC_STATE_SCISSOR,
+    VK_DYNAMIC_STATE_CULL_MODE // Required for dynamic culling
+};
+
+VkPipelineDynamicStateCreateInfo dynamicStateInfo{};
+dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+dynamicStateInfo.dynamicStateCount = 3;
+dynamicStateInfo.pDynamicStates = dynamicStates;
+
+
+
+- update cull mode during rendering
+- write result to two separate textures
 
 DONE:
 - cube mesh aka "voxel" renderer done
