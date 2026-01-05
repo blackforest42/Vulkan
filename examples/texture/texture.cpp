@@ -58,7 +58,7 @@ class VulkanExample : public VulkanExampleBase {
   std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Texture loading";
+    title_ = "Texture loading";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.5f));
     camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));

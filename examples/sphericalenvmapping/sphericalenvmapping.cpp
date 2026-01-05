@@ -36,7 +36,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Spherical Environment Mapping";
+		title_ = "Spherical Environment Mapping";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -3.5f));
 		camera_.setRotation(glm::vec3(-25.0f, 23.75f, 0.0f));

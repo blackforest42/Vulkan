@@ -235,7 +235,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Vulkan gears";
+		title_ = "Vulkan gears";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 2.5f, -16.0f));
 		camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));

@@ -50,7 +50,7 @@ class VulkanExample : public VulkanExampleBase {
   std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Runtime mip map generation";
+    title_ = "Runtime mip map generation";
     camera_.type_ = Camera::CameraType::firstperson;
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f,
                            1024.0f);

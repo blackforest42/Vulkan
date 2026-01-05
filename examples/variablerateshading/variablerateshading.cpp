@@ -10,8 +10,8 @@
 
 VulkanExample::VulkanExample() : VulkanExampleBase()
 {
-	title = "Variable rate shading";
-	apiVersion = VK_API_VERSION_1_1;
+	title_ = "Variable rate shading";
+	apiVersion_ = VK_API_VERSION_1_1;
 	camera_.type_ = Camera::CameraType::firstperson;
 	camera_.flipY = true;
 	camera_.setPosition(glm::vec3(0.0f, 1.0f, 0.0f));

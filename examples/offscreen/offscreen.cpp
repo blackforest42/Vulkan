@@ -80,7 +80,7 @@ class VulkanExample : public VulkanExampleBase {
   glm::vec3 modelRotation = glm::vec3(0.0f);
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Offscreen rendering";
+    title_ = "Offscreen rendering";
     timerSpeed *= 0.25f;
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPosition(glm::vec3(0.0f, 1.0f, -6.0f));

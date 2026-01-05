@@ -33,7 +33,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Geometry shader normal debugging";
+		title_ = "Geometry shader normal debugging";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -1.0f));
 		camera_.setRotation(glm::vec3(0.0f, -25.0f, 0.0f));

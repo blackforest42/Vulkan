@@ -81,7 +81,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Ray tracing SBT data";
+		title_ = "Ray tracing SBT data";
 		settings_.overlay = false;
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
@@ -89,7 +89,7 @@ public:
 		camera_.setTranslation(glm::vec3(0.0f, 0.0f, -2.5f));
 
 		// Require Vulkan 1.1
-		apiVersion = VK_API_VERSION_1_1;
+		apiVersion_ = VK_API_VERSION_1_1;
 
 		// Ray tracing related extensions required by this sample
 		enabledDeviceExtensions_.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);

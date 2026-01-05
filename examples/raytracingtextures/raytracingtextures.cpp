@@ -52,7 +52,7 @@ class VulkanExample : public VulkanRaytracingSample {
   std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
   VulkanExample() : VulkanRaytracingSample() {
-    title = "Ray tracing textures";
+    title_ = "Ray tracing textures";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
     camera_.setRotation(glm::vec3(45.0f, 0.0f, 0.0f));

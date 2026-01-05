@@ -42,7 +42,7 @@ class VulkanExample : public VulkanExampleBase {
   std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Tessellation shader (PN Triangles)";
+    title_ = "Tessellation shader (PN Triangles)";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -4.0f));
     camera_.setRotation(glm::vec3(-350.0f, 60.0f, 0.0f));

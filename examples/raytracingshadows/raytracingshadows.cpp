@@ -43,7 +43,7 @@ class VulkanExample : public VulkanRaytracingSample {
   // This sample is derived from an extended base class that saves most of the
   // ray tracing setup boiler plate
   VulkanExample() : VulkanRaytracingSample() {
-    title = "Ray traced shadows";
+    title_ = "Ray traced shadows";
     timerSpeed *= 0.25f;
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);

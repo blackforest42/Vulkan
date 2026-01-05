@@ -49,7 +49,7 @@ class VulkanExample : public VulkanExampleBase {
   std::vector<std::string> objectNames;
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Cube map textures";
+    title_ = "Cube map textures";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -4.0f));
     camera_.setRotation(glm::vec3(0.0f));

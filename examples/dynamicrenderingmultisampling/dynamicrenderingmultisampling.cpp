@@ -43,7 +43,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Multi sampling with dynamic rendering";
+		title_ = "Multi sampling with dynamic rendering";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -10.0f));
 		camera_.setRotation(glm::vec3(-7.5f, 72.0f, 0.0f));

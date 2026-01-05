@@ -132,7 +132,7 @@ class VulkanExample : public VulkanExampleBase {
   uint32_t currentFrame{0};
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Basic indexed triangle";
+    title_ = "Basic indexed triangle";
     // To keep things simple, we don't use the UI overlay from the framework
     settings_.overlay = false;
     // Setup a default look-at camera

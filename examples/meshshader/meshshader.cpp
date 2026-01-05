@@ -31,7 +31,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Mesh shaders";
+		title_ = "Mesh shaders";
 		timerSpeed *= 0.25f;
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
@@ -39,7 +39,7 @@ public:
 		camera_.setTranslation(glm::vec3(0.0f, 0.0f, -5.0f));
 
 		// The mesh shader extension requires at least Vulkan Core 1.1
-		apiVersion = VK_API_VERSION_1_1;
+		apiVersion_ = VK_API_VERSION_1_1;
 
 		// Extensions required by mesh shading
 		enabledInstanceExtensions_.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);

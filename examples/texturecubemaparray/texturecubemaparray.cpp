@@ -50,7 +50,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Cube map texture arrays";
+		title_ = "Cube map texture arrays";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -4.0f));
 		camera_.setRotationSpeed(0.25f);

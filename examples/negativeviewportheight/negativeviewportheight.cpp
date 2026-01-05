@@ -49,7 +49,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Negative Viewport height";
+		title_ = "Negative Viewport height";
 		// [POI] VK_KHR_MAINTENANCE1 is required for using negative viewport heights
 		// Note: This is core as of Vulkan 1.1. So if you target 1.1 you don't have to explicitly enable this
 		enabledDeviceExtensions_.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);

@@ -84,7 +84,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Distance field font rendering";
+		title_ = "Distance field font rendering";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.0f));
 		camera_.setRotation(glm::vec3(0.0f));

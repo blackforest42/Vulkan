@@ -121,7 +121,7 @@ class VulkanExample : public VulkanExampleBase {
   } compute_;
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Compute shader N-body system";
+    title_ = "Compute shader N-body system";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
     camera_.setRotation(glm::vec3(-26.0f, 75.0f, 0.0f));

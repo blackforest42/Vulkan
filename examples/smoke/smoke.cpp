@@ -14,8 +14,12 @@ class VulkanExample : public VulkanExampleBase {
  public:
   PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR{VK_NULL_HANDLE};
   PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR{VK_NULL_HANDLE};
+  PFN_vkCmdSetCullModeEXT vkCmdSetCullModeEXT{nullptr};
+
   VkPhysicalDeviceDynamicRenderingFeaturesKHR
       enabledDynamicRenderingFeaturesKHR{};
+  VkPhysicalDeviceExtendedDynamicState3FeaturesEXT
+      extendedDynamicState3FeaturesEXT{};
 
   vkglTF::Model cube_;
 
@@ -303,7 +307,9 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::pipelineMultisampleStateCreateInfo(
             VK_SAMPLE_COUNT_1_BIT, 0);
     std::vector<VkDynamicState> dynamicStateEnables = {
-        VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR,
+    };
     VkPipelineDynamicStateCreateInfo dynamicState =
         vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
@@ -405,7 +411,8 @@ class VulkanExample : public VulkanExampleBase {
 
   void updateUniformBuffers() {
     // static buffers
-    graphics_.ubos_.preMarch.model = glm::scale(glm::mat4(1.f), glm::vec3(0.2));
+    graphics_.ubos_.preMarch.model =
+        glm::scale(glm::mat4(1.f), glm::vec3(0.2f));
     graphics_.ubos_.preMarch.cameraView = camera_.matrices_.view;
     graphics_.ubos_.preMarch.perspective = camera_.matrices_.perspective;
     graphics_.ubos_.preMarch.cameraPos = camera_.position_;
@@ -426,7 +433,8 @@ class VulkanExample : public VulkanExampleBase {
 
   void prepare() {
     VulkanExampleBase::prepare();
-    prepareDyanmicRendering();
+    prepareDynamicRendering();
+    prepareDynamicStates();
     loadAssets();
     preparePreMarchPass();
     prepareUniformBuffers();
@@ -638,7 +646,7 @@ class VulkanExample : public VulkanExampleBase {
     enabledFeatures_.fillModeNonSolid = deviceFeatures_.fillModeNonSolid;
   }
 
-  void prepareDyanmicRendering() {
+  void prepareDynamicRendering() {
     // Since we use an extension, we need to expliclity load the function
     // pointers for extension related Vulkan commands
     vkCmdBeginRenderingKHR = reinterpret_cast<PFN_vkCmdBeginRenderingKHR>(
@@ -647,34 +655,50 @@ class VulkanExample : public VulkanExampleBase {
         vkGetDeviceProcAddr(device_, "vkCmdEndRenderingKHR"));
   }
 
+  void prepareDynamicStates() {
+    vkCmdSetCullModeEXT = reinterpret_cast<PFN_vkCmdSetCullModeEXT>(
+        vkGetDeviceProcAddr(device_, "vkCmdSetCullModeEXT"));
+  }
+
+  void getEnabledExtensions() override {
+    extendedDynamicState3FeaturesEXT.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT;
+    extendedDynamicState3FeaturesEXT.pNext = nullptr;
+    enabledDeviceExtensions_.push_back(
+        VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME);
+    deviceCreatepNextChain_ = &extendedDynamicState3FeaturesEXT;
+  }
+
   VulkanExample() : VulkanExampleBase() {
-    title = "Smoke Simulation";
+    title_ = "Smoke Simulation";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setMovementSpeed(25.f);
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -3.f));
     camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 
-    enabledInstanceExtensions_.push_back(
-        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+    apiVersion_ = VK_API_VERSION_1_4;
 
-    // The sample uses the extension (instead of Vulkan 1.2, where dynamic
-    // rendering is core)
-    enabledDeviceExtensions_.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
-    enabledDeviceExtensions_.push_back(VK_KHR_MAINTENANCE2_EXTENSION_NAME);
-    enabledDeviceExtensions_.push_back(VK_KHR_MULTIVIEW_EXTENSION_NAME);
-    enabledDeviceExtensions_.push_back(
-        VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME);
-    enabledDeviceExtensions_.push_back(
-        VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME);
+    // enabledInstanceExtensions_.push_back(
+    //     VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 
-    // in addition to the extension, the feature needs to be explicitly
-    // enabled too by chaining the extension structure into device creation
-    enabledDynamicRenderingFeaturesKHR.sType =
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
-    enabledDynamicRenderingFeaturesKHR.dynamicRendering = VK_TRUE;
+    //// The sample uses the extension (instead of Vulkan 1.2, where dynamic
+    //// rendering is core)
+    // enabledDeviceExtensions_.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
+    // enabledDeviceExtensions_.push_back(VK_KHR_MAINTENANCE2_EXTENSION_NAME);
+    // enabledDeviceExtensions_.push_back(VK_KHR_MULTIVIEW_EXTENSION_NAME);
+    // enabledDeviceExtensions_.push_back(
+    //     VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME);
+    // enabledDeviceExtensions_.push_back(
+    //     VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME);
 
-    deviceCreatepNextChain_ = &enabledDynamicRenderingFeaturesKHR;
+    //// in addition to the extension, the feature needs to be explicitly
+    /// enabled / too by chaining the extension structure into device creation
+    // enabledDynamicRenderingFeaturesKHR.sType =
+    //     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
+    // enabledDynamicRenderingFeaturesKHR.dynamicRendering = VK_TRUE;
+
+    // deviceCreatepNextChain_ = &enabledDynamicRenderingFeaturesKHR;
   }
 
   ~VulkanExample() {

@@ -230,9 +230,9 @@ class VulkanExampleBase {
 
   Camera camera_;
 
-  std::string title = "Vulkan Example";
-  std::string name = "vulkanExample";
-  uint32_t apiVersion = VK_API_VERSION_1_0;
+  std::string title_ = "Vulkan Example";
+  std::string name_ = "vulkanExample";
+  uint32_t apiVersion_ = VK_API_VERSION_1_0;
 
   /** @brief Default depth stencil attachment used by the default render pass */
   struct {

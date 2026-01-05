@@ -96,7 +96,7 @@ class VulkanExample : public VulkanExampleBase {
   } offscreenPass_{};  // Handles the vertical and horzontal blurring passes
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Bloom (offscreen rendering)";
+    title_ = "Bloom (offscreen rendering)";
     timerSpeed *= 0.5f;
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -10.25f));

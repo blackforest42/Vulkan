@@ -83,7 +83,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Full screen radial blur effect";
+		title_ = "Full screen radial blur effect";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -17.5f));
 		camera_.setRotation(glm::vec3(-16.25f, -28.75f, 0.0f));

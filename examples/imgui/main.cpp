@@ -522,7 +522,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "User interfaces with ImGui";
+		title_ = "User interfaces with ImGui";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(-1.0f, 0.0f, -4.8f));
 		camera_.setRotation(glm::vec3(4.5f, -380.0f, 0.0f));
@@ -643,7 +643,7 @@ public:
 		imGui = new ImGUI(this);
 		imGui->init((float)width_, (float)height_);
 		imGui->initResources(renderPass_, queue_, getShadersPath());
-		imGui->sampleName = title;
+		imGui->sampleName = title_;
 		imGui->deviceName = deviceProperties_.deviceName;
 	}
 

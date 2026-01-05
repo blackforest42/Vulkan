@@ -34,7 +34,7 @@ class VulkanExample : public VulkanExampleBase {
   std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Dynamic rendering";
+    title_ = "Dynamic rendering";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -10.0f));
     camera_.setRotation(glm::vec3(-7.5f, 72.0f, 0.0f));

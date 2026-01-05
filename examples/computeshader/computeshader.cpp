@@ -64,7 +64,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Compute shader image load/store";
+		title_ = "Compute shader image load/store";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.0f));
 		camera_.setRotation(glm::vec3(0.0f));

@@ -390,7 +390,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Text overlay";
+		title_ = "Text overlay";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.5f));
 		camera_.setRotation(glm::vec3(-25.0f, -0.0f, 0.0f));
@@ -509,7 +509,7 @@ public:
 		// textOverlay->addText writes to the vertex buffer for the current frame
 		//VK_CHECK_RESULT(vkMapMemory(vulkanDevice->logicalDevice, textOverlay->vertexBuffers[currentBuffer].memory, 0, VK_WHOLE_SIZE, 0, (void**)&textOverlay->mapped));
 
-		textOverlay->addText(title, 5.0f * ui_.scale, 5.0f * ui_.scale, TextOverlay::alignLeft);
+		textOverlay->addText(title_, 5.0f * ui_.scale, 5.0f * ui_.scale, TextOverlay::alignLeft);
 
 		std::stringstream ss;
 		ss << std::fixed << std::setprecision(2) << (frameTimer * 1000.0f) << "ms (" << lastFPS << " fps)";

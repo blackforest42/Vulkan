@@ -159,7 +159,7 @@ class VulkanExample : public VulkanExampleBase {
   std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
   VulkanExample() : VulkanExampleBase() {
-    title = "3D textures";
+    title_ = "3D textures";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.5f));
     camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));

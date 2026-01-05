@@ -54,7 +54,7 @@ class VulkanExample : public VulkanExampleBase {
   std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Host image copy";
+    title_ = "Host image copy";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -1.5f));
     camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));

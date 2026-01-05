@@ -54,7 +54,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Multisampling";
+		title_ = "Multisampling";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 		camera_.setRotation(glm::vec3(0.0f, -90.0f, 0.0f));

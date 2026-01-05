@@ -98,7 +98,7 @@ class VulkanExample : public VulkanExampleBase {
   vks::Frustum frustum;
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Dynamic terrain tessellation";
+    title_ = "Dynamic terrain tessellation";
     camera_.type_ = Camera::CameraType::firstperson;
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
     camera_.setRotation(glm::vec3(-12.0f, 159.0f, 0.0f));

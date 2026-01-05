@@ -75,7 +75,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Order independent transparency rendering";
+		title_ = "Order independent transparency rendering";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -6.0f));
 		camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));

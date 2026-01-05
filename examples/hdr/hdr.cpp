@@ -98,7 +98,7 @@ class VulkanExample : public VulkanExampleBase {
   } filterPass_;
 
   VulkanExample() : VulkanExampleBase() {
-    title = "High dynamic range rendering";
+    title_ = "High dynamic range rendering";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -6.0f));
     camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));

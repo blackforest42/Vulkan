@@ -68,7 +68,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Debugging with VK_EXT_debug_utils";
+		title_ = "Debugging with VK_EXT_debug_utils";
 		camera_.setRotation(glm::vec3(-4.35f, 16.25f, 0.0f));
 		camera_.setRotationSpeed(0.5f);
 		camera_.setPosition(glm::vec3(0.1f, 1.1f, -8.5f));

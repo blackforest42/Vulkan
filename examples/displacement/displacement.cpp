@@ -43,7 +43,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Tessellation shader displacement";
+		title_ = "Tessellation shader displacement";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -1.25f));
 		camera_.setRotation(glm::vec3(-20.0f, 45.0f, 0.0f));

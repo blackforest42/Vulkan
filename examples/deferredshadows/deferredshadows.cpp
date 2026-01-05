@@ -109,7 +109,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Deferred shading with shadows";
+		title_ = "Deferred shading with shadows";
 		camera_.type_ = Camera::CameraType::firstperson;
 #if defined(__ANDROID__)
 		camera.movementSpeed = 2.5f;

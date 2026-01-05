@@ -67,13 +67,13 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Descriptor buffers (VK_EXT_descriptor_buffer)";
+		title_ = "Descriptor buffers (VK_EXT_descriptor_buffer)";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
 		camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
 		camera_.setTranslation(glm::vec3(0.0f, 0.0f, -5.0f));
 
-		apiVersion = VK_API_VERSION_1_1;
+		apiVersion_ = VK_API_VERSION_1_1;
 
 		enabledInstanceExtensions_.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 		

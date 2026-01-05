@@ -65,7 +65,7 @@ class VulkanExample : public VulkanExampleBase {
   bool doUpdateMaterials{false};
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Inline uniform blocks";
+    title_ = "Inline uniform blocks";
     camera_.type_ = Camera::CameraType::firstperson;
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -10.0f));
     camera_.setRotation(glm::vec3(0.0, 0.0f, 0.0f));

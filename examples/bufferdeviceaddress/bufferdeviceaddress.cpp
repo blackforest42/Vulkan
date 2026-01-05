@@ -56,7 +56,7 @@ class VulkanExample : public VulkanExampleBase {
   };
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Buffer device address";
+    title_ = "Buffer device address";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
     camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));

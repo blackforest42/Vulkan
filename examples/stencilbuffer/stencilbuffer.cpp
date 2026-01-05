@@ -34,7 +34,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Stencil buffer outlines";
+		title_ = "Stencil buffer outlines";
 		timerSpeed *= 0.25f;
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);

@@ -89,7 +89,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Compute cull and lod";
+		title_ = "Compute cull and lod";
 		camera_.type_ = Camera::CameraType::firstperson;
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
 		camera_.setTranslation(glm::vec3(0.5f, 0.0f, 0.0f));

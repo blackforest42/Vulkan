@@ -48,7 +48,7 @@ class VulkanExample : public VulkanExampleBase {
   };
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Descriptor indexing";
+    title_ = "Descriptor indexing";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -10.0f));
     camera_.setRotation(glm::vec3(-35.0f, 0.0f, 0.0f));

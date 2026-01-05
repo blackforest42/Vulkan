@@ -86,7 +86,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Point light shadows (cubemap)";
+		title_ = "Point light shadows (cubemap)";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPerspective(45.0f, (float)width_ / (float)height_, zNear, zFar);
 		camera_.setRotation(glm::vec3(-20.5f, -673.0f, 0.0f));

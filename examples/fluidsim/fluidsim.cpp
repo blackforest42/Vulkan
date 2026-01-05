@@ -227,7 +227,7 @@ class VulkanExample : public VulkanExampleBase {
   PFN_vkCmdEndDebugUtilsLabelEXT vkCmdEndDebugUtilsLabelEXT{nullptr};
 
   VulkanExample() {
-    title = "Fluid Simulation";
+    title_ = "Fluid Simulation";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -15.0f));
     camera_.setRotation(glm::vec3(0.0f));

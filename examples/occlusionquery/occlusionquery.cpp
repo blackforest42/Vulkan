@@ -59,7 +59,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Occlusion queries";
+		title_ = "Occlusion queries";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(0.0f, 0.0f, -7.5f));
 		camera_.setRotation(glm::vec3(0.0f, -123.75f, 0.0f));

@@ -119,7 +119,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Screen space ambient occlusion";
+		title_ = "Screen space ambient occlusion";
 		camera_.type_ = Camera::CameraType::firstperson;
 #ifndef __ANDROID__
 		camera_.rotationSpeed = 0.25f;

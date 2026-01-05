@@ -39,7 +39,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Conditional rendering";
+		title_ = "Conditional rendering";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPerspective(45.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
 		camera_.setRotation(glm::vec3(-2.25f, -52.0f, 0.0f));

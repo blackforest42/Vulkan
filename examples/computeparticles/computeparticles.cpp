@@ -74,7 +74,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Compute shader particle system";
+		title_ = "Compute shader particle system";
 	}
 
 	~VulkanExample()

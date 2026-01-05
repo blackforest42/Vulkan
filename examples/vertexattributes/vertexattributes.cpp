@@ -143,7 +143,7 @@ void VulkanExample::loadSceneNode(const tinygltf::Node& inputNode, const tinyglt
 
 VulkanExample::VulkanExample() : VulkanExampleBase()
 {
-	title = "Separate/interleaved vertex attribute buffers";
+	title_ = "Separate/interleaved vertex attribute buffers";
 	camera_.type_ = Camera::CameraType::firstperson;
 	camera_.flipY = true;
 	camera_.setPosition(glm::vec3(0.0f, 1.0f, 0.0f));

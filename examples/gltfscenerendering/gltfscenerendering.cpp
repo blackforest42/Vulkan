@@ -286,7 +286,7 @@ void VulkanglTFScene::draw(VkCommandBuffer commandBuffer, VkPipelineLayout pipel
 
 VulkanExample::VulkanExample() : VulkanExampleBase()
 {
-	title = "glTF scene rendering";
+	title_ = "glTF scene rendering";
 	camera_.type_ = Camera::CameraType::firstperson;
 	camera_.flipY = true;
 	camera_.setPosition(glm::vec3(0.0f, 1.0f, 0.0f));

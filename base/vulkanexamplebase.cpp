@@ -98,8 +98,8 @@ VkResult VulkanExampleBase::createInstance() {
   // be satisfied by Vulkan 1.0, so we need to expliclity up that to at
   // least 1.1 and enable some required extensions
   if (shaderDir == "slang") {
-    if (apiVersion < VK_API_VERSION_1_1) {
-      apiVersion = VK_API_VERSION_1_1;
+    if (apiVersion_ < VK_API_VERSION_1_1) {
+      apiVersion_ = VK_API_VERSION_1_1;
     }
     enabledDeviceExtensions_.push_back(VK_KHR_SPIRV_1_4_EXTENSION_NAME);
     enabledDeviceExtensions_.push_back(
@@ -109,9 +109,9 @@ VkResult VulkanExampleBase::createInstance() {
   }
 
   VkApplicationInfo appInfo{.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-                            .pApplicationName = name.c_str(),
-                            .pEngineName = name.c_str(),
-                            .apiVersion = apiVersion};
+                            .pApplicationName = name_.c_str(),
+                            .pEngineName = name_.c_str(),
+                            .apiVersion = apiVersion_};
 
   VkInstanceCreateInfo instanceCreateInfo{
       .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
@@ -211,7 +211,7 @@ VkResult VulkanExampleBase::createInstance() {
 }
 
 std::string VulkanExampleBase::getWindowTitle() const {
-  std::string windowTitle{title + " - " + deviceProperties_.deviceName};
+  std::string windowTitle{title_ + " - " + deviceProperties_.deviceName};
   if (!settings_.overlay) {
     windowTitle += " - " + std::to_string(frameCounter_) + " fps";
   }
@@ -675,7 +675,7 @@ void VulkanExampleBase::updateOverlay() {
   ImGui::Begin("Vulkan Example", nullptr,
                ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize |
                    ImGuiWindowFlags_NoMove);
-  ImGui::TextUnformatted(title.c_str());
+  ImGui::TextUnformatted(title_.c_str());
   ImGui::TextUnformatted(deviceProperties_.deviceName);
   ImGui::Text("%.2f ms/frame (%.1d fps)", (1000.0f / lastFPS), lastFPS);
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
@@ -1027,7 +1027,7 @@ bool VulkanExampleBase::initVulkan() {
   // Validation messages can be stored, e.g. to be used in external tools like
   // CI/CD
   if (commandLineParser.isSet("validationlogfile")) {
-    vks::debug::log("Sample: " + title);
+    vks::debug::log("Sample: " + title_);
   }
 
   // Create the instance
@@ -1208,7 +1208,7 @@ HWND VulkanExampleBase::setupWindow(HINSTANCE hinstance, WNDPROC wndproc) {
       .hCursor = LoadCursor(NULL, IDC_ARROW),
       .hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH),
       .lpszMenuName = NULL,
-      .lpszClassName = name.c_str(),
+      .lpszClassName = name_.c_str(),
       .hIconSm = LoadIcon(NULL, IDI_WINLOGO),
   };
 
@@ -1265,7 +1265,7 @@ HWND VulkanExampleBase::setupWindow(HINSTANCE hinstance, WNDPROC wndproc) {
   AdjustWindowRectEx(&windowRect, dwStyle, FALSE, dwExStyle);
 
   std::string windowTitle = getWindowTitle();
-  window = CreateWindowEx(0, name.c_str(), windowTitle.c_str(),
+  window = CreateWindowEx(0, name_.c_str(), windowTitle.c_str(),
                           dwStyle | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0, 0,
                           windowRect.right - windowRect.left,
                           windowRect.bottom - windowRect.top, NULL, NULL,

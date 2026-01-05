@@ -43,7 +43,7 @@ class VulkanExample : public VulkanExampleBase {
   glm::vec4 lightPos = glm::vec4(1.0f, 4.0f, 0.0f, 0.0f);
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Vulkan Demo Scene";
+    title_ = "Vulkan Demo Scene";
     camera_.type_ = Camera::CameraType::lookat;
     // camera.flipY = true;
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -3.75f));

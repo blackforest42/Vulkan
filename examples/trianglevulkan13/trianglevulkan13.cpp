@@ -102,7 +102,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Basic indexed triangle using Vulkan 1.3";
+		title_ = "Basic indexed triangle using Vulkan 1.3";
 		// To keep things simple, we don't use the UI overlay from the framework
 		settings_.overlay = false;
 		// Setup a default look-at camera
@@ -111,7 +111,7 @@ public:
 		camera_.setRotation(glm::vec3(0.0f));
 		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 1.0f, 256.0f);
 		// We want to use Vulkan 1.3 with the dynamic rendering and sync 2 features
-		apiVersion = VK_API_VERSION_1_3;
+		apiVersion_ = VK_API_VERSION_1_3;
 		enabledFeatures.dynamicRendering = VK_TRUE;
 		enabledFeatures.synchronization2 = VK_TRUE;
 		deviceCreatepNextChain_ = &enabledFeatures;

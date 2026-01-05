@@ -69,7 +69,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title = "Instanced mesh rendering";
+		title_ = "Instanced mesh rendering";
 		camera_.type_ = Camera::CameraType::lookat;
 		camera_.setPosition(glm::vec3(5.5f, -1.85f, -18.5f));
 		camera_.setRotation(glm::vec3(-17.2f, -4.7f, 0.0f));

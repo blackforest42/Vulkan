@@ -111,7 +111,7 @@ void VulkanRaytracingSample::setupFrameBuffer()
 void VulkanRaytracingSample::enableExtensions()
 {
 	// Require Vulkan 1.1
-	apiVersion = VK_API_VERSION_1_1;
+	apiVersion_ = VK_API_VERSION_1_1;
 
 	// Ray tracing related extensions required by this sample
 	enabledDeviceExtensions_.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);

@@ -42,7 +42,7 @@ public:
 	// This sample is derived from an extended base class that saves most of the ray tracing setup boiler plate
 	VulkanExample() : VulkanRaytracingSample()
 	{
-		title = "Ray tracing reflections";
+		title_ = "Ray tracing reflections";
 		timerSpeed *= 0.5f;
 		camera_.rotationSpeed *= 0.25f;
 		camera_.type_ = Camera::CameraType::firstperson;

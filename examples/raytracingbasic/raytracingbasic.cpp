@@ -88,7 +88,7 @@ class VulkanExample : public VulkanExampleBase {
   std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
   VulkanExample() : VulkanExampleBase() {
-    title = "Ray tracing basic";
+    title_ = "Ray tracing basic";
     settings_.overlay = false;
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
@@ -96,7 +96,7 @@ class VulkanExample : public VulkanExampleBase {
     camera_.setTranslation(glm::vec3(0.0f, 0.0f, -2.5f));
 
     // Require Vulkan 1.1
-    apiVersion = VK_API_VERSION_1_1;
+    apiVersion_ = VK_API_VERSION_1_1;
 
     // Ray tracing related extensions required by this sample
     enabledDeviceExtensions_.push_back(
