@@ -5,7 +5,7 @@
 layout (location = 0) in vec3 inPos;
 
 // out
-layout (location = 0) out vec2 outUV;
+//layout (location = 0) out vec2 outUV;
 
 layout (binding = 0) uniform UBO
 {

@@ -28,7 +28,7 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
       // toggle front and back face marching
-      alignas(4) uint32_t enableFrontMarch;
+      alignas(4) uint32_t enableFrontMarch{1};
     };
 
     struct RayMarchUBO {
@@ -43,12 +43,14 @@ class VulkanExample : public VulkanExampleBase {
       RayMarchUBO rayMarch;
     } ubos_;
 
+    // vk Buffers
     struct UniformBuffers {
       vks::Buffer rayMarch;
       vks::Buffer preMarch;
     };
     std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
+    // Pipelines
     struct {
       // offscreen pass to generate entry/exit rays for ray marcher
       VkPipeline preMarch{VK_NULL_HANDLE};
@@ -59,11 +61,11 @@ class VulkanExample : public VulkanExampleBase {
       VkPipelineLayout rayMarch{VK_NULL_HANDLE};
     } pipelineLayouts_;
 
+    // Descriptors
     struct {
       VkDescriptorSetLayout preMarch{VK_NULL_HANDLE};
       VkDescriptorSetLayout rayMarch{VK_NULL_HANDLE};
     } descriptorSetLayouts_;
-
     struct DescriptorSets {
       VkDescriptorSet preMarch{VK_NULL_HANDLE};
       VkDescriptorSet rayMarch{VK_NULL_HANDLE};
@@ -305,6 +307,7 @@ class VulkanExample : public VulkanExampleBase {
     VkPipelineDynamicStateCreateInfo dynamicState =
         vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
+
     VkGraphicsPipelineCreateInfo pipelineCreateInfo =
         vks::initializers::pipelineCreateInfo();
 
@@ -402,11 +405,13 @@ class VulkanExample : public VulkanExampleBase {
 
   void updateUniformBuffers() {
     // static buffers
-    graphics_.ubos_.preMarch.model = glm::mat4(1.f);
+    graphics_.ubos_.preMarch.model = glm::scale(glm::mat4(1.f), glm::vec3(0.2));
     graphics_.ubos_.preMarch.cameraView = camera_.matrices_.view;
     graphics_.ubos_.preMarch.perspective = camera_.matrices_.perspective;
     graphics_.ubos_.preMarch.cameraPos = camera_.position_;
     graphics_.ubos_.preMarch.screenRes = glm::vec2(width_, height_);
+    memcpy(graphics_.uniformBuffers_[currentBuffer_].preMarch.mapped,
+           &graphics_.ubos_.preMarch, sizeof(Graphics::PreMarchUBO));
 
     graphics_.ubos_.rayMarch.cameraView = camera_.matrices_.view;
     graphics_.ubos_.rayMarch.screenRes = glm::vec2(width_, height_);
@@ -456,13 +461,13 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::commandBufferBeginInfo();
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
-    preMarchFrontCmd(cmdBuffer);
+    preMarchCmd(cmdBuffer);
     rayMarchCmd(cmdBuffer);
 
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
 
-  void preMarchFrontCmd(VkCommandBuffer& cmdBuffer) {
+  void preMarchCmd(VkCommandBuffer& cmdBuffer) {
     // With dynamic rendering there are no subpass dependencies, so we need to
     // take care of proper layout transitions by using barriers This set of
     // barriers prepares the color and depth images for output

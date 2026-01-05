@@ -1,4 +1,4 @@
-Dec 22
+Jan 5
 
 TODO: 
 - remove 2 pipeline rendering, just use 1
@@ -13,8 +13,6 @@ VkPipelineDynamicStateCreateInfo dynamicStateInfo{};
 dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 dynamicStateInfo.dynamicStateCount = 3;
 dynamicStateInfo.pDynamicStates = dynamicStates;
-
-
 
 - update cull mode during rendering
 - write result to two separate textures
