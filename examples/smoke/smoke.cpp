@@ -302,7 +302,8 @@ class VulkanExample : public VulkanExampleBase {
             1, &blendAttachmentState);
     VkPipelineDepthStencilStateCreateInfo depthStencilState =
         vks::initializers::pipelineDepthStencilStateCreateInfo(
-            VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
+            VK_TRUE, /*depth stencil write enabled*/ VK_FALSE,
+            VK_COMPARE_OP_LESS_OR_EQUAL);
     VkPipelineViewportStateCreateInfo viewportState =
         vks::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
     VkPipelineMultisampleStateCreateInfo multisampleState =
@@ -312,6 +313,7 @@ class VulkanExample : public VulkanExampleBase {
         VK_DYNAMIC_STATE_VIEWPORT,
         VK_DYNAMIC_STATE_SCISSOR,
         VK_DYNAMIC_STATE_CULL_MODE,
+        VK_DYNAMIC_STATE_FRONT_FACE,
     };
     VkPipelineDynamicStateCreateInfo dynamicState =
         vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
@@ -359,8 +361,6 @@ class VulkanExample : public VulkanExampleBase {
     blendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
     blendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
     blendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-
-    depthStencilState.depthWriteEnable = VK_TRUE;
 
     pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
     pipelineCreateInfo.pRasterizationState = &rasterizationState;
@@ -555,6 +555,7 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       graphics_.pipelines_.preMarch);
     vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_FRONT_BIT));
+    vkCmdSetFrontFace(cmdBuffer, VK_FRONT_FACE_CLOCKWISE);
 
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             graphics_.pipelineLayouts_.preMarch, 0, 1,
