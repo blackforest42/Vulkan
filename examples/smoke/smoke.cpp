@@ -12,8 +12,9 @@
 
 class VulkanExample : public VulkanExampleBase {
  public:
-  PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR{VK_NULL_HANDLE};
-  PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR{VK_NULL_HANDLE};
+  VkPhysicalDeviceVulkan13Features enabledFeatures{
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
+
   PFN_vkCmdSetCullModeEXT vkCmdSetCullModeEXT{nullptr};
 
   VkPhysicalDeviceDynamicRenderingFeaturesKHR
@@ -433,7 +434,6 @@ class VulkanExample : public VulkanExampleBase {
 
   void prepare() {
     VulkanExampleBase::prepare();
-    prepareDynamicRendering();
     prepareDynamicStates();
     loadAssets();
     preparePreMarchPass();
@@ -530,7 +530,7 @@ class VulkanExample : public VulkanExampleBase {
     renderingInfo.pDepthAttachment = &depthStencilAttachment;
     renderingInfo.pStencilAttachment = &depthStencilAttachment;
 
-    vkCmdBeginRenderingKHR(cmdBuffer, &renderingInfo);
+    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 
     // Set viewport and scissor
     VkViewport viewport{0.0f, 0.0f, (float)width_, (float)height_, 0.0f, 1.0f};
@@ -550,7 +550,7 @@ class VulkanExample : public VulkanExampleBase {
 
     cube_.draw(cmdBuffer);
 
-    vkCmdEndRenderingKHR(cmdBuffer);
+    vkCmdEndRendering(cmdBuffer);
   }
 
   void rayMarchCmd(VkCommandBuffer& cmdBuffer) {
@@ -606,7 +606,7 @@ class VulkanExample : public VulkanExampleBase {
     renderingInfo.pStencilAttachment = &depthStencilAttachment;
 
     // Begin dynamic rendering
-    vkCmdBeginRenderingKHR(cmdBuffer, &renderingInfo);
+    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
     VkViewport viewport =
         vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
@@ -626,7 +626,7 @@ class VulkanExample : public VulkanExampleBase {
     drawUI(cmdBuffer);
 
     // End dynamic rendering
-    vkCmdEndRenderingKHR(cmdBuffer);
+    vkCmdEndRendering(cmdBuffer);
   }
 
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {}
@@ -646,28 +646,12 @@ class VulkanExample : public VulkanExampleBase {
     enabledFeatures_.fillModeNonSolid = deviceFeatures_.fillModeNonSolid;
   }
 
-  void prepareDynamicRendering() {
-    // Since we use an extension, we need to expliclity load the function
-    // pointers for extension related Vulkan commands
-    vkCmdBeginRenderingKHR = reinterpret_cast<PFN_vkCmdBeginRenderingKHR>(
-        vkGetDeviceProcAddr(device_, "vkCmdBeginRenderingKHR"));
-    vkCmdEndRenderingKHR = reinterpret_cast<PFN_vkCmdEndRenderingKHR>(
-        vkGetDeviceProcAddr(device_, "vkCmdEndRenderingKHR"));
-  }
-
   void prepareDynamicStates() {
     vkCmdSetCullModeEXT = reinterpret_cast<PFN_vkCmdSetCullModeEXT>(
         vkGetDeviceProcAddr(device_, "vkCmdSetCullModeEXT"));
   }
 
-  void getEnabledExtensions() override {
-    extendedDynamicState3FeaturesEXT.sType =
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT;
-    extendedDynamicState3FeaturesEXT.pNext = nullptr;
-    enabledDeviceExtensions_.push_back(
-        VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME);
-    deviceCreatepNextChain_ = &extendedDynamicState3FeaturesEXT;
-  }
+  void getEnabledExtensions() override {}
 
   VulkanExample() : VulkanExampleBase() {
     title_ = "Smoke Simulation";
@@ -678,27 +662,8 @@ class VulkanExample : public VulkanExampleBase {
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 
     apiVersion_ = VK_API_VERSION_1_4;
-
-    // enabledInstanceExtensions_.push_back(
-    //     VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-
-    //// The sample uses the extension (instead of Vulkan 1.2, where dynamic
-    //// rendering is core)
-    // enabledDeviceExtensions_.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
-    // enabledDeviceExtensions_.push_back(VK_KHR_MAINTENANCE2_EXTENSION_NAME);
-    // enabledDeviceExtensions_.push_back(VK_KHR_MULTIVIEW_EXTENSION_NAME);
-    // enabledDeviceExtensions_.push_back(
-    //     VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME);
-    // enabledDeviceExtensions_.push_back(
-    //     VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME);
-
-    //// in addition to the extension, the feature needs to be explicitly
-    /// enabled / too by chaining the extension structure into device creation
-    // enabledDynamicRenderingFeaturesKHR.sType =
-    //     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
-    // enabledDynamicRenderingFeaturesKHR.dynamicRendering = VK_TRUE;
-
-    // deviceCreatepNextChain_ = &enabledDynamicRenderingFeaturesKHR;
+    enabledFeatures.dynamicRendering = VK_TRUE;
+    deviceCreatepNextChain_ = &enabledFeatures;
   }
 
   ~VulkanExample() {
