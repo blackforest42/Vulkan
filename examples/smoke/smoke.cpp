@@ -51,7 +51,7 @@ class VulkanExample : public VulkanExampleBase {
 
     struct {
       // offscreen pass to generate entry/exit rays for ray marcher
-      VkPipeline preMarchFront{VK_NULL_HANDLE};
+      VkPipeline preMarch{VK_NULL_HANDLE};
       VkPipeline rayMarch{VK_NULL_HANDLE};
     } pipelines_{};
     struct {
@@ -343,9 +343,9 @@ class VulkanExample : public VulkanExampleBase {
     // Chain into the pipeline create info
     pipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
 
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-        device_, pipelineCache_, 1, &pipelineCreateInfo, nullptr,
-        &graphics_.pipelines_.preMarchFront));
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
+                                              &pipelineCreateInfo, nullptr,
+                                              &graphics_.pipelines_.preMarch));
 
     // Pipeline: Ray march
     pipelineCreateInfo.layout = graphics_.pipelineLayouts_.rayMarch;
@@ -526,7 +526,7 @@ class VulkanExample : public VulkanExampleBase {
     VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      graphics_.pipelines_.preMarchFront);
+                      graphics_.pipelines_.preMarch);
 
     assert(&graphics_.descriptorSets_[currentBuffer_].preMarch);
 
@@ -675,7 +675,7 @@ class VulkanExample : public VulkanExampleBase {
   ~VulkanExample() {
     if (device_) {
       vkDestroyPipeline(device_, graphics_.pipelines_.rayMarch, nullptr);
-      vkDestroyPipeline(device_, graphics_.pipelines_.preMarchFront, nullptr);
+      vkDestroyPipeline(device_, graphics_.pipelines_.preMarch, nullptr);
       vkDestroyPipelineLayout(device_, graphics_.pipelineLayouts_.preMarch,
                               nullptr);
       vkDestroyPipelineLayout(device_, graphics_.pipelineLayouts_.rayMarch,
