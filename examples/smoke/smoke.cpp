@@ -10,22 +10,23 @@
 #include "VulkanglTFModel.h"
 #include "vulkanexamplebase.h"
 
+// Vertex layout for this example
+struct Vertex {
+  float pos[3];
+  float color[3];
+};
+
 class VulkanExample : public VulkanExampleBase {
  public:
-  VkPhysicalDeviceVulkan13Features enabledFeatures{
+  VkPhysicalDeviceVulkan13Features enabledFeatures13_{
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
-
-  PFN_vkCmdSetCullModeEXT vkCmdSetCullModeEXT{nullptr};
-
-  VkPhysicalDeviceDynamicRenderingFeaturesKHR
-      enabledDynamicRenderingFeaturesKHR{};
-  VkPhysicalDeviceExtendedDynamicState3FeaturesEXT
-      extendedDynamicState3FeaturesEXT{};
-
-  vkglTF::Model cube_;
 
   // resources for rendering the compute outputs
   struct Graphics {
+    vks::Buffer cubeVerticesBuffer;
+    vks::Buffer cubeIndicesBuffer;
+    uint32_t indexCount{0};
+
     struct PreMarchUBO {
       alignas(16) glm::mat4 model;
       alignas(16) glm::mat4 cameraView;
@@ -310,6 +311,7 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDynamicState> dynamicStateEnables = {
         VK_DYNAMIC_STATE_VIEWPORT,
         VK_DYNAMIC_STATE_SCISSOR,
+        VK_DYNAMIC_STATE_CULL_MODE,
     };
     VkPipelineDynamicStateCreateInfo dynamicState =
         vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
@@ -319,18 +321,48 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::pipelineCreateInfo();
 
     // Pipeline: Pre march front
+    pipelineCreateInfo.layout = graphics_.pipelineLayouts_.preMarch;
     shaderStages[0] = loadShader(getShadersPath() + "smoke/premarch.vert.spv",
                                  VK_SHADER_STAGE_VERTEX_BIT);
     shaderStages[1] = loadShader(getShadersPath() + "smoke/premarch.frag.spv",
                                  VK_SHADER_STAGE_FRAGMENT_BIT);
 
-    pipelineCreateInfo.layout = graphics_.pipelineLayouts_.preMarch;
-    pipelineCreateInfo.pVertexInputState =
-        vkglTF::Vertex::getPipelineVertexInputState({
-            vkglTF::VertexComponent::Position,
-        });
+    // Vertex bindings and attributes
+    VkVertexInputBindingDescription vertexInputBinding = {
+        vks::initializers::vertexInputBindingDescription(
+            0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX)};
+    std::vector<VkVertexInputAttributeDescription> vertexInputAttributes = {
+        vks::initializers::vertexInputAttributeDescription(
+            0, 0, VK_FORMAT_R32G32B32_SFLOAT,
+            offsetof(Vertex, pos)),  // Location 0 : Position
+        vks::initializers::vertexInputAttributeDescription(
+            0, 1, VK_FORMAT_R32G32B32_SFLOAT,
+            offsetof(Vertex, color)),  // Location 1 : Color
+    };
+    VkPipelineVertexInputStateCreateInfo vertexInputStateCI =
+        vks::initializers::pipelineVertexInputStateCreateInfo();
+    vertexInputStateCI.vertexBindingDescriptionCount = 1;
+    vertexInputStateCI.pVertexBindingDescriptions = &vertexInputBinding;
+    vertexInputStateCI.vertexAttributeDescriptionCount =
+        static_cast<uint32_t>(vertexInputAttributes.size());
+    vertexInputStateCI.pVertexAttributeDescriptions =
+        vertexInputAttributes.data();
+    pipelineCreateInfo.pVertexInputState = &vertexInputStateCI;
+
+    // Blend state
+    blendAttachmentState.colorWriteMask = 0xF;
+    blendAttachmentState.blendEnable = VK_FALSE;
+    blendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+    blendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    blendAttachmentState.dstColorBlendFactor =
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    blendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+    blendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    blendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+
+    depthStencilState.depthWriteEnable = VK_TRUE;
+
     pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-    rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
     pipelineCreateInfo.pRasterizationState = &rasterizationState;
     pipelineCreateInfo.pColorBlendState = &colorBlendState;
     pipelineCreateInfo.pMultisampleState = &multisampleState;
@@ -367,22 +399,13 @@ class VulkanExample : public VulkanExampleBase {
     shaderStages[1] = loadShader(getShadersPath() + "smoke/raymarch.frag.spv",
                                  VK_SHADER_STAGE_FRAGMENT_BIT);
 
+    blendAttachmentState.blendEnable = VK_TRUE;
     pipelineRenderingCreateInfo.pColorAttachmentFormats =
         &swapChain_.colorFormat_;
-    rasterizationState.cullMode = VK_CULL_MODE_NONE;
+    rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
+
     depthStencilState.depthTestEnable = VK_FALSE;
     depthStencilState.depthWriteEnable = VK_FALSE;
-
-    // Alpha blending for enabling opacity control in frag shader
-    blendAttachmentState.colorWriteMask = 0xF;
-    blendAttachmentState.blendEnable = VK_TRUE;
-    blendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-    blendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-    blendAttachmentState.dstColorBlendFactor =
-        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    blendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
-    blendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    blendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCreateInfo, nullptr,
@@ -412,8 +435,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void updateUniformBuffers() {
     // static buffers
-    graphics_.ubos_.preMarch.model =
-        glm::scale(glm::mat4(1.f), glm::vec3(0.2f));
+    graphics_.ubos_.preMarch.model = glm::mat4(1.f);
     graphics_.ubos_.preMarch.cameraView = camera_.matrices_.view;
     graphics_.ubos_.preMarch.perspective = camera_.matrices_.perspective;
     graphics_.ubos_.preMarch.cameraPos = camera_.position_;
@@ -435,21 +457,12 @@ class VulkanExample : public VulkanExampleBase {
   void prepare() {
     VulkanExampleBase::prepare();
     prepareDynamicStates();
-    loadAssets();
+    generateCube();
     preparePreMarchPass();
     prepareUniformBuffers();
     setupDescriptors();
     preparePipelines();
     prepared_ = true;
-  }
-
-  void loadAssets() {
-    const uint32_t glTFLoadingFlags =
-        vkglTF::FileLoadingFlags::PreTransformVertices |
-        vkglTF::FileLoadingFlags::PreMultiplyVertexColors |
-        vkglTF::FileLoadingFlags::FlipY;
-    cube_.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice_,
-                       queue_, glTFLoadingFlags);
   }
 
   virtual void render() {
@@ -538,17 +551,22 @@ class VulkanExample : public VulkanExampleBase {
 
     VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       graphics_.pipelines_.preMarch);
-
-    assert(&graphics_.descriptorSets_[currentBuffer_].preMarch);
+    vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_FRONT_BIT));
 
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             graphics_.pipelineLayouts_.preMarch, 0, 1,
                             &graphics_.descriptorSets_[currentBuffer_].preMarch,
                             0, nullptr);
 
-    cube_.draw(cmdBuffer);
+    VkDeviceSize offsets[1] = {0};
+    vkCmdBindVertexBuffers(cmdBuffer, 0, 1,
+                           &graphics_.cubeVerticesBuffer.buffer, offsets);
+    vkCmdBindIndexBuffer(cmdBuffer, graphics_.cubeIndicesBuffer.buffer, 0,
+                         VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(cmdBuffer, graphics_.indexCount, 1, 0, 0, 0);
 
     vkCmdEndRendering(cmdBuffer);
   }
@@ -622,11 +640,51 @@ class VulkanExample : public VulkanExampleBase {
                             0, nullptr);
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       graphics_.pipelines_.rayMarch);
+    vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_NONE));
+
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
     drawUI(cmdBuffer);
 
     // End dynamic rendering
     vkCmdEndRendering(cmdBuffer);
+  }
+
+  void generateCube() {
+    // Setup vertices indices for a colored cube
+    std::vector<Vertex> vertices = {
+        {{-1.0f, -1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}},
+        {{1.0f, -1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}},
+        {{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
+        {{-1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}},
+        {{-1.0f, -1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}},
+        {{1.0f, -1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}},
+        {{1.0f, 1.0f, -1.0f}, {0.0f, 0.0f, 1.0f}},
+        {{-1.0f, 1.0f, -1.0f}, {0.0f, 0.0f, 0.0f}},
+    };
+
+    std::vector<uint32_t> indices = {
+        0, 1, 2, 2, 3, 0, 1, 5, 6, 6, 2, 1, 7, 6, 5, 5, 4, 7,
+        4, 0, 3, 3, 7, 4, 4, 5, 1, 1, 0, 4, 3, 2, 6, 6, 7, 3,
+    };
+
+    graphics_.indexCount = static_cast<uint32_t>(indices.size());
+
+    // Create buffers
+    // For the sake of simplicity we won't stage the vertex data to the gpu
+    // memory Vertex buffer
+    VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        &graphics_.cubeVerticesBuffer, vertices.size() * sizeof(Vertex),
+        vertices.data()));
+    // Index buffer
+    VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        &graphics_.cubeIndicesBuffer, indices.size() * sizeof(uint32_t),
+        indices.data()));
   }
 
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {}
@@ -642,14 +700,9 @@ class VulkanExample : public VulkanExampleBase {
     // the sample base framebuffer setup
   }
 
-  void getEnabledFeatures() override {
-    enabledFeatures_.fillModeNonSolid = deviceFeatures_.fillModeNonSolid;
-  }
+  void prepareDynamicStates() {}
 
-  void prepareDynamicStates() {
-    vkCmdSetCullModeEXT = reinterpret_cast<PFN_vkCmdSetCullModeEXT>(
-        vkGetDeviceProcAddr(device_, "vkCmdSetCullModeEXT"));
-  }
+  void getEnabledFeatures() override {}
 
   void getEnabledExtensions() override {}
 
@@ -661,9 +714,9 @@ class VulkanExample : public VulkanExampleBase {
     camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 
-    apiVersion_ = VK_API_VERSION_1_4;
-    enabledFeatures.dynamicRendering = VK_TRUE;
-    deviceCreatepNextChain_ = &enabledFeatures;
+    apiVersion_ = VK_API_VERSION_1_3;
+    enabledFeatures13_.dynamicRendering = VK_TRUE;
+    deviceCreatepNextChain_ = &enabledFeatures13_;
   }
 
   ~VulkanExample() {
@@ -693,6 +746,8 @@ class VulkanExample : public VulkanExampleBase {
         buffer.rayMarch.destroy();
         buffer.preMarch.destroy();
       }
+      graphics_.cubeVerticesBuffer.destroy();
+      graphics_.cubeIndicesBuffer.destroy();
     }
   }
 };
