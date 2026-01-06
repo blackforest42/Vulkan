@@ -1,12 +1,7 @@
 Jan 5
 
 TODO: 
-- update 'enableFrontMarch' in uniform buffer on each premarch pass to toggle 
-- write premarch shaders for both incoming/outgoing rays
+	- premarching done, in/out ray textures ready
+	- send the 2 textures to ray marching shader for reading
+	- rewrite raymarch.vert shader to render a cube instead of a screen quad
 
-DONE:
-- cube mesh aka "voxel" renderer done
-- turned on validation layers default for debugging
-- Working ray marcher w/ perlin noise to test
-- Pivoted away from voxels
-- finish cloud marching clouds tutorial

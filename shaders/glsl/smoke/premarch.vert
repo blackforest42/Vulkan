@@ -6,7 +6,8 @@ layout (location = 0) in vec3 inPos;
 layout (location = 1) in vec3 inColor;
 
 // out
-layout (location = 0) out vec3 outColor;
+layout (location = 0) out vec3 outPos;
+layout (location = 1) out vec3 outColor;
 
 layout (binding = 0) uniform UBO
 {
@@ -19,6 +20,7 @@ layout (binding = 0) uniform UBO
 
 
 void main() {
+	outPos = inPos;
 	outColor = inColor;
     gl_Position = ubo.perspective * ubo.view * ubo.model * vec4(inPos, 1.);
 }

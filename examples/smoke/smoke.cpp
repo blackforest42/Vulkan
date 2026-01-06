@@ -34,10 +34,6 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
     };
-    // toggle front and back face marching
-    struct PushConstantUBO {
-      uint32_t enableFrontMarch{1};
-    } pushConstants_;
 
     struct RayMarchUBO {
       alignas(16) glm::mat4 cameraView;
@@ -223,7 +219,7 @@ class VulkanExample : public VulkanExampleBase {
 
     // Layout: Pre march
     setLayoutBindings = {
-        // Binding 0 : Fragment shader ubo
+        // Binding 0 : uniform buffer object
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -285,14 +281,6 @@ class VulkanExample : public VulkanExampleBase {
     // Layout: Pre march
     pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
         &graphics_.descriptorSetLayouts_.preMarch, 2);
-
-    VkPushConstantRange pushConstantRange{};
-    // Push constants will only be accessible at the frag shader stage
-    pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(Graphics::PushConstantUBO);
-    pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
-    pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
     VK_CHECK_RESULT(
         vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
                                &graphics_.pipelineLayouts_.preMarch));
@@ -560,13 +548,6 @@ class VulkanExample : public VulkanExampleBase {
                             &graphics_.descriptorSets_[currentBuffer_].preMarch,
                             0, nullptr);
 
-    // Toggle value switch in push constant and update
-    graphics_.pushConstants_.enableFrontMarch = 1;
-    vkCmdPushConstants(cmdBuffer, graphics_.pipelineLayouts_.preMarch,
-                       VK_SHADER_STAGE_FRAGMENT_BIT,
-                       /*offset*/ 0, sizeof(Graphics::PushConstantUBO),
-                       &graphics_.pushConstants_);
-
     VkDeviceSize offsets[1] = {0};
     vkCmdBindVertexBuffers(cmdBuffer, 0, 1,
                            &graphics_.cubeVerticesBuffer.buffer, offsets);
@@ -632,13 +613,6 @@ class VulkanExample : public VulkanExampleBase {
                       graphics_.pipelines_.preMarch);
     vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_FRONT_BIT));
     vkCmdSetFrontFace(cmdBuffer, VK_FRONT_FACE_CLOCKWISE);
-
-    // Toggle value switch in push constant and update
-    graphics_.pushConstants_.enableFrontMarch = 0;
-    vkCmdPushConstants(cmdBuffer, graphics_.pipelineLayouts_.preMarch,
-                       VK_SHADER_STAGE_FRAGMENT_BIT,
-                       /*offset*/ 0, sizeof(Graphics::PushConstantUBO),
-                       &graphics_.pushConstants_);
 
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             graphics_.pipelineLayouts_.preMarch, 0, 1,
