@@ -27,30 +27,22 @@ class VulkanExample : public VulkanExampleBase {
     vks::Buffer cubeIndicesBuffer;
     uint32_t indexCount{0};
 
-    struct PreMarchUBO {
+    struct MarchUBO {
       alignas(16) glm::mat4 model;
       alignas(16) glm::mat4 cameraView;
       alignas(16) glm::mat4 perspective;
-      alignas(16) glm::vec3 cameraPos;
-      alignas(8) glm::vec2 screenRes;
-    };
-
-    struct RayMarchUBO {
-      alignas(16) glm::mat4 cameraView;
       alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
       float time{0};
     };
 
     struct UBO {
-      PreMarchUBO preMarch;
-      RayMarchUBO rayMarch;
+      MarchUBO march;
     } ubos_;
 
     // vk Buffers
     struct UniformBuffers {
-      vks::Buffer rayMarch;
-      vks::Buffer preMarch;
+      vks::Buffer march;
     };
     std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
@@ -259,8 +251,7 @@ class VulkanExample : public VulkanExampleBase {
           vks::initializers::writeDescriptorSet(
               graphics_.descriptorSets_[i].rayMarch,
               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-              /*binding id*/ 0,
-              &graphics_.uniformBuffers_[i].rayMarch.descriptor),
+              /*binding id*/ 0, &graphics_.uniformBuffers_[i].march.descriptor),
           // Binding 1 : Velocity field texture: incoming rays
           vks::initializers::writeDescriptorSet(
               graphics_.descriptorSets_[i].rayMarch,
@@ -284,8 +275,7 @@ class VulkanExample : public VulkanExampleBase {
           vks::initializers::writeDescriptorSet(
               graphics_.descriptorSets_[i].preMarch,
               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-              /*binding id*/ 0,
-              &graphics_.uniformBuffers_[i].preMarch.descriptor),
+              /*binding id*/ 0, &graphics_.uniformBuffers_[i].march.descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -413,9 +403,6 @@ class VulkanExample : public VulkanExampleBase {
 
     // Pipeline: Ray march
     pipelineCreateInfo.layout = graphics_.pipelineLayouts_.rayMarch;
-    VkPipelineVertexInputStateCreateInfo emptyInputState =
-        vks::initializers::pipelineVertexInputStateCreateInfo();
-    pipelineCreateInfo.pVertexInputState = &emptyInputState;
     shaderStages[0] = loadShader(getShadersPath() + "smoke/raymarch.vert.spv",
                                  VK_SHADER_STAGE_VERTEX_BIT);
     shaderStages[1] = loadShader(getShadersPath() + "smoke/raymarch.frag.spv",
@@ -441,39 +428,22 @@ class VulkanExample : public VulkanExampleBase {
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer.preMarch, sizeof(Graphics::PreMarchUBO),
-          &graphics_.ubos_.preMarch));
-      VK_CHECK_RESULT(buffer.preMarch.map());
-
-      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
-          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer.rayMarch, sizeof(Graphics::RayMarchUBO),
-          &graphics_.ubos_.rayMarch));
-      VK_CHECK_RESULT(buffer.rayMarch.map());
+          &buffer.march, sizeof(Graphics::MarchUBO), &graphics_.ubos_.march));
+      VK_CHECK_RESULT(buffer.march.map());
     }
   }
 
   void updateUniformBuffers() {
-    // static buffers
-    graphics_.ubos_.preMarch.model = glm::mat4(1.f);
-    graphics_.ubos_.preMarch.cameraView = camera_.matrices_.view;
-    graphics_.ubos_.preMarch.perspective = camera_.matrices_.perspective;
-    graphics_.ubos_.preMarch.cameraPos = camera_.position_;
-    graphics_.ubos_.preMarch.screenRes = glm::vec2(width_, height_);
-    memcpy(graphics_.uniformBuffers_[currentBuffer_].preMarch.mapped,
-           &graphics_.ubos_.preMarch, sizeof(Graphics::PreMarchUBO));
-
-    graphics_.ubos_.rayMarch.cameraView = camera_.matrices_.view;
-    graphics_.ubos_.rayMarch.screenRes = glm::vec2(width_, height_);
-    graphics_.ubos_.rayMarch.cameraPos = camera_.position_;
-    graphics_.ubos_.rayMarch.time =
+    graphics_.ubos_.march.cameraView = camera_.matrices_.view;
+    graphics_.ubos_.march.screenRes = glm::vec2(width_, height_);
+    graphics_.ubos_.march.perspective = camera_.matrices_.perspective;
+    graphics_.ubos_.march.cameraPos = camera_.position_;
+    graphics_.ubos_.march.time =
         std::chrono::duration<float>(
             std::chrono::high_resolution_clock::now().time_since_epoch())
             .count();
-    memcpy(graphics_.uniformBuffers_[currentBuffer_].rayMarch.mapped,
-           &graphics_.ubos_.rayMarch, sizeof(Graphics::RayMarchUBO));
+    memcpy(graphics_.uniformBuffers_[currentBuffer_].march.mapped,
+           &graphics_.ubos_.march, sizeof(Graphics::MarchUBO));
   }
 
   void prepare() {
@@ -730,8 +700,6 @@ class VulkanExample : public VulkanExampleBase {
     VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
-    VkDeviceSize offsets[1] = {0};
-
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             graphics_.pipelineLayouts_.rayMarch, 0, 1,
                             &graphics_.descriptorSets_[currentBuffer_].rayMarch,
@@ -740,7 +708,12 @@ class VulkanExample : public VulkanExampleBase {
                       graphics_.pipelines_.rayMarch);
     vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_NONE));
 
-    vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
+    VkDeviceSize offsets[1] = {0};
+    vkCmdBindVertexBuffers(cmdBuffer, 0, 1,
+                           &graphics_.cubeVerticesBuffer.buffer, offsets);
+    vkCmdBindIndexBuffer(cmdBuffer, graphics_.cubeIndicesBuffer.buffer, 0,
+                         VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(cmdBuffer, graphics_.indexCount, 1, 0, 0, 0);
     drawUI(cmdBuffer);
 
     // End dynamic rendering
@@ -841,8 +814,7 @@ class VulkanExample : public VulkanExampleBase {
       vkFreeMemory(device_, graphics_.preMarchPass_.outgoing.memory, nullptr);
       vkDestroySampler(device_, graphics_.preMarchPass_.sampler, nullptr);
       for (auto& buffer : graphics_.uniformBuffers_) {
-        buffer.rayMarch.destroy();
-        buffer.preMarch.destroy();
+        buffer.march.destroy();
       }
       graphics_.cubeVerticesBuffer.destroy();
       graphics_.cubeIndicesBuffer.destroy();
