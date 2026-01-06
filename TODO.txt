@@ -1,21 +1,8 @@
 Jan 5
 
 TODO: 
-- remove 2 pipeline rendering, just use 1
-
-VkDynamicState dynamicStates[] = {
-    VK_DYNAMIC_STATE_VIEWPORT,
-    VK_DYNAMIC_STATE_SCISSOR,
-    VK_DYNAMIC_STATE_CULL_MODE // Required for dynamic culling
-};
-
-VkPipelineDynamicStateCreateInfo dynamicStateInfo{};
-dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-dynamicStateInfo.dynamicStateCount = 3;
-dynamicStateInfo.pDynamicStates = dynamicStates;
-
-- update cull mode during rendering
-- write result to two separate textures
+- update 'enableFrontMarch' in uniform buffer on each premarch pass to toggle 
+- write premarch shaders for both incoming/outgoing rays
 
 DONE:
 - cube mesh aka "voxel" renderer done

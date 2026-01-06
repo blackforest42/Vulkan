@@ -482,13 +482,14 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::commandBufferBeginInfo();
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
-    preMarchCmd(cmdBuffer);
+    preMarchCmdFront(cmdBuffer);
+    preMarchCmdBack(cmdBuffer);
     rayMarchCmd(cmdBuffer);
 
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
 
-  void preMarchCmd(VkCommandBuffer& cmdBuffer) {
+  void preMarchCmdFront(VkCommandBuffer& cmdBuffer) {
     // With dynamic rendering there are no subpass dependencies, so we need to
     // take care of proper layout transitions by using barriers This set of
     // barriers prepares the color and depth images for output
@@ -516,6 +517,90 @@ class VulkanExample : public VulkanExampleBase {
     VkRenderingAttachmentInfoKHR colorAttachment{};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
     colorAttachment.imageView = graphics_.preMarchPass_.incoming.imageView;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    // A single depth stencil attachment info can be used, but they can also be
+    // specified separately. When both are specified separately, the only
+    // requirement is that the image view is identical.
+    VkRenderingAttachmentInfoKHR depthStencilAttachment{};
+    depthStencilAttachment.sType =
+        VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    depthStencilAttachment.imageView = depthStencil_.view;
+    depthStencilAttachment.imageLayout =
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depthStencilAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthStencilAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    depthStencilAttachment.clearValue.depthStencil = {1.0f, 0};
+
+    VkRenderingInfoKHR renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderingInfo.renderArea = {0, 0, width_, height_};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
+    renderingInfo.pDepthAttachment = &depthStencilAttachment;
+    renderingInfo.pStencilAttachment = &depthStencilAttachment;
+
+    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
+
+    // Set viewport and scissor
+    VkViewport viewport{0.0f, 0.0f, (float)width_, (float)height_, 0.0f, 1.0f};
+    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      graphics_.pipelines_.preMarch);
+    vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_BACK_BIT));
+    vkCmdSetFrontFace(cmdBuffer, VK_FRONT_FACE_CLOCKWISE);
+
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            graphics_.pipelineLayouts_.preMarch, 0, 1,
+                            &graphics_.descriptorSets_[currentBuffer_].preMarch,
+                            0, nullptr);
+
+    VkDeviceSize offsets[1] = {0};
+    vkCmdBindVertexBuffers(cmdBuffer, 0, 1,
+                           &graphics_.cubeVerticesBuffer.buffer, offsets);
+    vkCmdBindIndexBuffer(cmdBuffer, graphics_.cubeIndicesBuffer.buffer, 0,
+                         VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(cmdBuffer, graphics_.indexCount, 1, 0, 0, 0);
+
+    vkCmdEndRendering(cmdBuffer);
+  }
+
+  void preMarchCmdBack(VkCommandBuffer& cmdBuffer) {
+    // With dynamic rendering there are no subpass dependencies, so we need to
+    // take care of proper layout transitions by using barriers This set of
+    // barriers prepares the color and depth images for output
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, swapChain_.images_[currentImageIndex_], 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, depthStencil_.image, 0,
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        VkImageSubresourceRange{
+            VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0,
+            1});
+
+    // New structures are used to define the attachments used in dynamic
+    // rendering
+    VkRenderingAttachmentInfoKHR colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    colorAttachment.imageView = graphics_.preMarchPass_.outgoing.imageView;
     colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
