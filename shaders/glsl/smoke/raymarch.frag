@@ -38,7 +38,8 @@ void main() {
     // Aspect ratio correction for non-square screens
 	xy.x *= ubo.screenRes.x / ubo.screenRes.y;
 
-    vec3 velocity = texture(velocityFieldIncomingRays, xy).xyz;
+    vec3 inRayvelocity = texture(velocityFieldIncomingRays, xy).xyz;
+    vec3 outRayvelocity = texture(velocityFieldOutgoingRays, xy).xyz;
  
     // Extrapolate a 3D vector from the camera to the screen.
     // The camera is behind screen at (0, 0, -z) then (0, 0, 1) would be

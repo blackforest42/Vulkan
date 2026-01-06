@@ -516,7 +516,7 @@ class VulkanExample : public VulkanExampleBase {
     // take care of proper layout transitions by using barriers This set of
     // barriers prepares the color and depth images for output
     vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, swapChain_.images_[currentImageIndex_], 0,
+        cmdBuffer, graphics_.preMarchPass_.incoming.image, 0,
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -587,7 +587,7 @@ class VulkanExample : public VulkanExampleBase {
     // take care of proper layout transitions by using barriers This set of
     // barriers prepares the color and depth images for output
     vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, swapChain_.images_[currentImageIndex_], 0,
+        cmdBuffer, graphics_.preMarchPass_.outgoing.image, 0,
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -672,6 +672,22 @@ class VulkanExample : public VulkanExampleBase {
         VkImageSubresourceRange{
             VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0,
             1});
+    // Need to change the format of the velocity textures before reading
+    // -_-
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, graphics_.preMarchPass_.incoming.image, 0,
+        VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, graphics_.preMarchPass_.outgoing.image, 0,
+        VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
     // New structures are used to define the attachments used in dynamic
     // rendering
