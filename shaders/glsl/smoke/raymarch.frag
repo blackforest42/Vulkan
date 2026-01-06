@@ -12,6 +12,9 @@ layout (binding = 0) uniform UBOView
     float time;
 } ubo;
 
+layout (binding = 1) uniform sampler2D velocityFieldIncomingRays;
+layout (binding = 2) uniform sampler2D velocityFieldOutgoingRays;
+
 
 const float MARCH_SIZE = 0.05;
 const float MAX_STEPS = 200;
@@ -34,6 +37,8 @@ void main() {
     vec2 xy = 2*(gl_FragCoord.xy / ubo.screenRes.xy - vec2(0.5));
     // Aspect ratio correction for non-square screens
 	xy.x *= ubo.screenRes.x / ubo.screenRes.y;
+
+    vec3 velocity = texture(velocityFieldIncomingRays, xy).xyz;
  
     // Extrapolate a 3D vector from the camera to the screen.
     // The camera is behind screen at (0, 0, -z) then (0, 0, 1) would be

@@ -77,7 +77,7 @@ class VulkanExample : public VulkanExampleBase {
     std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
     // Structure to hold offscreen velocity buffer
-    struct VelocityBuffer {
+    struct VelocityFieldBuffer {
       VkImage image;
       VkDeviceMemory memory;
       VkImageView imageView;
@@ -86,15 +86,15 @@ class VulkanExample : public VulkanExampleBase {
       VkExtent2D extent;
     };
     struct PreMarchPass {
-      VelocityBuffer incoming;
-      VelocityBuffer outgoing;
+      VelocityFieldBuffer incoming;
+      VelocityFieldBuffer outgoing;
       VkSampler sampler;
     } preMarchPass_{};
 
   } graphics_;
 
   // Create a 4 channel 16-bit float velocity buffer
-  void createVelocityBuffer(Graphics::VelocityBuffer& buffer) {
+  void createVelocityFieldBuffer(Graphics::VelocityFieldBuffer& buffer) {
     // Note: VK_FORMAT_R16G16B16_SFLOAT has limited support, so we use RGBA16
     // The alpha channel will just be unused
     buffer.format = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -182,8 +182,8 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateSampler(device_, &samplerCI, nullptr,
                                     &graphics_.preMarchPass_.sampler));
 
-    createVelocityBuffer(graphics_.preMarchPass_.incoming);
-    createVelocityBuffer(graphics_.preMarchPass_.outgoing);
+    createVelocityFieldBuffer(graphics_.preMarchPass_.incoming);
+    createVelocityFieldBuffer(graphics_.preMarchPass_.outgoing);
   }
 
   void setupDescriptors() {
@@ -192,6 +192,10 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             /*total ubo count (across all pipelines) */ 2 *
+                MAX_CONCURRENT_FRAMES),
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            /*total texture count (across all pipelines) */ 2 *
                 MAX_CONCURRENT_FRAMES),
     };
 
@@ -209,6 +213,16 @@ class VulkanExample : public VulkanExampleBase {
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
             /*binding_id*/ 0),
+        // Binding 1 : Velocity field texture: incoming rays
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding_id*/ 1),
+        // Binding 2 : Velocity field texture: outgoing rays
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding_id*/ 2),
     };
 
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
@@ -247,6 +261,16 @@ class VulkanExample : public VulkanExampleBase {
               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
               /*binding id*/ 0,
               &graphics_.uniformBuffers_[i].rayMarch.descriptor),
+          // Binding 1 : Velocity field texture: incoming rays
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptorSets_[i].rayMarch,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              /*binding id*/ 1, &graphics_.preMarchPass_.incoming.descriptor),
+          // Binding 2 : Velocity field texture: outgoing rays
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptorSets_[i].rayMarch,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              /*binding id*/ 2, &graphics_.preMarchPass_.outgoing.descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),

@@ -1,7 +1,5 @@
 Jan 5
-
 TODO: 
-	- premarching done, in/out ray textures ready
-	- send the 2 textures to ray marching shader for reading
-	- rewrite raymarch.vert shader to render a cube instead of a screen quad
+	- velocity field textures not showing in raymarch frag shader
+		- possibly: memory image barrier bugged, wrong flags
 

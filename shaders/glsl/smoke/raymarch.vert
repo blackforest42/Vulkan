@@ -6,6 +6,14 @@
 // out
 layout (location = 0) out vec2 outUV;
 
+layout (binding = 0) uniform UBO
+{
+	mat4 cameraView;
+    vec3 cameraPos;
+    vec2 screenRes;
+    float time;
+} ubo;
+
 vec2 positions[6] = vec2[](
     // bottom left tri
     vec2(-1, -1),
