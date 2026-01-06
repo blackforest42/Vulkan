@@ -33,9 +33,9 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::mat4 perspective;
       alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
-      // toggle front and back face marching
-      alignas(4) uint32_t enableFrontMarch{1};
     };
+    // toggle front and back face marching
+    uint32_t enableFrontMarch{1};
 
     struct RayMarchUBO {
       alignas(16) glm::mat4 cameraView;
@@ -283,6 +283,13 @@ class VulkanExample : public VulkanExampleBase {
     // Layout: Pre march
     pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
         &graphics_.descriptorSetLayouts_.preMarch, 2);
+
+    VkPushConstantRange pushConstantRange{};
+    // Push constants will only be accessible at the frag shader stage
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(uint32_t);
+    pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
     VK_CHECK_RESULT(
         vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
                                &graphics_.pipelineLayouts_.preMarch));
@@ -522,27 +529,14 @@ class VulkanExample : public VulkanExampleBase {
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
 
-    // A single depth stencil attachment info can be used, but they can also be
-    // specified separately. When both are specified separately, the only
-    // requirement is that the image view is identical.
-    VkRenderingAttachmentInfoKHR depthStencilAttachment{};
-    depthStencilAttachment.sType =
-        VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    depthStencilAttachment.imageView = depthStencil_.view;
-    depthStencilAttachment.imageLayout =
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    depthStencilAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthStencilAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    depthStencilAttachment.clearValue.depthStencil = {1.0f, 0};
-
     VkRenderingInfoKHR renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
     renderingInfo.renderArea = {0, 0, width_, height_};
     renderingInfo.layerCount = 1;
     renderingInfo.colorAttachmentCount = 1;
     renderingInfo.pColorAttachments = &colorAttachment;
-    renderingInfo.pDepthAttachment = &depthStencilAttachment;
-    renderingInfo.pStencilAttachment = &depthStencilAttachment;
+    renderingInfo.pDepthAttachment = nullptr;
+    renderingInfo.pStencilAttachment = nullptr;
 
     vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 
@@ -606,27 +600,14 @@ class VulkanExample : public VulkanExampleBase {
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
 
-    // A single depth stencil attachment info can be used, but they can also be
-    // specified separately. When both are specified separately, the only
-    // requirement is that the image view is identical.
-    VkRenderingAttachmentInfoKHR depthStencilAttachment{};
-    depthStencilAttachment.sType =
-        VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    depthStencilAttachment.imageView = depthStencil_.view;
-    depthStencilAttachment.imageLayout =
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    depthStencilAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthStencilAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    depthStencilAttachment.clearValue.depthStencil = {1.0f, 0};
-
     VkRenderingInfoKHR renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
     renderingInfo.renderArea = {0, 0, width_, height_};
     renderingInfo.layerCount = 1;
     renderingInfo.colorAttachmentCount = 1;
     renderingInfo.pColorAttachments = &colorAttachment;
-    renderingInfo.pDepthAttachment = &depthStencilAttachment;
-    renderingInfo.pStencilAttachment = &depthStencilAttachment;
+    renderingInfo.pDepthAttachment = nullptr;
+    renderingInfo.pStencilAttachment = nullptr;
 
     vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 

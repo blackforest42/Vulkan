@@ -15,7 +15,6 @@ layout (binding = 0) uniform UBO
 	mat4 perspective;
 	vec3 cameraPos;
 	vec2 screenRes;
-	int enableFrontMarch;
 } ubo;
 
 
