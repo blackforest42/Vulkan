@@ -25,4 +25,3 @@ void main() {
     gl_Position = ubo.perspective * ubo.view * ubo.model * vec4(inPos, 1.);
 }
 
-

@@ -34,16 +34,16 @@ float sdSphere(vec3 pos, float radius);
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection);
 
 void main() {
-    vec3 inRayvelocity = texture(velocityFieldIncomingRays, inPos.xy).xyz;
-    vec3 outRayvelocity = texture(velocityFieldOutgoingRays, inPos.xy).xyz;
+    vec2 uv = gl_FragCoord.xy / ubo.screenRes.xy;
+    //uv.x *= ubo.screenRes.x / ubo.screenRes.y;
+
+    vec3 inRayVelocity = texture(velocityFieldIncomingRays, uv).xyz;
+    vec3 outRayVelocity = texture(velocityFieldOutgoingRays, uv).xyz;
  
     // Extrapolate a 3D vector from the camera to the screen.
     // The camera is behind screen at (0, 0, -z) then (0, 0, 1) would be
     // center of the screen (near plane of frustum)
-	vec3 dir = inRayvelocity;
-
-    // Keeps camera focal point at the center of screen
-    vec3 newCameraPos = mat3(ubo.cameraView) * ubo.cameraPos;
+	vec3 dir = outRayVelocity - inRayVelocity;
 
     vec3 color = vec3(0.0);
 
@@ -55,7 +55,7 @@ void main() {
 	color += 0.5 * SUN_COLOR * pow(sun, 15.0);
 
     // Cloud
-    vec4 res = rayMarch(newCameraPos, dir);
+    vec4 res = rayMarch(inRayVelocity, dir);
     color = color * (1.0 - res.a) + res.rgb;
 
 	outFragColor = vec4(color, 1.0);
