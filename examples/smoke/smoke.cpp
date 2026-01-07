@@ -1,6 +1,5 @@
 /*
- * Vulkan Example - Smoke simulation with voxels and ray marching
- * example
+ * Vulkan Example - Smoke simulation with compute shaders and cube marching
  *
  *
  * This code is licensed under the MIT license (MIT)
@@ -434,6 +433,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
+    graphics_.ubos_.march.model = glm::mat4(1.0);
     graphics_.ubos_.march.cameraView = camera_.matrices_.view;
     graphics_.ubos_.march.screenRes = glm::vec2(width_, height_);
     graphics_.ubos_.march.perspective = camera_.matrices_.perspective;

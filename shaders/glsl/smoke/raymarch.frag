@@ -18,58 +18,51 @@ layout (binding = 1) uniform sampler2D velocityFieldIncomingRays;
 layout (binding = 2) uniform sampler2D velocityFieldOutgoingRays;
 
 
-const float MARCH_SIZE = 0.05;
-const float MAX_STEPS = 200;
-const vec3 SKY_COLOR = vec3(0.7, 0.7, 0.90);
-const vec3 SUNLIGHT_DIRECTION = vec3(1.0, 0.0, 0.0);
-const vec3 SUN_COLOR = vec3(1., .6, .0);
-const float EPSILON = 0.0001;
+const float MARCH_SIZE = 0.01;
+const float MAX_STEPS = 100;
 
 vec4 permute(vec4 x);
 vec4 taylorInvSqrt(vec4 r);
 float snoise(vec3 pos);
 float fbm(vec3 pos);
-float sdCube(vec3 p, float cube_dim);
-float sdSphere(vec3 pos, float radius);
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection);
 
 void main() {
     vec2 uv = gl_FragCoord.xy / ubo.screenRes.xy;
-    //uv.x *= ubo.screenRes.x / ubo.screenRes.y;
 
     vec3 inRayVelocity = texture(velocityFieldIncomingRays, uv).xyz;
     vec3 outRayVelocity = texture(velocityFieldOutgoingRays, uv).xyz;
  
-    // Extrapolate a 3D vector from the camera to the screen.
-    // The camera is behind screen at (0, 0, -z) then (0, 0, 1) would be
-    // center of the screen (near plane of frustum)
-	vec3 dir = outRayVelocity - inRayVelocity;
+	vec3 dir = normalize(outRayVelocity - inRayVelocity);
 
-    vec3 color = vec3(0.0);
-
-	// Sun and Sky
-	float sun = clamp(dot(SUNLIGHT_DIRECTION, dir), 0.0, 1.0 );
-	// Base sky color
-	color = SKY_COLOR;
-	// Add sun color to sky
-	color += 0.5 * SUN_COLOR * pow(sun, 15.0);
-
-    // Cloud
-    vec4 res = rayMarch(inRayVelocity, dir);
-    color = color * (1.0 - res.a) + res.rgb;
-
-	outFragColor = vec4(color, 1.0);
+    // ray origin is the incoming ray on front face
+    vec4 color = rayMarch(inRayVelocity, dir);
+	outFragColor = vec4(color);
 }
 
-// returns positive if point is outside sphere, negative inside
-float sdSphere(vec3 p, float radius) {
-  return length(p) - radius;
+vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection) {
+  float depth = 0.0;
+  vec3 pos = rayOrigin + depth * rayDirection;
+  
+  vec4 res = vec4(0.0);
+
+  for (int i = 0; i < MAX_STEPS; i++) {
+    float density = fbm(pos);
+
+    // We only draw the density if it's greater than 0
+    if (density > 0.0) {
+      vec4 color = vec4(mix(vec3(1.0,1.0,1.0), vec3(0.0, 0.0, 0.0), density), density );
+      color.rgb *= color.a;
+      res += color * (1.0 - res.a);
+    }
+
+    depth += MARCH_SIZE;
+    pos = rayOrigin + depth * rayDirection;
+  }
+
+  return res;
 }
 
-float sdCube(vec3 pos, float cube_dim) {
-    vec3 q = abs(pos) - vec3(cube_dim / 2.f);
-    return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
-}
 
 // Fractal Brownian Motion
 float fbm(vec3 pos) {
@@ -87,45 +80,6 @@ float fbm(vec3 pos) {
   }
 
   return result;
-}
-
-float scene(vec3 pos) {
-  float distance = sdSphere(pos, 1.0);
-
-  float f = fbm(pos);
-
-  return -distance + f;
-}
-
-vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection) {
-  float depth = 0.0;
-  vec3 pos = rayOrigin + depth * rayDirection;
-
-  vec4 res = vec4(0.0);
-
-  for (int i = 0; i < MAX_STEPS; i++) {
-    // +0.3 adds more base density to cloud
-    float density = scene(pos) + 0.3;
-
-    // We only draw the density if it's greater than 0
-    if (density > 0.0) {
-        // high to low density == low occlusion == more diffusion
-        // low to high density == high occlusion == less diffusion
-        float diffuse = clamp((scene(pos) - scene(pos + 0.3 * SUNLIGHT_DIRECTION)) / 0.3, 0.0, 1.0 );
-        // interpolate sky color and sun color
-        vec3 lerp = SKY_COLOR * 1.1 + 0.6 * SUN_COLOR * diffuse;
-        // Smoke color (white to black) interpolated by density
-        vec4 color = vec4(mix(vec3(1.0, 1.0, 1.0), vec3(0.0, 0.0, 0.0), density), density);
-        color.rgb *= lerp;
-        color.rgb *= color.a;
-        res += color * (1.0 - res.a);
-    }
-
-    depth += MARCH_SIZE;
-    pos = rayOrigin + depth * rayDirection;
-  }
-
-  return res;
 }
 
 ///----
@@ -208,5 +162,3 @@ float snoise(vec3 pos) {
   return 42.0 *
          dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
 }
-
-

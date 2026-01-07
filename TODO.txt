@@ -1,5 +1,8 @@
-Jan 5
+Jan 6
 TODO: 
-	- velocity field textures not showing in raymarch frag shader
-		- possibly: memory image barrier bugged, wrong flags
+	- begin compute shader pipeline for fluid sim
+	- render to a 3D texture and send to cube marcher for rendering
+
+DONE:
+	- cube marching done! demo'd with snoise function
 
