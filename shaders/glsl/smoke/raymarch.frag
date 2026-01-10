@@ -18,14 +18,18 @@ layout (binding = 1) uniform sampler2D velocityFieldIncomingRays;
 layout (binding = 2) uniform sampler2D velocityFieldOutgoingRays;
 
 
-const float MARCH_SIZE = 0.01;
+const float STEP_SIZE = 0.01;
 const float MAX_STEPS = 100;
+const float SMOKE_DENSITY = 2.f;
+const vec4 SMOKE_COLOR = vec4(1.0);
+const float CLOUD_SIZE = 1.f;
 
 vec4 permute(vec4 x);
 vec4 taylorInvSqrt(vec4 r);
 float snoise(vec3 pos);
 float fbm(vec3 pos);
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection);
+vec4 rayMarch2(vec3 rayOrigin, vec3 rayDir);
 
 void main() {
     vec2 uv = gl_FragCoord.xy / ubo.screenRes.xy;
@@ -36,7 +40,7 @@ void main() {
 	vec3 dir = normalize(outRayVelocity - inRayVelocity);
 
     // March rays starting from front face of cube
-    vec4 color = rayMarch(inRayVelocity, dir);
+    vec4 color = rayMarch2(inRayVelocity, dir);
 	outFragColor = vec4(color);
 }
 
@@ -55,30 +59,61 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection) {
       res += color * (1.0 - res.a);
     }
 
-    depth += MARCH_SIZE;
+    depth += STEP_SIZE;
     pos = rayOrigin + depth * rayDirection;
   }
 
   return res;
 }
 
+vec4 rayMarch2(vec3 rayOrigin, vec3 rayDir) {
+	float density = 0.0;
+	vec4 col = vec4(0.0);
+	vec3 pos = rayOrigin;
+
+	// Animated position for smoke movement
+	vec3 windOffset = vec3(ubo.time * 0.5, ubo.time * 1.15, ubo.time * 0.8);
+        
+	// Ray march through volume
+	for(int i = 0; i < MAX_STEPS; i++) {
+		// Sample 3D noise texture with animation
+		vec3 samplePos = pos * 1.5 + windOffset;
+		float noise = fbm(samplePos);
+
+		// Create smoke shape (spherical falloff)
+		float dist = length(pos);
+		float falloff = smoothstep(1.5 * CLOUD_SIZE, 0.5 * CLOUD_SIZE, dist);
+
+		// Combine noise with falloff
+		float smokeDensity = max(0.0, noise * 0.5 + 0.5) * falloff * SMOKE_DENSITY;
+
+		// Accumulate density
+		density += smokeDensity * STEP_SIZE * 3.0;
+
+		// Add lighting based on position
+		vec3 lightDir = normalize(vec3(1.0, 1.0, -0.5));
+		float lighting = max(0.3, dot(normalize(pos), lightDir) * 0.5 + 0.5);
+
+		col += SMOKE_COLOR * smokeDensity * STEP_SIZE * 3.0 * lighting;
+		pos += rayDir * STEP_SIZE;
+	}
+	return col;
+}
+
 
 // Fractal Brownian Motion
 float fbm(vec3 pos) {
-  vec3 q = pos + ubo.time * 0.5 * vec3(1.0, -0.2, -1.0);
+    vec3 q = pos + ubo.time * 0.5 * vec3(1.0, -0.2, -1.0);
+	float value = 0.0;
+	float amplitude = 0.5;
+	float frequency = 1.0;
 
-  float result = 0.0;
-  float scale = 0.8;
-  float factor = 2.02;
-
-  for (int i = 0; i < 6; i++) {
-      result += scale * snoise(q);
-      q *= factor;
-      factor += 0.21;
-      scale *= 0.5;
-  }
-
-  return result;
+	for(int i = 0; i < 5; i++) {
+		value += amplitude * snoise(q * frequency);
+		frequency *= 2.0;
+		amplitude *= 0.5;
+	}
+	return value;
 }
 
 ///----

@@ -433,7 +433,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    graphics_.ubos_.march.model = glm::mat4(1.0);
+    graphics_.ubos_.march.model = glm::scale(glm::mat4(1.0), glm::vec3(0.5));
     graphics_.ubos_.march.cameraView = camera_.matrices_.view;
     graphics_.ubos_.march.screenRes = glm::vec2(width_, height_);
     graphics_.ubos_.march.perspective = camera_.matrices_.perspective;
@@ -781,7 +781,7 @@ class VulkanExample : public VulkanExampleBase {
     title_ = "Smoke Simulation";
     camera_.type_ = Camera::CameraType::lookat;
     camera_.setMovementSpeed(25.f);
-    camera_.setPosition(glm::vec3(0.0f, 0.0f, -3.f));
+    camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.f));
     camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 
