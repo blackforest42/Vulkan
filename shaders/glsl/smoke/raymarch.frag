@@ -30,20 +30,19 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection);
 void main() {
     vec2 uv = gl_FragCoord.xy / ubo.screenRes.xy;
 
+    // Sample in/out ray velocity textures and calculate ray trajectory
     vec3 inRayVelocity = texture(velocityFieldIncomingRays, uv).xyz;
     vec3 outRayVelocity = texture(velocityFieldOutgoingRays, uv).xyz;
- 
 	vec3 dir = normalize(outRayVelocity - inRayVelocity);
 
-    // ray origin is the incoming ray on front face
+    // March rays starting from front face of cube
     vec4 color = rayMarch(inRayVelocity, dir);
 	outFragColor = vec4(color);
 }
 
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection) {
   float depth = 0.0;
-  vec3 pos = rayOrigin + depth * rayDirection;
-  
+  vec3 pos = rayOrigin;
   vec4 res = vec4(0.0);
 
   for (int i = 0; i < MAX_STEPS; i++) {
@@ -69,7 +68,7 @@ float fbm(vec3 pos) {
   vec3 q = pos + ubo.time * 0.5 * vec3(1.0, -0.2, -1.0);
 
   float result = 0.0;
-  float scale = 0.5;
+  float scale = 0.8;
   float factor = 2.02;
 
   for (int i = 0; i < 6; i++) {
