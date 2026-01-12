@@ -116,25 +116,43 @@ class VulkanExample : public VulkanExampleBase {
     };
     std::array<ComputeSemaphores, MAX_CONCURRENT_FRAMES> semaphores{};
 
+    // Buffers
+    std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers;
+
     // Pipelines
     struct {
-      // offscreen pass to generate entry/exit rays for ray marcher
-      VkPipeline preMarch{VK_NULL_HANDLE};
-      VkPipeline rayMarch{VK_NULL_HANDLE};
+      VkPipeline advectPipeline;
+      VkPipeline divergencePipeline;
+      VkPipeline jacobiPipeline;
+      VkPipeline gradientSubtractPipeline;
+      VkPipeline vorticityPipeline;
+      VkPipeline vorticityConfinementPipeline;
     } pipelines_{};
     struct {
-      VkPipelineLayout preMarch{VK_NULL_HANDLE};
-      VkPipelineLayout rayMarch{VK_NULL_HANDLE};
+      VkPipelineLayout advectLayout{VK_NULL_HANDLE};
+      VkPipelineLayout divergenceLayout{VK_NULL_HANDLE};
+      VkPipelineLayout jacobiLayout{VK_NULL_HANDLE};
+      VkPipelineLayout gradientSubtractLayout{VK_NULL_HANDLE};
+      VkPipelineLayout vorticityLayout{VK_NULL_HANDLE};
+      VkPipelineLayout vorticityConfinementLayout{VK_NULL_HANDLE};
     } pipelineLayouts_;
 
     // Descriptors
     struct {
-      VkDescriptorSetLayout preMarch{VK_NULL_HANDLE};
-      VkDescriptorSetLayout rayMarch{VK_NULL_HANDLE};
+      VkDescriptorSetLayout advectSetLayout{VK_NULL_HANDLE};
+      VkDescriptorSetLayout divergenceSetLayout{VK_NULL_HANDLE};
+      VkDescriptorSetLayout jacobiSetLayout{VK_NULL_HANDLE};
+      VkDescriptorSetLayout gradientSubtractSetLayout{VK_NULL_HANDLE};
+      VkDescriptorSetLayout vorticitySetLayout{VK_NULL_HANDLE};
+      VkDescriptorSetLayout vorticityConfinementSetLayout{VK_NULL_HANDLE};
     } descriptorSetLayouts_;
     struct DescriptorSets {
-      VkDescriptorSet preMarch{VK_NULL_HANDLE};
-      VkDescriptorSet rayMarch{VK_NULL_HANDLE};
+      VkDescriptorSet advectSetLayout{VK_NULL_HANDLE};
+      VkDescriptorSet divergenceSetLayout{VK_NULL_HANDLE};
+      VkDescriptorSet jacobiSetLayout{VK_NULL_HANDLE};
+      VkDescriptorSet gradientSubtractSetLayout{VK_NULL_HANDLE};
+      VkDescriptorSet vorticitySetLayout{VK_NULL_HANDLE};
+      VkDescriptorSet vorticityConfinementSetLayout{VK_NULL_HANDLE};
     };
     std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
@@ -265,94 +283,98 @@ class VulkanExample : public VulkanExampleBase {
     vkGetDeviceQueue(device_, compute_.queueFamilyIndex, 0, &compute_.queue);
 
     // Compute shader uniform buffer block
-    for (auto& buffer : compute_.uniformBuffers) {
-      vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                  &buffer, sizeof(Compute::UniformData));
-      VK_CHECK_RESULT(buffer.map());
-    }
+    // for (auto& buffer : compute_.uniformBuffers) {
+    //  vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+    //                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+    //                                  VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+    //                              &buffer, sizeof(Compute::UniformData));
+    //  VK_CHECK_RESULT(buffer.map());
+    //}
 
-    prepareComputeTexture();
+    // prepareComputeTexture();
 
-    // Create compute pipeline
-    // Compute pipelines are created separate from graphics pipelines even if
-    // they use the same queue (family index)
+    // Compute Descriptors
+    // std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
+    //    // Binding 0 : Particle position storage buffer
+    //    vks::initializers::descriptorSetLayoutBinding(
+    //        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+    //        0),
+    //    // Binding 1 : Uniform buffer
+    //    vks::initializers::descriptorSetLayoutBinding(
+    //        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+    //        1),
+    //};
+    // VkDescriptorSetLayoutCreateInfo descriptorLayout =
+    //    vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
+    // VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
+    //    device_, &descriptorLayout, nullptr, &compute_.descriptorSetLayout));
 
-    std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
-        // Binding 0 : Particle position storage buffer
-        vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 0),
-        // Binding 1 : Uniform buffer
-        vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
-    };
-    VkDescriptorSetLayoutCreateInfo descriptorLayout =
-        vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
-        device_, &descriptorLayout, nullptr, &compute_.descriptorSetLayout));
-
-    for (auto i = 0; i < compute_.uniformBuffers.size(); i++) {
-      VkDescriptorSetAllocateInfo allocInfo =
-          vks::initializers::descriptorSetAllocateInfo(
-              descriptorPool_, &compute_.descriptorSetLayout, 1);
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
-                                               &compute_.descriptorSets[i]));
-      std::vector<VkWriteDescriptorSet> computeWriteDescriptorSets = {
-          // Binding 0 : Particle position storage buffer
-          vks::initializers::writeDescriptorSet(
-              compute_.descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 0,
-              &storageBuffer_.descriptor),
-          // Binding 1 : Uniform buffer
-          vks::initializers::writeDescriptorSet(
-              compute_.descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
-              &compute_.uniformBuffers[i].descriptor)};
-      vkUpdateDescriptorSets(
-          device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
-          computeWriteDescriptorSets.data(), 0, nullptr);
-    }
+    // for (auto i = 0; i < compute_.uniformBuffers.size(); i++) {
+    //   VkDescriptorSetAllocateInfo allocInfo =
+    //       vks::initializers::descriptorSetAllocateInfo(
+    //           descriptorPool_, &compute_.descriptorSetLayout, 1);
+    //   VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
+    //                                            &compute_.descriptorSets[i]));
+    //   std::vector<VkWriteDescriptorSet> computeWriteDescriptorSets = {
+    //       // Binding 0 : Particle position storage buffer
+    //       vks::initializers::writeDescriptorSet(
+    //           compute_.descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //           0, &storageBuffer_.descriptor),
+    //       // Binding 1 : Uniform buffer
+    //       vks::initializers::writeDescriptorSet(
+    //           compute_.descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    //           1, &compute_.uniformBuffers[i].descriptor)};
+    //   vkUpdateDescriptorSets(
+    //       device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
+    //       computeWriteDescriptorSets.data(), 0, nullptr);
+    // }
 
     // Create pipelines
-    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
-        vks::initializers::pipelineLayoutCreateInfo(
-            &compute_.descriptorSetLayout, 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo,
-                                           nullptr, &compute_.pipelineLayout));
+    // VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
+    //    vks::initializers::pipelineLayoutCreateInfo(
+    //        &compute_.descriptorSetLayout, 1);
+    // VK_CHECK_RESULT(vkCreatePipelineLayout(device_,
+    // &pipelineLayoutCreateInfo,
+    //                                       nullptr,
+    //                                       &compute_.pipelineLayout));
 
-    VkComputePipelineCreateInfo computePipelineCreateInfo =
-        vks::initializers::computePipelineCreateInfo(compute_.pipelineLayout,
-                                                     0);
+    // VkComputePipelineCreateInfo computePipelineCreateInfo =
+    //     vks::initializers::computePipelineCreateInfo(compute_.pipelineLayout,
+    //                                                  0);
 
     // 1st pass
-    computePipelineCreateInfo.stage = loadShader(
-        getShadersPath() + "computenbody/particle_calculate.comp.spv",
-        VK_SHADER_STAGE_COMPUTE_BIT);
+    // computePipelineCreateInfo.stage = loadShader(
+    //    getShadersPath() + "computenbody/particle_calculate.comp.spv",
+    //    VK_SHADER_STAGE_COMPUTE_BIT);
 
-    // We want to use as much shared memory for the compute shader invocations
-    // as available, so we calculate it based on the device limits and pass it
-    // to the shader via specialization constants
-    uint32_t sharedDataSize = std::min(
-        (uint32_t)1024,
-        (uint32_t)(vulkanDevice_->properties.limits.maxComputeSharedMemorySize /
-                   sizeof(glm::vec4)));
-    VkSpecializationMapEntry specializationMapEntry =
-        vks::initializers::specializationMapEntry(0, 0, sizeof(uint32_t));
-    VkSpecializationInfo specializationInfo =
-        vks::initializers::specializationInfo(1, &specializationMapEntry,
-                                              sizeof(int32_t), &sharedDataSize);
-    computePipelineCreateInfo.stage.pSpecializationInfo = &specializationInfo;
+    //// We want to use as much shared memory for the compute shader invocations
+    //// as available, so we calculate it based on the device limits and pass it
+    //// to the shader via specialization constants
+    // uint32_t sharedDataSize = std::min(
+    //     (uint32_t)1024,
+    //     (uint32_t)(vulkanDevice_->properties.limits.maxComputeSharedMemorySize
+    //     /
+    //                sizeof(glm::vec4)));
+    // VkSpecializationMapEntry specializationMapEntry =
+    //     vks::initializers::specializationMapEntry(0, 0, sizeof(uint32_t));
+    // VkSpecializationInfo specializationInfo =
+    //     vks::initializers::specializationInfo(1, &specializationMapEntry,
+    //                                           sizeof(int32_t),
+    //                                           &sharedDataSize);
+    // computePipelineCreateInfo.stage.pSpecializationInfo =
+    // &specializationInfo;
 
-    VK_CHECK_RESULT(vkCreateComputePipelines(
-        device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
-        &compute_.pipelineCalculate));
+    // VK_CHECK_RESULT(vkCreateComputePipelines(
+    //     device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
+    //     &compute_.pipelineCalculate));
 
-    // 2nd pass
-    computePipelineCreateInfo.stage = loadShader(
-        getShadersPath() + "computenbody/particle_integrate.comp.spv",
-        VK_SHADER_STAGE_COMPUTE_BIT);
-    VK_CHECK_RESULT(vkCreateComputePipelines(
-        device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
-        &compute_.pipelineIntegrate));
+    //// 2nd pass
+    // computePipelineCreateInfo.stage = loadShader(
+    //     getShadersPath() + "computenbody/particle_integrate.comp.spv",
+    //     VK_SHADER_STAGE_COMPUTE_BIT);
+    // VK_CHECK_RESULT(vkCreateComputePipelines(
+    //     device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
+    //     &compute_.pipelineIntegrate));
 
     // Separate command pool as queue family for compute may be different than
     // graphics
@@ -487,25 +509,6 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void setupDescriptors() {
-    // Pool
-    std::vector<VkDescriptorPoolSize> poolSizes = {
-        vks::initializers::descriptorPoolSize(
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            /*total ubo count (across all pipelines) */ 2 *
-                MAX_CONCURRENT_FRAMES),
-        vks::initializers::descriptorPoolSize(
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            /*total texture count (across all pipelines) */ 2 *
-                MAX_CONCURRENT_FRAMES),
-    };
-
-    VkDescriptorPoolCreateInfo descriptorPoolInfo =
-        vks::initializers::descriptorPoolCreateInfo(
-            poolSizes,
-            /*total descriptor count*/ 2 * MAX_CONCURRENT_FRAMES);
-    VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
-                                           nullptr, &descriptorPool_));
-
     // Layout: Ray march
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
         // Binding 0 : Vertex shader uniform buffer
@@ -729,6 +732,27 @@ class VulkanExample : public VulkanExampleBase {
                                               &graphics_.pipelines_.rayMarch));
   }
 
+  void prepareDescriptorPool() {
+    // Pool
+    std::vector<VkDescriptorPoolSize> poolSizes = {
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            /*total ubo count (across all pipelines) */ 2 *
+                MAX_CONCURRENT_FRAMES),
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            /*total texture count (across all pipelines) */ 2 *
+                MAX_CONCURRENT_FRAMES),
+    };
+
+    VkDescriptorPoolCreateInfo descriptorPoolInfo =
+        vks::initializers::descriptorPoolCreateInfo(
+            poolSizes,
+            /*total descriptor count*/ 2 * MAX_CONCURRENT_FRAMES);
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
+                                           nullptr, &descriptorPool_));
+  }
+
   // Prepare and initialize uniform buffer containing shader uniforms
   void prepareUniformBuffers() {
     for (auto& buffer : graphics_.uniformBuffers_) {
@@ -765,7 +789,8 @@ class VulkanExample : public VulkanExampleBase {
 
   void prepare() {
     VulkanExampleBase::prepare();
-    prepareCompute();
+    prepareDescriptorPool();
+    // prepareCompute();
     prepareGraphics();
     prepared_ = true;
   }
