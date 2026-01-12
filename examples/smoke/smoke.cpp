@@ -22,6 +22,9 @@ class VulkanExample : public VulkanExampleBase {
 
   // Handles rendering the compute outputs
   struct Graphics {
+    // families differ and require additional barriers
+    uint32_t queueFamilyIndex;
+
     vks::Buffer cubeVerticesBuffer;
     vks::Buffer cubeIndicesBuffer;
     uint32_t indexCount{0};
@@ -291,20 +294,25 @@ class VulkanExample : public VulkanExampleBase {
     }
 
     // Compute Descriptors
-    // std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
-    //    // Binding 0 : Particle position storage buffer
-    //    vks::initializers::descriptorSetLayoutBinding(
-    //        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-    //        0),
-    //    // Binding 1 : Uniform buffer
-    //    vks::initializers::descriptorSetLayoutBinding(
-    //        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-    //        1),
-    //};
-    // VkDescriptorSetLayoutCreateInfo descriptorLayout =
-    //    vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-    // VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
-    //    device_, &descriptorLayout, nullptr, &compute_.descriptorSetLayout));
+    // Layout: Advection
+    std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
+        // Binding 0 : Texture to advect
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_COMPUTE_BIT, 0),
+        // Binding 1 : Velocity texture
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_COMPUTE_BIT, 1),
+        // Binding 2 : Output texture
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_COMPUTE_BIT, 2),
+    };
+    VkDescriptorSetLayoutCreateInfo descriptorLayout =
+        vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
+        device_, &descriptorLayout, nullptr, &compute_.descriptorSetLayout));
 
     // for (auto i = 0; i < compute_.uniformBuffers.size(); i++) {
     //   VkDescriptorSetAllocateInfo allocInfo =
@@ -738,8 +746,8 @@ class VulkanExample : public VulkanExampleBase {
                 MAX_CONCURRENT_FRAMES),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            /*total texture count (across all pipelines) */ 2 *
-                MAX_CONCURRENT_FRAMES),
+            /*total texture count (across all pipelines) */ 2 +
+                3 * MAX_CONCURRENT_FRAMES),
     };
 
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
@@ -786,8 +794,10 @@ class VulkanExample : public VulkanExampleBase {
 
   void prepare() {
     VulkanExampleBase::prepare();
+    graphics_.queueFamilyIndex = vulkanDevice_->queueFamilyIndices.graphics;
+    compute_.queueFamilyIndex = vulkanDevice_->queueFamilyIndices.compute;
     prepareDescriptorPool();
-    // prepareCompute();
+    prepareCompute();
     prepareGraphics();
     prepared_ = true;
   }
