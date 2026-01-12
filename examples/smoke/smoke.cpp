@@ -116,6 +116,28 @@ class VulkanExample : public VulkanExampleBase {
     };
     std::array<ComputeSemaphores, MAX_CONCURRENT_FRAMES> semaphores{};
 
+    // Contains all Vulkan objects that are required to store and use a 3D
+    // texture
+    struct Texture3D {
+      VkSampler sampler = VK_NULL_HANDLE;
+      VkImage image = VK_NULL_HANDLE;
+      VkImageLayout imageLayout;
+      VkDeviceMemory deviceMemory = VK_NULL_HANDLE;
+      VkImageView view = VK_NULL_HANDLE;
+      VkDescriptorImageInfo descriptor;
+      VkFormat format;
+      uint32_t width{0};
+      uint32_t height{0};
+      uint32_t depth{0};
+      uint32_t mipLevels{0};
+    };
+
+    // 3D textures neeeded to store states
+    std::array<Texture3D, 2> velocity_field;
+    std::array<Texture3D, 2> pressure_field;
+    std::array<Texture3D, 2> density_field;
+    std::array<Texture3D, 2> temperature_field;
+
     // Buffers
     std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers;
 
@@ -155,28 +177,6 @@ class VulkanExample : public VulkanExampleBase {
       VkDescriptorSet vorticityConfinementSetLayout{VK_NULL_HANDLE};
     };
     std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
-
-    // Contains all Vulkan objects that are required to store and use a 3D
-    // texture
-    struct Texture3D {
-      VkSampler sampler = VK_NULL_HANDLE;
-      VkImage image = VK_NULL_HANDLE;
-      VkImageLayout imageLayout;
-      VkDeviceMemory deviceMemory = VK_NULL_HANDLE;
-      VkImageView view = VK_NULL_HANDLE;
-      VkDescriptorImageInfo descriptor;
-      VkFormat format;
-      uint32_t width{0};
-      uint32_t height{0};
-      uint32_t depth{0};
-      uint32_t mipLevels{0};
-    };
-
-    // 3D textures neeeded to store states
-    std::array<Texture3D, 2> velocity_field;
-    std::array<Texture3D, 2> pressure_field;
-    std::array<Texture3D, 2> density_field;
-    std::array<Texture3D, 2> temperature_field;
 
   } compute_;
 
@@ -282,16 +282,13 @@ class VulkanExample : public VulkanExampleBase {
     // barriers in buildComputeCommandBuffer)
     vkGetDeviceQueue(device_, compute_.queueFamilyIndex, 0, &compute_.queue);
 
-    // Compute shader uniform buffer block
-    // for (auto& buffer : compute_.uniformBuffers) {
-    //  vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-    //                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-    //                                  VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-    //                              &buffer, sizeof(Compute::UniformData));
-    //  VK_CHECK_RESULT(buffer.map());
-    //}
-
-    // prepareComputeTexture();
+    // Prepare 3D textures
+    for (int i = 0; i < 2; i++) {
+      prepareComputeTexture(compute_.velocity_field[i], VECTOR_FIELD_FORMAT);
+      prepareComputeTexture(compute_.pressure_field[i], SCALAR_FIELD_FORMAT);
+      prepareComputeTexture(compute_.density_field[i], SCALAR_FIELD_FORMAT);
+      prepareComputeTexture(compute_.temperature_field[i], SCALAR_FIELD_FORMAT);
+    }
 
     // Compute Descriptors
     // std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
