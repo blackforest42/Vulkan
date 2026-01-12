@@ -20,7 +20,7 @@ class VulkanExample : public VulkanExampleBase {
   VkPhysicalDeviceVulkan13Features enabledFeatures13_{
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
 
-  // resources for rendering the compute outputs
+  // Handles rendering the compute outputs
   struct Graphics {
     vks::Buffer cubeVerticesBuffer;
     vks::Buffer cubeIndicesBuffer;
@@ -83,6 +83,315 @@ class VulkanExample : public VulkanExampleBase {
     } preMarchPass_{};
 
   } graphics_;
+
+  // Handles all compute pipelines
+  struct Compute {
+#define VECTOR_FIELD_FORMAT VK_FORMAT_R32G32B32A32_SFLOAT
+#define SCALAR_FIELD_FORMAT VK_FORMAT_R32_SFLOAT
+#define COMPUTE_TEXTURE_DIMENSIONS 128
+
+    // Used to check if compute and graphics queue
+    // families differ and require additional barriers
+    uint32_t queueFamilyIndex;
+    // Separate queue for compute commands (queue family may
+    // differ from the one used for graphics)
+    VkQueue queue;
+    // Use a separate command pool (queue family may
+    // differ from the one used for graphics)
+    VkCommandPool commandPool;
+    // Command buffer storing the dispatch commands and
+    // barriers
+    std::array<VkCommandBuffer, MAX_CONCURRENT_FRAMES> commandBuffers;
+    // Compute shader binding layout
+    VkDescriptorSetLayout descriptorSetLayout;
+    // Compute shader bindings
+    std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets;
+    // Fences to make sure command buffers are done
+    std::array<VkFence, MAX_CONCURRENT_FRAMES> fences{};
+
+    // Semaphores for submission ordering
+    struct ComputeSemaphores {
+      VkSemaphore ready{VK_NULL_HANDLE};
+      VkSemaphore complete{VK_NULL_HANDLE};
+    };
+    std::array<ComputeSemaphores, MAX_CONCURRENT_FRAMES> semaphores{};
+
+    // Pipelines
+    struct {
+      // offscreen pass to generate entry/exit rays for ray marcher
+      VkPipeline preMarch{VK_NULL_HANDLE};
+      VkPipeline rayMarch{VK_NULL_HANDLE};
+    } pipelines_{};
+    struct {
+      VkPipelineLayout preMarch{VK_NULL_HANDLE};
+      VkPipelineLayout rayMarch{VK_NULL_HANDLE};
+    } pipelineLayouts_;
+
+    // Descriptors
+    struct {
+      VkDescriptorSetLayout preMarch{VK_NULL_HANDLE};
+      VkDescriptorSetLayout rayMarch{VK_NULL_HANDLE};
+    } descriptorSetLayouts_;
+    struct DescriptorSets {
+      VkDescriptorSet preMarch{VK_NULL_HANDLE};
+      VkDescriptorSet rayMarch{VK_NULL_HANDLE};
+    };
+    std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+
+    // Contains all Vulkan objects that are required to store and use a 3D
+    // texture
+    struct Texture3D {
+      VkSampler sampler = VK_NULL_HANDLE;
+      VkImage image = VK_NULL_HANDLE;
+      VkImageLayout imageLayout;
+      VkDeviceMemory deviceMemory = VK_NULL_HANDLE;
+      VkImageView view = VK_NULL_HANDLE;
+      VkDescriptorImageInfo descriptor;
+      VkFormat format;
+      uint32_t width{0};
+      uint32_t height{0};
+      uint32_t depth{0};
+      uint32_t mipLevels{0};
+    };
+
+    // 3D textures neeeded to store states
+    std::array<Texture3D, 2> velocity_field;
+    std::array<Texture3D, 2> pressure_field;
+    std::array<Texture3D, 2> density_field;
+    std::array<Texture3D, 2> temperature_field;
+
+  } compute_;
+
+  void prepareComputeTexture(Compute::Texture3D& texture,
+                             VkFormat texture_format) {
+    // A 3D texture is described as width x height x depth
+    texture.width = COMPUTE_TEXTURE_DIMENSIONS;
+    texture.height = COMPUTE_TEXTURE_DIMENSIONS;
+    texture.depth = COMPUTE_TEXTURE_DIMENSIONS;
+    texture.mipLevels = 1;
+    texture.format = texture_format;
+
+    // Format support check
+    // 3D texture support in Vulkan is mandatory (in contrast to OpenGL) so no
+    // need to check if it's supported
+    VkFormatProperties formatProperties;
+    vkGetPhysicalDeviceFormatProperties(physicalDevice_, texture.format,
+                                        &formatProperties);
+    // Check if format supports transfer
+    if (!(formatProperties.optimalTilingFeatures &
+          VK_FORMAT_FEATURE_TRANSFER_DST_BIT)) {
+      std::cout << "Error: Device does not support flag TRANSFER_DST for "
+                   "selected texture format!"
+                << std::endl;
+      return;
+    }
+
+    // Create optimal tiled target image
+    VkImageCreateInfo imageCreateInfo = vks::initializers::imageCreateInfo();
+    imageCreateInfo.imageType = VK_IMAGE_TYPE_3D;
+    imageCreateInfo.format = texture.format;
+    imageCreateInfo.mipLevels = texture.mipLevels;
+    imageCreateInfo.arrayLayers = 1;
+    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageCreateInfo.extent.width = texture.width;
+    imageCreateInfo.extent.height = texture.height;
+    imageCreateInfo.extent.depth = texture.depth;
+    // Set initial layout of the image to undefined
+    imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageCreateInfo.usage =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_SAMPLED_BIT |      // For reading as texture
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT;  // For copying/readback
+    VK_CHECK_RESULT(
+        vkCreateImage(device_, &imageCreateInfo, nullptr, &texture.image));
+
+    // Device local memory to back up image
+    VkMemoryAllocateInfo memAllocInfo = vks::initializers::memoryAllocateInfo();
+    VkMemoryRequirements memReqs = {};
+    vkGetImageMemoryRequirements(device_, texture.image, &memReqs);
+    memAllocInfo.allocationSize = memReqs.size;
+    memAllocInfo.memoryTypeIndex = vulkanDevice_->getMemoryType(
+        memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    VK_CHECK_RESULT(vkAllocateMemory(device_, &memAllocInfo, nullptr,
+                                     &texture.deviceMemory));
+    VK_CHECK_RESULT(
+        vkBindImageMemory(device_, texture.image, texture.deviceMemory, 0));
+
+    // Create sampler
+    VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
+    sampler.magFilter = VK_FILTER_LINEAR;
+    sampler.minFilter = VK_FILTER_LINEAR;
+    sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler.mipLodBias = 0.0f;
+    sampler.compareOp = VK_COMPARE_OP_NEVER;
+    sampler.minLod = 0.0f;
+    sampler.maxLod = 0.0f;
+    sampler.maxAnisotropy = 1.0;
+    sampler.anisotropyEnable = VK_FALSE;
+    sampler.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+    VK_CHECK_RESULT(
+        vkCreateSampler(device_, &sampler, nullptr, &texture.sampler));
+
+    // Create image view
+    VkImageViewCreateInfo view = vks::initializers::imageViewCreateInfo();
+    view.image = texture.image;
+    view.viewType = VK_IMAGE_VIEW_TYPE_3D;
+    view.format = texture.format;
+    view.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    view.subresourceRange.baseMipLevel = 0;
+    view.subresourceRange.baseArrayLayer = 0;
+    view.subresourceRange.layerCount = 1;
+    view.subresourceRange.levelCount = 1;
+    VK_CHECK_RESULT(vkCreateImageView(device_, &view, nullptr, &texture.view));
+
+    // Fill image descriptor image info to be used descriptor set setup
+    texture.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    texture.descriptor.imageView = texture.view;
+    texture.descriptor.sampler = texture.sampler;
+  }
+
+  void prepareCompute() {
+    // Create a compute capable device queue
+    // The VulkanDevice::createLogicalDevice functions finds a compute capable
+    // queue and prefers queue families that only support compute Depending on
+    // the implementation this may result in different queue family indices for
+    // graphics and computes, requiring proper synchronization (see the memory
+    // barriers in buildComputeCommandBuffer)
+    vkGetDeviceQueue(device_, compute_.queueFamilyIndex, 0, &compute_.queue);
+
+    // Compute shader uniform buffer block
+    for (auto& buffer : compute_.uniformBuffers) {
+      vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                  &buffer, sizeof(Compute::UniformData));
+      VK_CHECK_RESULT(buffer.map());
+    }
+
+    prepareComputeTexture();
+
+    // Create compute pipeline
+    // Compute pipelines are created separate from graphics pipelines even if
+    // they use the same queue (family index)
+
+    std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
+        // Binding 0 : Particle position storage buffer
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 0),
+        // Binding 1 : Uniform buffer
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
+    };
+    VkDescriptorSetLayoutCreateInfo descriptorLayout =
+        vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
+        device_, &descriptorLayout, nullptr, &compute_.descriptorSetLayout));
+
+    for (auto i = 0; i < compute_.uniformBuffers.size(); i++) {
+      VkDescriptorSetAllocateInfo allocInfo =
+          vks::initializers::descriptorSetAllocateInfo(
+              descriptorPool_, &compute_.descriptorSetLayout, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
+                                               &compute_.descriptorSets[i]));
+      std::vector<VkWriteDescriptorSet> computeWriteDescriptorSets = {
+          // Binding 0 : Particle position storage buffer
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 0,
+              &storageBuffer_.descriptor),
+          // Binding 1 : Uniform buffer
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
+              &compute_.uniformBuffers[i].descriptor)};
+      vkUpdateDescriptorSets(
+          device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
+          computeWriteDescriptorSets.data(), 0, nullptr);
+    }
+
+    // Create pipelines
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
+        vks::initializers::pipelineLayoutCreateInfo(
+            &compute_.descriptorSetLayout, 1);
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo,
+                                           nullptr, &compute_.pipelineLayout));
+
+    VkComputePipelineCreateInfo computePipelineCreateInfo =
+        vks::initializers::computePipelineCreateInfo(compute_.pipelineLayout,
+                                                     0);
+
+    // 1st pass
+    computePipelineCreateInfo.stage = loadShader(
+        getShadersPath() + "computenbody/particle_calculate.comp.spv",
+        VK_SHADER_STAGE_COMPUTE_BIT);
+
+    // We want to use as much shared memory for the compute shader invocations
+    // as available, so we calculate it based on the device limits and pass it
+    // to the shader via specialization constants
+    uint32_t sharedDataSize = std::min(
+        (uint32_t)1024,
+        (uint32_t)(vulkanDevice_->properties.limits.maxComputeSharedMemorySize /
+                   sizeof(glm::vec4)));
+    VkSpecializationMapEntry specializationMapEntry =
+        vks::initializers::specializationMapEntry(0, 0, sizeof(uint32_t));
+    VkSpecializationInfo specializationInfo =
+        vks::initializers::specializationInfo(1, &specializationMapEntry,
+                                              sizeof(int32_t), &sharedDataSize);
+    computePipelineCreateInfo.stage.pSpecializationInfo = &specializationInfo;
+
+    VK_CHECK_RESULT(vkCreateComputePipelines(
+        device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
+        &compute_.pipelineCalculate));
+
+    // 2nd pass
+    computePipelineCreateInfo.stage = loadShader(
+        getShadersPath() + "computenbody/particle_integrate.comp.spv",
+        VK_SHADER_STAGE_COMPUTE_BIT);
+    VK_CHECK_RESULT(vkCreateComputePipelines(
+        device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
+        &compute_.pipelineIntegrate));
+
+    // Separate command pool as queue family for compute may be different than
+    // graphics
+    VkCommandPoolCreateInfo cmdPoolInfo =
+        vks::initializers::commandPoolCreateInfo();
+    cmdPoolInfo.queueFamilyIndex = compute_.queueFamilyIndex;
+    cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    VK_CHECK_RESULT(vkCreateCommandPool(device_, &cmdPoolInfo, nullptr,
+                                        &compute_.commandPool));
+
+    // Create command buffers for compute operations
+    for (auto& cmdBuffer : compute_.commandBuffers) {
+      cmdBuffer = vulkanDevice_->createCommandBuffer(
+          VK_COMMAND_BUFFER_LEVEL_PRIMARY, compute_.commandPool);
+    }
+
+    // Fences to check for command buffer completion
+    for (auto& fence : compute_.fences) {
+      VkFenceCreateInfo fenceCreateInfo =
+          vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
+      VK_CHECK_RESULT(
+          vkCreateFence(device_, &fenceCreateInfo, nullptr, &fence));
+    }
+
+    // Semaphores to order compute and graphics submissions
+    for (auto& semaphore : compute_.semaphores) {
+      VkSemaphoreCreateInfo semaphoreInfo{
+          .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+      vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &semaphore.ready);
+      vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &semaphore.complete);
+    }
+    // Signal first used ready semaphore
+    VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
+    computeSubmitInfo.signalSemaphoreCount = 1;
+    computeSubmitInfo.pSignalSemaphores =
+        &compute_.semaphores[MAX_CONCURRENT_FRAMES - 1].ready;
+    VK_CHECK_RESULT(
+        vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo, VK_NULL_HANDLE));
+  }
 
   // Create a 4 channel 16-bit float velocity buffer
   void createVelocityFieldBuffer(Graphics::VelocityFieldBuffer& buffer) {
@@ -446,14 +755,18 @@ class VulkanExample : public VulkanExampleBase {
            &graphics_.ubos_.march, sizeof(Graphics::MarchUBO));
   }
 
-  void prepare() {
-    VulkanExampleBase::prepare();
-    prepareDynamicStates();
+  void prepareGraphics() {
     generateCube();
     preparePreMarchPass();
     prepareUniformBuffers();
     setupDescriptors();
     preparePipelines();
+  }
+
+  void prepare() {
+    VulkanExampleBase::prepare();
+    prepareCompute();
+    prepareGraphics();
     prepared_ = true;
   }
 
@@ -770,8 +1083,6 @@ class VulkanExample : public VulkanExampleBase {
     // With VK_KHR_dynamic_rendering we no longer need a frame buffer, so skip
     // the sample base framebuffer setup
   }
-
-  void prepareDynamicStates() {}
 
   void getEnabledFeatures() override {}
 
