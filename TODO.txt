@@ -1,8 +1,10 @@
-Jan 6
+Jan 12
 TODO: 
-	- begin compute shader pipeline for fluid sim
-	- render to a 3D texture and send to cube marcher for rendering
+	- Start advection compute pipeline
+	- create command buffers for compute
 
 DONE:
-	- cube marching done! demo'd with snoise function
+	- start on compute part: 
+		- finished descriptor indexing for texture array
+		- finished descriptor for advection pipeline
 

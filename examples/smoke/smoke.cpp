@@ -105,10 +105,6 @@ class VulkanExample : public VulkanExampleBase {
     // Command buffer storing the dispatch commands and
     // barriers
     std::array<VkCommandBuffer, MAX_CONCURRENT_FRAMES> commandBuffers;
-    // Compute shader binding layout
-    VkDescriptorSetLayout descriptorSetLayout;
-    // Compute shader bindings
-    std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets;
     // Fences to make sure command buffers are done
     std::array<VkFence, MAX_CONCURRENT_FRAMES> fences{};
 
@@ -275,27 +271,18 @@ class VulkanExample : public VulkanExampleBase {
     texture.descriptor.sampler = texture.sampler;
   }
 
-  void prepareCompute() {
-    // Create a compute capable device queue
-    // The VulkanDevice::createLogicalDevice functions finds a compute capable
-    // queue and prefers queue families that only support compute Depending on
-    // the implementation this may result in different queue family indices for
-    // graphics and computes, requiring proper synchronization (see the memory
-    // barriers in buildComputeCommandBuffer)
-    vkGetDeviceQueue(device_, compute_.queueFamilyIndex, 0, &compute_.queue);
-
+  // creates an indexed descriptor for all compute textures
+  void createTexturesForDescriptorIndexing() {
     // Prepare 3D textures
-    // Velocity
+    // (1) Velocity
     for (int i = 0; i < 2; i++) {
       prepareComputeTexture(compute_.compute_textures[i], VECTOR_FIELD_FORMAT);
     }
-    // All the scalar fields
+    // (2) Rest are scalar fields
     for (int i = 2; i < 8; i++) {
       prepareComputeTexture(compute_.compute_textures[i], SCALAR_FIELD_FORMAT);
     }
 
-    // Compute Descriptors
-    // Layout: Advection
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
         // Binding 0 : Array of textures
         vks::initializers::descriptorSetLayoutBinding(
@@ -305,7 +292,7 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorSetLayoutCreateInfo descriptorLayoutCI =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
 
-    // Bindless rendering descriptor indexing
+    // Use descriptor indexing for compute textures
     VkDescriptorSetLayoutBindingFlagsCreateInfo flagsInfo{};
     std::vector<VkDescriptorBindingFlags> flags = {
         0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
@@ -318,9 +305,17 @@ class VulkanExample : public VulkanExampleBase {
     descriptorLayoutCI.pNext = &flagsInfo;
 
     VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
-        device_, &descriptorLayoutCI, nullptr, &compute_.descriptorSetLayout));
+        device_, &descriptorLayoutCI, nullptr,
+        &compute_.descriptorSetLayouts_.advectSetLayout));
+  }
 
-    // Image descriptors for the texture array
+  void prepareCompute() {
+    // Create a compute capable device queue
+    vkGetDeviceQueue(device_, compute_.queueFamilyIndex, 0, &compute_.queue);
+
+    createTexturesForDescriptorIndexing();
+
+    // Image descriptors for the 3D texture array
     std::vector<VkDescriptorImageInfo> textureDescriptors(
         compute_.compute_textures.size());
     for (size_t i = 0; i < compute_.compute_textures.size(); i++) {
@@ -344,7 +339,8 @@ class VulkanExample : public VulkanExampleBase {
     for (auto i = 0; i < compute_.uniformBuffers.size(); i++) {
       VkDescriptorSetAllocateInfo allocInfo =
           vks::initializers::descriptorSetAllocateInfo(
-              descriptorPool_, &compute_.descriptorSetLayout, 1);
+              descriptorPool_, &compute_.descriptorSetLayouts_.advectSetLayout,
+              1);
       VK_CHECK_RESULT(vkAllocateDescriptorSets(
           device_, &allocInfo, &compute_.descriptorSets_[i].advect));
 
@@ -1161,6 +1157,7 @@ class VulkanExample : public VulkanExampleBase {
 
   ~VulkanExample() {
     if (device_) {
+      // Graphics
       vkDestroyPipeline(device_, graphics_.pipelines_.rayMarch, nullptr);
       vkDestroyPipeline(device_, graphics_.pipelines_.preMarch, nullptr);
       vkDestroyPipelineLayout(device_, graphics_.pipelineLayouts_.preMarch,
@@ -1187,6 +1184,28 @@ class VulkanExample : public VulkanExampleBase {
       }
       graphics_.cubeVerticesBuffer.destroy();
       graphics_.cubeIndicesBuffer.destroy();
+
+      // Compute
+      for (auto& texture : compute_.compute_textures) {
+        if (texture.view != VK_NULL_HANDLE)
+          vkDestroyImageView(device_, texture.view, nullptr);
+        if (texture.image != VK_NULL_HANDLE)
+          vkDestroyImage(device_, texture.image, nullptr);
+        if (texture.sampler != VK_NULL_HANDLE)
+          vkDestroySampler(device_, texture.sampler, nullptr);
+        if (texture.deviceMemory != VK_NULL_HANDLE)
+          vkFreeMemory(device_, texture.deviceMemory, nullptr);
+      }
+      vkDestroyDescriptorSetLayout(
+          device_, compute_.descriptorSetLayouts_.advectSetLayout, nullptr);
+      vkDestroyCommandPool(device_, compute_.commandPool, nullptr);
+      for (auto& fence : compute_.fences) {
+        vkDestroyFence(device_, fence, nullptr);
+      }
+      for (auto& semaphore : compute_.semaphores) {
+        vkDestroySemaphore(device_, semaphore.ready, nullptr);
+        vkDestroySemaphore(device_, semaphore.complete, nullptr);
+      }
     }
   }
 };
