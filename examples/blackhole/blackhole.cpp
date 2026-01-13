@@ -401,10 +401,10 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            /* descriptorCount */ MAX_CONCURRENT_FRAMES * 1 * NUM_SAMPLE_SIZES),
+            /* descriptorCount */ MAX_CONCURRENT_FRAMES * 5 * NUM_SAMPLE_SIZES),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            /* descriptorCount */ MAX_CONCURRENT_FRAMES * 2 *
+            /* descriptorCount */ MAX_CONCURRENT_FRAMES * 5 *
                 NUM_SAMPLE_SIZES)};
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
@@ -861,8 +861,8 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void blackholeCmdBuffer(VkCommandBuffer& cmdBuffer) {
-    VkClearValue clearValues{};
-    clearValues.color = {0.0f, 0.0f, 0.0f, 0.f};
+    VkClearValue clearValues[2]{};
+    clearValues[0].color = {0.0f, 0.0f, 0.0f, 0.f};
 
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();
@@ -874,8 +874,8 @@ class VulkanExample : public VulkanExampleBase {
     renderPassBeginInfo.framebuffer = fb.framebuffer;
     renderPassBeginInfo.renderArea.extent.width = fb.width;
     renderPassBeginInfo.renderArea.extent.height = fb.height;
-    renderPassBeginInfo.clearValueCount = 1;
-    renderPassBeginInfo.pClearValues = &clearValues;
+    renderPassBeginInfo.clearValueCount = 2;
+    renderPassBeginInfo.pClearValues = clearValues;
 
     vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
@@ -899,8 +899,8 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void brightnessCmdBuffer(VkCommandBuffer& cmdBuffer) {
-    VkClearValue clearValues{};
-    clearValues.color = {0.f, 0.0f, 0.0f, 0.f};
+    VkClearValue clearValues[2]{};
+    clearValues[0].color = {0.f, 0.0f, 0.0f, 0.f};
 
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();
@@ -911,8 +911,8 @@ class VulkanExample : public VulkanExampleBase {
     renderPassBeginInfo.renderArea.offset.y = 0;
     renderPassBeginInfo.renderArea.extent.width = fb.width;
     renderPassBeginInfo.renderArea.extent.height = fb.height;
-    renderPassBeginInfo.clearValueCount = 1;
-    renderPassBeginInfo.pClearValues = &clearValues;
+    renderPassBeginInfo.clearValueCount = 2;
+    renderPassBeginInfo.pClearValues = clearValues;
 
     vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
@@ -935,8 +935,8 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void downSamplingCmdBuffer(VkCommandBuffer& cmdBuffer) {
-    VkClearValue clearValues{};
-    clearValues.color = {0.f, 0.0f, 0.0f, 0.f};
+    VkClearValue clearValues[2]{};
+    clearValues[0].color = {0.f, 0.0f, 0.0f, 0.f};
 
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();
@@ -957,8 +957,8 @@ class VulkanExample : public VulkanExampleBase {
       renderPassBeginInfo.framebuffer = fb.framebuffer;
       renderPassBeginInfo.renderArea.extent.width = fb.width;
       renderPassBeginInfo.renderArea.extent.height = fb.height;
-      renderPassBeginInfo.clearValueCount = 1;
-      renderPassBeginInfo.pClearValues = &clearValues;
+      renderPassBeginInfo.clearValueCount = 2;
+      renderPassBeginInfo.pClearValues = clearValues;
 
       // (3) Render
       vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
@@ -999,8 +999,8 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void upSamplingCmdBuffer(VkCommandBuffer& cmdBuffer) {
-    VkClearValue clearValues{};
-    clearValues.color = {0.f, 0.0f, 0.0f, 0.0f};
+    VkClearValue clearValues[2]{};
+    clearValues[0].color = {0.f, 0.0f, 0.0f, 0.0f};
 
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();
@@ -1020,8 +1020,8 @@ class VulkanExample : public VulkanExampleBase {
       renderPassBeginInfo.framebuffer = fb.framebuffer;
       renderPassBeginInfo.renderArea.extent.width = fb.width;
       renderPassBeginInfo.renderArea.extent.height = fb.height;
-      renderPassBeginInfo.clearValueCount = 1;
-      renderPassBeginInfo.pClearValues = &clearValues;
+      renderPassBeginInfo.clearValueCount = 2;
+      renderPassBeginInfo.pClearValues = clearValues;
 
       // Render
       vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
@@ -1061,8 +1061,8 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void blendCmdBuffer(VkCommandBuffer& cmdBuffer) {
-    VkClearValue clearValues{};
-    clearValues.color = {0.f, 0.0f, 0.0f, 0.f};
+    VkClearValue clearValues[2]{};
+    clearValues[0].color = {0.f, 0.0f, 0.0f, 0.f};
 
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();
@@ -1072,8 +1072,8 @@ class VulkanExample : public VulkanExampleBase {
     renderPassBeginInfo.renderArea.offset.y = 0;
     renderPassBeginInfo.renderArea.extent.width = width_;
     renderPassBeginInfo.renderArea.extent.height = height_;
-    renderPassBeginInfo.clearValueCount = 1;
-    renderPassBeginInfo.pClearValues = &clearValues;
+    renderPassBeginInfo.clearValueCount = 2;
+    renderPassBeginInfo.pClearValues = clearValues;
 
     vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
