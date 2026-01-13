@@ -286,10 +286,14 @@ class VulkanExample : public VulkanExampleBase {
     for (int i = 0; i < 1; i++) {
       prepareComputeTexture(compute_.read_textures[i], true,
                             VECTOR_FIELD_FORMAT);
+      prepareComputeTexture(compute_.write_textures[i], false,
+                            VECTOR_FIELD_FORMAT);
     }
     // (2) Rest are scalar fields
     for (int i = 1; i < compute_.texture_count; i++) {
       prepareComputeTexture(compute_.read_textures[i], true,
+                            SCALAR_FIELD_FORMAT);
+      prepareComputeTexture(compute_.write_textures[i], false,
                             SCALAR_FIELD_FORMAT);
     }
 
@@ -299,21 +303,37 @@ class VulkanExample : public VulkanExampleBase {
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, 0,
             (uint32_t)compute_.read_textures.size()),
+        // Binding 1 : Array of OUTPUT textures to write result
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1,
+            (uint32_t)compute_.write_textures.size()),
     };
     VkDescriptorSetLayoutCreateInfo descriptorLayoutCI =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
 
-    // Use descriptor indexing for compute textures
-    VkDescriptorSetLayoutBindingFlagsCreateInfo flagsInfo{};
-    std::vector<VkDescriptorBindingFlags> flags = {
-        0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
-        VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
-        VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT};
-    flagsInfo.bindingCount = 1;
-    flagsInfo.pBindingFlags = flags.data();
-    flagsInfo.sType =
+    // Flags for descriptor arrays - typically want partially bound
+    std::vector<VkDescriptorBindingFlags> bindingFlags = {
+        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+            VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+
+        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+            VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT};
+
+    VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsInfo{};
+    bindingFlagsInfo.sType =
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
-    descriptorLayoutCI.pNext = &flagsInfo;
+    bindingFlagsInfo.pNext = nullptr;
+    bindingFlagsInfo.bindingCount = static_cast<uint32_t>(bindingFlags.size());
+    bindingFlagsInfo.pBindingFlags = bindingFlags.data();
+
+    descriptorLayoutCI.sType =
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptorLayoutCI.pNext = nullptr;
+    descriptorLayoutCI.flags =
+        VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+    descriptorLayoutCI.bindingCount =
+        static_cast<uint32_t>(setLayoutBindings.size());
+    descriptorLayoutCI.pBindings = setLayoutBindings.data();
 
     VK_CHECK_RESULT(
         vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr,
@@ -774,13 +794,19 @@ class VulkanExample : public VulkanExampleBase {
                 /*graphics*/ 2 +
                 /*compute textures*/ compute_.read_textures.size()) *
                 MAX_CONCURRENT_FRAMES),
-    };
+        // textures for writing
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            compute_.write_textures.size() * MAX_CONCURRENT_FRAMES)};
 
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
             poolSizes,
-            /*total descriptor count*/ (/*graphics*/ 1 + /*compute*/ 2) *
+            /*total descriptor count*/ (/*graphics*/ 2 + /*compute*/ 1) *
                 MAX_CONCURRENT_FRAMES);
+    // Needed if using VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT in descriptor
+    // bindings
+    descriptorPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
     VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
                                            nullptr, &descriptorPool_));
   }
@@ -1193,6 +1219,16 @@ class VulkanExample : public VulkanExampleBase {
       // Compute
       // Textures
       for (auto& texture : compute_.read_textures) {
+        if (texture.view != VK_NULL_HANDLE)
+          vkDestroyImageView(device_, texture.view, nullptr);
+        if (texture.image != VK_NULL_HANDLE)
+          vkDestroyImage(device_, texture.image, nullptr);
+        if (texture.sampler != VK_NULL_HANDLE)
+          vkDestroySampler(device_, texture.sampler, nullptr);
+        if (texture.deviceMemory != VK_NULL_HANDLE)
+          vkFreeMemory(device_, texture.deviceMemory, nullptr);
+      }
+      for (auto& texture : compute_.write_textures) {
         if (texture.view != VK_NULL_HANDLE)
           vkDestroyImageView(device_, texture.view, nullptr);
         if (texture.image != VK_NULL_HANDLE)

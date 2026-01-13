@@ -1,7 +1,8 @@
 Jan 12
 TODO: 
-	- Start advection compute pipeline
-	- create command buffers for compute
+	- finish splitting read/write descriptor indexes for advection pipeline
+	- add the sampler3D velocity input texture (not the array)
+	- write a test shader to check output is correct
 
 DONE:
 	- start on compute part: 
