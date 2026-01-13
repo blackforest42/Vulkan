@@ -119,6 +119,9 @@ class VulkanExample : public VulkanExampleBase {
     };
     std::array<ComputeSemaphores, MAX_CONCURRENT_FRAMES> semaphores{};
 
+    // uniform buffers
+    std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+
     // Contains all Vulkan objects that are required to store and use a 3D
     // texture
     struct Texture3D {
@@ -136,10 +139,7 @@ class VulkanExample : public VulkanExampleBase {
     };
 
     // 3D textures neeeded to store states
-    std::array<Texture3D, 2> velocity_field;
-    std::array<Texture3D, 2> pressure_field;
-    std::array<Texture3D, 2> density_field;
-    std::array<Texture3D, 2> temperature_field;
+    std::array<Texture3D, 8> compute_textures;
 
     // Buffers
     std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers;
@@ -172,12 +172,11 @@ class VulkanExample : public VulkanExampleBase {
       VkDescriptorSetLayout vorticityConfinementSetLayout{VK_NULL_HANDLE};
     } descriptorSetLayouts_;
     struct DescriptorSets {
-      VkDescriptorSet advectSetLayout{VK_NULL_HANDLE};
-      VkDescriptorSet divergenceSetLayout{VK_NULL_HANDLE};
-      VkDescriptorSet jacobiSetLayout{VK_NULL_HANDLE};
-      VkDescriptorSet gradientSubtractSetLayout{VK_NULL_HANDLE};
-      VkDescriptorSet vorticitySetLayout{VK_NULL_HANDLE};
-      VkDescriptorSet vorticityConfinementSetLayout{VK_NULL_HANDLE};
+      VkDescriptorSet advect{VK_NULL_HANDLE};
+      VkDescriptorSet divergence{VK_NULL_HANDLE};
+      VkDescriptorSet jacobi{VK_NULL_HANDLE};
+      VkDescriptorSet gradient{VK_NULL_HANDLE};
+      VkDescriptorSet vorticity{VK_NULL_HANDLE};
     };
     std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
@@ -286,53 +285,77 @@ class VulkanExample : public VulkanExampleBase {
     vkGetDeviceQueue(device_, compute_.queueFamilyIndex, 0, &compute_.queue);
 
     // Prepare 3D textures
+    // Velocity
     for (int i = 0; i < 2; i++) {
-      prepareComputeTexture(compute_.velocity_field[i], VECTOR_FIELD_FORMAT);
-      prepareComputeTexture(compute_.pressure_field[i], SCALAR_FIELD_FORMAT);
-      prepareComputeTexture(compute_.density_field[i], SCALAR_FIELD_FORMAT);
-      prepareComputeTexture(compute_.temperature_field[i], SCALAR_FIELD_FORMAT);
+      prepareComputeTexture(compute_.compute_textures[i], VECTOR_FIELD_FORMAT);
+    }
+    // All the scalar fields
+    for (int i = 2; i < 8; i++) {
+      prepareComputeTexture(compute_.compute_textures[i], SCALAR_FIELD_FORMAT);
     }
 
     // Compute Descriptors
     // Layout: Advection
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
-        // Binding 0 : Texture to advect
+        // Binding 0 : Array of textures
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_COMPUTE_BIT, 0),
-        // Binding 1 : Velocity texture
-        vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_COMPUTE_BIT, 1),
-        // Binding 2 : Output texture
-        vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_COMPUTE_BIT, 2),
+            VK_SHADER_STAGE_COMPUTE_BIT, 0, compute_.compute_textures.size()),
     };
-    VkDescriptorSetLayoutCreateInfo descriptorLayout =
+    VkDescriptorSetLayoutCreateInfo descriptorLayoutCI =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
-        device_, &descriptorLayout, nullptr, &compute_.descriptorSetLayout));
 
-    // for (auto i = 0; i < compute_.uniformBuffers.size(); i++) {
-    //   VkDescriptorSetAllocateInfo allocInfo =
-    //       vks::initializers::descriptorSetAllocateInfo(
-    //           descriptorPool_, &compute_.descriptorSetLayout, 1);
-    //   VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
-    //                                            &compute_.descriptorSets[i]));
-    //   std::vector<VkWriteDescriptorSet> computeWriteDescriptorSets = {
-    //       // Binding 0 : Particle position storage buffer
-    //       vks::initializers::writeDescriptorSet(
-    //           compute_.descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-    //           0, &storageBuffer_.descriptor),
-    //       // Binding 1 : Uniform buffer
-    //       vks::initializers::writeDescriptorSet(
-    //           compute_.descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    //           1, &compute_.uniformBuffers[i].descriptor)};
-    //   vkUpdateDescriptorSets(
-    //       device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
-    //       computeWriteDescriptorSets.data(), 0, nullptr);
-    // }
+    // Bindless rendering descriptor indexing
+    VkDescriptorSetLayoutBindingFlagsCreateInfo flagsInfo{};
+    std::vector<VkDescriptorBindingFlags> flags = {
+        0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
+        VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+        VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT};
+    flagsInfo.bindingCount = 1;
+    flagsInfo.pBindingFlags = flags.data();
+    flagsInfo.sType =
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+    descriptorLayoutCI.pNext = &flagsInfo;
+
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
+        device_, &descriptorLayoutCI, nullptr, &compute_.descriptorSetLayout));
+
+    // Image descriptors for the texture array
+    std::vector<VkDescriptorImageInfo> textureDescriptors(
+        compute_.compute_textures.size());
+    for (size_t i = 0; i < compute_.compute_textures.size(); i++) {
+      textureDescriptors[i].imageLayout =
+          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+      textureDescriptors[i].sampler = compute_.compute_textures[i].sampler;
+      textureDescriptors[i].imageView = compute_.compute_textures[i].view;
+    }
+    // Texture array descriptor
+    VkWriteDescriptorSet textureArrayDescriptorWrite = {};
+    textureArrayDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    textureArrayDescriptorWrite.dstBinding = 0;
+    textureArrayDescriptorWrite.dstArrayElement = 0;
+    textureArrayDescriptorWrite.descriptorType =
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    textureArrayDescriptorWrite.descriptorCount =
+        static_cast<uint32_t>(compute_.compute_textures.size());
+    textureArrayDescriptorWrite.pBufferInfo = 0;
+    textureArrayDescriptorWrite.pImageInfo = textureDescriptors.data();
+
+    for (auto i = 0; i < compute_.uniformBuffers.size(); i++) {
+      VkDescriptorSetAllocateInfo allocInfo =
+          vks::initializers::descriptorSetAllocateInfo(
+              descriptorPool_, &compute_.descriptorSetLayout, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device_, &allocInfo, &compute_.descriptorSets_[i].advect));
+
+      textureArrayDescriptorWrite.dstSet = compute_.descriptorSets_[i].advect;
+
+      std::vector<VkWriteDescriptorSet> computeWriteDescriptorSets = {
+          textureArrayDescriptorWrite};
+      vkUpdateDescriptorSets(
+          device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
+          computeWriteDescriptorSets.data(), 0, nullptr);
+    }
 
     // Create pipelines
     // VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
@@ -746,14 +769,17 @@ class VulkanExample : public VulkanExampleBase {
                 MAX_CONCURRENT_FRAMES),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            /*total texture count (across all pipelines) */ 2 +
-                3 * MAX_CONCURRENT_FRAMES),
+            /*total texture count (across all pipelines) */ (
+                /*graphics*/ 2 +
+                /*compute textures*/ compute_.compute_textures.size()) *
+                MAX_CONCURRENT_FRAMES),
     };
 
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
             poolSizes,
-            /*total descriptor count*/ 2 * MAX_CONCURRENT_FRAMES);
+            /*total descriptor count*/ (/*graphics*/ 1 + /*compute*/ 2) *
+                MAX_CONCURRENT_FRAMES);
     VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
                                            nullptr, &descriptorPool_));
   }
