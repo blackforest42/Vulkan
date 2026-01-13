@@ -2,8 +2,10 @@
 
 layout (binding = 0) uniform sampler3D inputTex[];
 layout (binding = 1) uniform writeonly image3D outputTex[];
+layout (binding = 2) uniform sampler3D velocityFieldTex;
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
+    vec4 asdf = texture(inputTex[0], coord);
     imageStore(outputTex[1], coord, vec4(0.0));
 }

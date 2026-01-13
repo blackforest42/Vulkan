@@ -137,6 +137,13 @@ class VulkanExample : public VulkanExampleBase {
     // 3D textures neeeded to store vector/scalar states
     // Split into read/write respectively
     static const int texture_count = 6;
+    // Texture index mappings
+    // 0 velocity
+    // 1 pressure
+    // 2 divergence
+    // 3 vorticity
+    // 4 density
+    // 5 temperature
     std::array<Texture3D, texture_count> read_textures;
     std::array<Texture3D, texture_count> write_textures;
 
@@ -301,13 +308,17 @@ class VulkanExample : public VulkanExampleBase {
         // Binding 0 : Array of INPUT textures to advect
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_COMPUTE_BIT, 0,
+            VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
             (uint32_t)compute_.read_textures.size()),
         // Binding 1 : Array of OUTPUT textures to write result
         vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1,
-            (uint32_t)compute_.write_textures.size()),
-    };
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
+        // Binding 2 : Single velocity field texture
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 2, 1)};
     VkDescriptorSetLayoutCreateInfo descriptorLayoutCI =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
 
@@ -347,25 +358,45 @@ class VulkanExample : public VulkanExampleBase {
     createTexturesForDescriptorIndexing();
 
     // Image descriptors for the 3D texture array
-    std::vector<VkDescriptorImageInfo> readTextureDescriptors(
+    std::vector<VkDescriptorImageInfo> readOnlyTextureDescriptors(
         compute_.read_textures.size());
-    for (size_t i = 0; i < compute_.read_textures.size(); i++) {
-      readTextureDescriptors[i].imageLayout =
+    std::vector<VkDescriptorImageInfo> writeOnlyTextureDescriptors(
+        compute_.write_textures.size());
+    for (size_t i = 0; i < compute_.texture_count; i++) {
+      readOnlyTextureDescriptors[i].imageLayout =
           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-      readTextureDescriptors[i].sampler = compute_.read_textures[i].sampler;
-      readTextureDescriptors[i].imageView = compute_.read_textures[i].view;
+      readOnlyTextureDescriptors[i].sampler = compute_.read_textures[i].sampler;
+      readOnlyTextureDescriptors[i].imageView = compute_.read_textures[i].view;
+
+      writeOnlyTextureDescriptors[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+      writeOnlyTextureDescriptors[i].sampler = VK_NULL_HANDLE;
+      writeOnlyTextureDescriptors[i].imageView =
+          compute_.write_textures[i].view;
     }
     // Texture array descriptor
-    VkWriteDescriptorSet textureArrayDescriptorWrite = {};
-    textureArrayDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    textureArrayDescriptorWrite.dstBinding = 0;
-    textureArrayDescriptorWrite.dstArrayElement = 0;
-    textureArrayDescriptorWrite.descriptorType =
+    VkWriteDescriptorSet readOnlyTextureArrayDescriptor = {};
+    readOnlyTextureArrayDescriptor.sType =
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    readOnlyTextureArrayDescriptor.dstBinding = 0;
+    readOnlyTextureArrayDescriptor.dstArrayElement = 0;
+    readOnlyTextureArrayDescriptor.descriptorType =
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    textureArrayDescriptorWrite.descriptorCount =
+    readOnlyTextureArrayDescriptor.descriptorCount =
         static_cast<uint32_t>(compute_.read_textures.size());
-    textureArrayDescriptorWrite.pBufferInfo = 0;
-    textureArrayDescriptorWrite.pImageInfo = readTextureDescriptors.data();
+    readOnlyTextureArrayDescriptor.pImageInfo =
+        readOnlyTextureDescriptors.data();
+
+    VkWriteDescriptorSet writeOnlyTextureArrayDescriptor = {};
+    writeOnlyTextureArrayDescriptor.sType =
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeOnlyTextureArrayDescriptor.dstBinding = 1;
+    writeOnlyTextureArrayDescriptor.dstArrayElement = 0;
+    writeOnlyTextureArrayDescriptor.descriptorType =
+        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    writeOnlyTextureArrayDescriptor.descriptorCount =
+        static_cast<uint32_t>(compute_.write_textures.size());
+    writeOnlyTextureArrayDescriptor.pImageInfo =
+        writeOnlyTextureDescriptors.data();
 
     for (auto i = 0; i < compute_.uniformBuffers.size(); i++) {
       VkDescriptorSetAllocateInfo allocInfo =
@@ -374,10 +405,19 @@ class VulkanExample : public VulkanExampleBase {
       VK_CHECK_RESULT(vkAllocateDescriptorSets(
           device_, &allocInfo, &compute_.descriptorSets_[i].advect));
 
-      textureArrayDescriptorWrite.dstSet = compute_.descriptorSets_[i].advect;
+      readOnlyTextureArrayDescriptor.dstSet =
+          compute_.descriptorSets_[i].advect;
+      writeOnlyTextureArrayDescriptor.dstSet =
+          compute_.descriptorSets_[i].advect;
 
       std::vector<VkWriteDescriptorSet> computeWriteDescriptorSets = {
-          textureArrayDescriptorWrite};
+          readOnlyTextureArrayDescriptor,
+          writeOnlyTextureArrayDescriptor,
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptorSets_[i].advect,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, /*binding id*/ 2,
+              &compute_.read_textures[0].descriptor),
+      };
       vkUpdateDescriptorSets(
           device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
           computeWriteDescriptorSets.data(), 0, nullptr);
@@ -792,7 +832,7 @@ class VulkanExample : public VulkanExampleBase {
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             /*total texture count (across all pipelines) */ (
                 /*graphics*/ 2 +
-                /*compute textures*/ compute_.read_textures.size()) *
+                /*compute textures*/ 1 + compute_.read_textures.size()) *
                 MAX_CONCURRENT_FRAMES),
         // textures for writing
         vks::initializers::descriptorPoolSize(
