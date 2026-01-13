@@ -2,3 +2,4 @@ glslc -g premarch.vert -o premarch.vert.spv
 glslc -g premarch.frag -o premarch.frag.spv
 glslc -g raymarch.vert -o raymarch.vert.spv
 glslc -g raymarch.frag -o raymarch.frag.spv
+glslc -g advect.comp -o advect.comp.spv

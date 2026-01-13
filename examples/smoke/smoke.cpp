@@ -142,30 +142,30 @@ class VulkanExample : public VulkanExampleBase {
 
     // Pipelines
     struct {
-      VkPipeline advectPipeline;
-      VkPipeline divergencePipeline;
-      VkPipeline jacobiPipeline;
-      VkPipeline gradientSubtractPipeline;
-      VkPipeline vorticityPipeline;
-      VkPipeline vorticityConfinementPipeline;
+      VkPipeline advect;
+      VkPipeline divergence;
+      VkPipeline jacobi;
+      VkPipeline gradient;
+      VkPipeline vorticity;
+      VkPipeline vorticityConfinement;
     } pipelines_{};
     struct {
-      VkPipelineLayout advectLayout{VK_NULL_HANDLE};
-      VkPipelineLayout divergenceLayout{VK_NULL_HANDLE};
-      VkPipelineLayout jacobiLayout{VK_NULL_HANDLE};
-      VkPipelineLayout gradientSubtractLayout{VK_NULL_HANDLE};
-      VkPipelineLayout vorticityLayout{VK_NULL_HANDLE};
-      VkPipelineLayout vorticityConfinementLayout{VK_NULL_HANDLE};
+      VkPipelineLayout advect{VK_NULL_HANDLE};
+      VkPipelineLayout divergence{VK_NULL_HANDLE};
+      VkPipelineLayout jacobi{VK_NULL_HANDLE};
+      VkPipelineLayout gradient{VK_NULL_HANDLE};
+      VkPipelineLayout vorticity{VK_NULL_HANDLE};
+      VkPipelineLayout vorticityConfintement{VK_NULL_HANDLE};
     } pipelineLayouts_;
 
     // Descriptors
     struct {
-      VkDescriptorSetLayout advectSetLayout{VK_NULL_HANDLE};
-      VkDescriptorSetLayout divergenceSetLayout{VK_NULL_HANDLE};
-      VkDescriptorSetLayout jacobiSetLayout{VK_NULL_HANDLE};
-      VkDescriptorSetLayout gradientSubtractSetLayout{VK_NULL_HANDLE};
-      VkDescriptorSetLayout vorticitySetLayout{VK_NULL_HANDLE};
-      VkDescriptorSetLayout vorticityConfinementSetLayout{VK_NULL_HANDLE};
+      VkDescriptorSetLayout advect{VK_NULL_HANDLE};
+      VkDescriptorSetLayout divergence{VK_NULL_HANDLE};
+      VkDescriptorSetLayout jacobi{VK_NULL_HANDLE};
+      VkDescriptorSetLayout gradient{VK_NULL_HANDLE};
+      VkDescriptorSetLayout vorticity{VK_NULL_HANDLE};
+      VkDescriptorSetLayout vorticityConfinement{VK_NULL_HANDLE};
     } descriptorSetLayouts_;
     struct DescriptorSets {
       VkDescriptorSet advect{VK_NULL_HANDLE};
@@ -173,6 +173,7 @@ class VulkanExample : public VulkanExampleBase {
       VkDescriptorSet jacobi{VK_NULL_HANDLE};
       VkDescriptorSet gradient{VK_NULL_HANDLE};
       VkDescriptorSet vorticity{VK_NULL_HANDLE};
+      VkDescriptorSet vorticityConfinement{VK_NULL_HANDLE};
     };
     std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
@@ -304,9 +305,9 @@ class VulkanExample : public VulkanExampleBase {
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
     descriptorLayoutCI.pNext = &flagsInfo;
 
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
-        device_, &descriptorLayoutCI, nullptr,
-        &compute_.descriptorSetLayouts_.advectSetLayout));
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr,
+                                    &compute_.descriptorSetLayouts_.advect));
   }
 
   void prepareCompute() {
@@ -339,8 +340,7 @@ class VulkanExample : public VulkanExampleBase {
     for (auto i = 0; i < compute_.uniformBuffers.size(); i++) {
       VkDescriptorSetAllocateInfo allocInfo =
           vks::initializers::descriptorSetAllocateInfo(
-              descriptorPool_, &compute_.descriptorSetLayouts_.advectSetLayout,
-              1);
+              descriptorPool_, &compute_.descriptorSetLayouts_.advect, 1);
       VK_CHECK_RESULT(vkAllocateDescriptorSets(
           device_, &allocInfo, &compute_.descriptorSets_[i].advect));
 
@@ -354,39 +354,34 @@ class VulkanExample : public VulkanExampleBase {
     }
 
     // Create pipelines
-    // VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
-    //    vks::initializers::pipelineLayoutCreateInfo(
-    //        &compute_.descriptorSetLayout, 1);
-    // VK_CHECK_RESULT(vkCreatePipelineLayout(device_,
-    // &pipelineLayoutCreateInfo,
-    //                                       nullptr,
-    //                                       &compute_.pipelineLayout));
-
-    // VkComputePipelineCreateInfo computePipelineCreateInfo =
-    //     vks::initializers::computePipelineCreateInfo(compute_.pipelineLayout,
-    //                                                  0);
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
+        vks::initializers::pipelineLayoutCreateInfo(
+            &compute_.descriptorSetLayouts_.advect, 1);
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo,
+                                           nullptr,
+                                           &compute_.pipelineLayouts_.advect));
+    VkComputePipelineCreateInfo computePipelineCreateInfo =
+        vks::initializers::computePipelineCreateInfo(
+            compute_.pipelineLayouts_.advect, 0);
 
     // 1st pass
-    // computePipelineCreateInfo.stage = loadShader(
-    //    getShadersPath() + "computenbody/particle_calculate.comp.spv",
-    //    VK_SHADER_STAGE_COMPUTE_BIT);
+    computePipelineCreateInfo.stage =
+        loadShader(getShadersPath() + "smoke/advect.comp.spv",
+                   VK_SHADER_STAGE_COMPUTE_BIT);
 
-    //// We want to use as much shared memory for the compute shader invocations
-    //// as available, so we calculate it based on the device limits and pass it
-    //// to the shader via specialization constants
-    // uint32_t sharedDataSize = std::min(
-    //     (uint32_t)1024,
-    //     (uint32_t)(vulkanDevice_->properties.limits.maxComputeSharedMemorySize
-    //     /
-    //                sizeof(glm::vec4)));
-    // VkSpecializationMapEntry specializationMapEntry =
-    //     vks::initializers::specializationMapEntry(0, 0, sizeof(uint32_t));
-    // VkSpecializationInfo specializationInfo =
-    //     vks::initializers::specializationInfo(1, &specializationMapEntry,
-    //                                           sizeof(int32_t),
-    //                                           &sharedDataSize);
-    // computePipelineCreateInfo.stage.pSpecializationInfo =
-    // &specializationInfo;
+    // We want to use as much shared memory for the compute shader invocations
+    // as available, so we calculate it based on the device limits and pass it
+    // to the shader via specialization constants
+    uint32_t sharedDataSize = std::min(
+        (uint32_t)1024,
+        (uint32_t)(vulkanDevice_->properties.limits.maxComputeSharedMemorySize /
+                   sizeof(glm::vec4)));
+    VkSpecializationMapEntry specializationMapEntry =
+        vks::initializers::specializationMapEntry(0, 0, sizeof(uint32_t));
+    VkSpecializationInfo specializationInfo =
+        vks::initializers::specializationInfo(1, &specializationMapEntry,
+                                              sizeof(int32_t), &sharedDataSize);
+    computePipelineCreateInfo.stage.pSpecializationInfo = &specializationInfo;
 
     // VK_CHECK_RESULT(vkCreateComputePipelines(
     //     device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
@@ -1186,6 +1181,7 @@ class VulkanExample : public VulkanExampleBase {
       graphics_.cubeIndicesBuffer.destroy();
 
       // Compute
+      // Textures
       for (auto& texture : compute_.compute_textures) {
         if (texture.view != VK_NULL_HANDLE)
           vkDestroyImageView(device_, texture.view, nullptr);
@@ -1196,8 +1192,12 @@ class VulkanExample : public VulkanExampleBase {
         if (texture.deviceMemory != VK_NULL_HANDLE)
           vkFreeMemory(device_, texture.deviceMemory, nullptr);
       }
+
+      vkDestroyPipeline(device_, compute_.pipelines_.advect, nullptr);
+      vkDestroyPipelineLayout(device_, compute_.pipelineLayouts_.advect,
+                              nullptr);
       vkDestroyDescriptorSetLayout(
-          device_, compute_.descriptorSetLayouts_.advectSetLayout, nullptr);
+          device_, compute_.descriptorSetLayouts_.advect, nullptr);
       vkDestroyCommandPool(device_, compute_.commandPool, nullptr);
       for (auto& fence : compute_.fences) {
         vkDestroyFence(device_, fence, nullptr);
