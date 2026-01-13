@@ -1,4 +1,9 @@
 #version 450
 
+layout (binding = 0) uniform sampler3D inputTex[];
+layout (binding = 1) uniform writeonly image3D outputTex[];
+
 void main() {
+    ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
+    imageStore(outputTex[1], coord, vec4(0.0));
 }

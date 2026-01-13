@@ -134,8 +134,11 @@ class VulkanExample : public VulkanExampleBase {
       uint32_t mipLevels{0};
     };
 
-    // 3D textures neeeded to store states
-    std::array<Texture3D, 8> compute_textures;
+    // 3D textures neeeded to store vector/scalar states
+    // Split into read/write respectively
+    static const int texture_count = 6;
+    std::array<Texture3D, texture_count> read_textures;
+    std::array<Texture3D, texture_count> write_textures;
 
     // Buffers
     std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers;
@@ -180,6 +183,7 @@ class VulkanExample : public VulkanExampleBase {
   } compute_;
 
   void prepareComputeTexture(Compute::Texture3D& texture,
+                             bool readOnly,
                              VkFormat texture_format) {
     // A 3D texture is described as width x height x depth
     texture.width = COMPUTE_TEXTURE_DIMENSIONS;
@@ -217,10 +221,10 @@ class VulkanExample : public VulkanExampleBase {
     imageCreateInfo.extent.depth = texture.depth;
     // Set initial layout of the image to undefined
     imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageCreateInfo.usage =
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-        VK_IMAGE_USAGE_SAMPLED_BIT |      // For reading as texture
-        VK_IMAGE_USAGE_TRANSFER_SRC_BIT;  // For copying/readback
+    imageCreateInfo.usage = (readOnly) ? (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                                          VK_IMAGE_USAGE_SAMPLED_BIT |
+                                          VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
+                                       : (VK_IMAGE_USAGE_STORAGE_BIT);
     VK_CHECK_RESULT(
         vkCreateImage(device_, &imageCreateInfo, nullptr, &texture.image));
 
@@ -237,22 +241,24 @@ class VulkanExample : public VulkanExampleBase {
         vkBindImageMemory(device_, texture.image, texture.deviceMemory, 0));
 
     // Create sampler
-    VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
-    sampler.magFilter = VK_FILTER_LINEAR;
-    sampler.minFilter = VK_FILTER_LINEAR;
-    sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    sampler.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    sampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    sampler.mipLodBias = 0.0f;
-    sampler.compareOp = VK_COMPARE_OP_NEVER;
-    sampler.minLod = 0.0f;
-    sampler.maxLod = 0.0f;
-    sampler.maxAnisotropy = 1.0;
-    sampler.anisotropyEnable = VK_FALSE;
-    sampler.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-    VK_CHECK_RESULT(
-        vkCreateSampler(device_, &sampler, nullptr, &texture.sampler));
+    if (readOnly) {
+      VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
+      sampler.magFilter = VK_FILTER_LINEAR;
+      sampler.minFilter = VK_FILTER_LINEAR;
+      sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+      sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+      sampler.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+      sampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+      sampler.mipLodBias = 0.0f;
+      sampler.compareOp = VK_COMPARE_OP_NEVER;
+      sampler.minLod = 0.0f;
+      sampler.maxLod = 0.0f;
+      sampler.maxAnisotropy = 1.0;
+      sampler.anisotropyEnable = VK_FALSE;
+      sampler.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+      VK_CHECK_RESULT(
+          vkCreateSampler(device_, &sampler, nullptr, &texture.sampler));
+    }
 
     // Create image view
     VkImageViewCreateInfo view = vks::initializers::imageViewCreateInfo();
@@ -269,26 +275,30 @@ class VulkanExample : public VulkanExampleBase {
     // Fill image descriptor image info to be used descriptor set setup
     texture.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     texture.descriptor.imageView = texture.view;
-    texture.descriptor.sampler = texture.sampler;
+    if (readOnly)
+      texture.descriptor.sampler = texture.sampler;
   }
 
   // creates an indexed descriptor for all compute textures
   void createTexturesForDescriptorIndexing() {
-    // Prepare 3D textures
+    // Prepare read-only 3D textures
     // (1) Velocity
-    for (int i = 0; i < 2; i++) {
-      prepareComputeTexture(compute_.compute_textures[i], VECTOR_FIELD_FORMAT);
+    for (int i = 0; i < 1; i++) {
+      prepareComputeTexture(compute_.read_textures[i], true,
+                            VECTOR_FIELD_FORMAT);
     }
     // (2) Rest are scalar fields
-    for (int i = 2; i < 8; i++) {
-      prepareComputeTexture(compute_.compute_textures[i], SCALAR_FIELD_FORMAT);
+    for (int i = 1; i < compute_.texture_count; i++) {
+      prepareComputeTexture(compute_.read_textures[i], true,
+                            SCALAR_FIELD_FORMAT);
     }
 
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
-        // Binding 0 : Array of textures
+        // Binding 0 : Array of INPUT textures to advect
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_COMPUTE_BIT, 0, compute_.compute_textures.size()),
+            VK_SHADER_STAGE_COMPUTE_BIT, 0,
+            (uint32_t)compute_.read_textures.size()),
     };
     VkDescriptorSetLayoutCreateInfo descriptorLayoutCI =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
@@ -317,13 +327,13 @@ class VulkanExample : public VulkanExampleBase {
     createTexturesForDescriptorIndexing();
 
     // Image descriptors for the 3D texture array
-    std::vector<VkDescriptorImageInfo> textureDescriptors(
-        compute_.compute_textures.size());
-    for (size_t i = 0; i < compute_.compute_textures.size(); i++) {
-      textureDescriptors[i].imageLayout =
+    std::vector<VkDescriptorImageInfo> readTextureDescriptors(
+        compute_.read_textures.size());
+    for (size_t i = 0; i < compute_.read_textures.size(); i++) {
+      readTextureDescriptors[i].imageLayout =
           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-      textureDescriptors[i].sampler = compute_.compute_textures[i].sampler;
-      textureDescriptors[i].imageView = compute_.compute_textures[i].view;
+      readTextureDescriptors[i].sampler = compute_.read_textures[i].sampler;
+      readTextureDescriptors[i].imageView = compute_.read_textures[i].view;
     }
     // Texture array descriptor
     VkWriteDescriptorSet textureArrayDescriptorWrite = {};
@@ -333,9 +343,9 @@ class VulkanExample : public VulkanExampleBase {
     textureArrayDescriptorWrite.descriptorType =
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     textureArrayDescriptorWrite.descriptorCount =
-        static_cast<uint32_t>(compute_.compute_textures.size());
+        static_cast<uint32_t>(compute_.read_textures.size());
     textureArrayDescriptorWrite.pBufferInfo = 0;
-    textureArrayDescriptorWrite.pImageInfo = textureDescriptors.data();
+    textureArrayDescriptorWrite.pImageInfo = readTextureDescriptors.data();
 
     for (auto i = 0; i < compute_.uniformBuffers.size(); i++) {
       VkDescriptorSetAllocateInfo allocInfo =
@@ -762,7 +772,7 @@ class VulkanExample : public VulkanExampleBase {
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             /*total texture count (across all pipelines) */ (
                 /*graphics*/ 2 +
-                /*compute textures*/ compute_.compute_textures.size()) *
+                /*compute textures*/ compute_.read_textures.size()) *
                 MAX_CONCURRENT_FRAMES),
     };
 
@@ -1182,7 +1192,7 @@ class VulkanExample : public VulkanExampleBase {
 
       // Compute
       // Textures
-      for (auto& texture : compute_.compute_textures) {
+      for (auto& texture : compute_.read_textures) {
         if (texture.view != VK_NULL_HANDLE)
           vkDestroyImageView(device_, texture.view, nullptr);
         if (texture.image != VK_NULL_HANDLE)
