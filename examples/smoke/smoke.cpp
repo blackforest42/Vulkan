@@ -279,16 +279,18 @@ class VulkanExample : public VulkanExampleBase {
     view.subresourceRange.levelCount = 1;
     VK_CHECK_RESULT(vkCreateImageView(device_, &view, nullptr, &texture.view));
 
+    texture.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
     // Fill image descriptor image info to be used descriptor set setup
-    texture.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    texture.descriptor.imageView = texture.view;
-    if (readOnly)
+    if (readOnly) {
+      texture.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+      texture.descriptor.imageView = texture.view;
       texture.descriptor.sampler = texture.sampler;
+    }
   }
 
   // creates an indexed descriptor for all compute textures
   void createTexturesForDescriptorIndexing() {
-    // Prepare read-only 3D textures
     // (1) Velocity
     for (int i = 0; i < 1; i++) {
       prepareComputeTexture(compute_.read_textures[i], true,
@@ -905,10 +907,10 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo,
                                   compute_.fences[currentBuffer_]));
 
-    VulkanExampleBase::prepareFrame();
-    updateUniformBuffers();
-    buildGraphicsCommandBuffer();
-    VulkanExampleBase::submitFrame();
+    // VulkanExampleBase::prepareFrame();
+    // updateUniformBuffers();
+    //  buildGraphicsCommandBuffer();
+    //  VulkanExampleBase::submitFrame();
   }
 
   void buildComputeCommandBuffer() {
@@ -918,27 +920,6 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::commandBufferBeginInfo();
 
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
-
-    VkImageMemoryBarrier imageMemoryBarrier = {};
-    imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-    imageMemoryBarrier.image = compute_.write_textures[0].image;
-    imageMemoryBarrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0,
-                                           1};
-    if (vulkanDevice_->queueFamilyIndices.graphics !=
-        vulkanDevice_->queueFamilyIndices.compute) {
-      // Acquire barrier for compute queue
-      imageMemoryBarrier.srcAccessMask = 0;
-      imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-      imageMemoryBarrier.srcQueueFamilyIndex =
-          vulkanDevice_->queueFamilyIndices.graphics;
-      imageMemoryBarrier.dstQueueFamilyIndex =
-          vulkanDevice_->queueFamilyIndices.compute;
-      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_FLAGS_NONE,
-                           0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
-    }
 
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.advect);
@@ -950,20 +931,6 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdDispatch(cmdBuffer, compute_.write_textures[0].width / 8,
                   compute_.write_textures[0].height / 8,
                   compute_.write_textures[0].depth / 8);
-
-    if (vulkanDevice_->queueFamilyIndices.graphics !=
-        vulkanDevice_->queueFamilyIndices.compute) {
-      // Release barrier from compute queue
-      imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-      imageMemoryBarrier.dstAccessMask = 0;
-      imageMemoryBarrier.srcQueueFamilyIndex =
-          vulkanDevice_->queueFamilyIndices.compute;
-      imageMemoryBarrier.dstQueueFamilyIndex =
-          vulkanDevice_->queueFamilyIndices.graphics;
-      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                           VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_FLAGS_NONE,
-                           0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
-    }
 
     vkEndCommandBuffer(cmdBuffer);
   }
