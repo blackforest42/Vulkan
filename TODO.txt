@@ -1,11 +1,9 @@
 Jan 12
 TODO: 
-	- finish splitting read/write descriptor indexes for advection pipeline
-	- add the sampler3D velocity input texture (not the array)
-	- write a test shader to check output is correct
+	- try rendering the test 3D image using your ray march renderer
+		- pass output (128^3 3D texture) to cube marcher
+	- fix validation layer errors (image barriers in compute pipeline)
 
 DONE:
-	- start on compute part: 
-		- finished descriptor indexing for texture array
-		- finished descriptor for advection pipeline
+	- write a test shader to check output is correct
 
