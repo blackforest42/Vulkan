@@ -1,7 +1,9 @@
 #version 450
 
+// in
 layout (location = 0) in vec3 inPos;
 
+// out
 layout (location = 0) out vec4 outFragColor;
 
 layout (binding = 0) uniform UBOView
@@ -13,9 +15,9 @@ layout (binding = 0) uniform UBOView
     vec2 screenRes;
     float time;
 } ubo;
-
 layout (binding = 1) uniform sampler2D velocityFieldIncomingRays;
 layout (binding = 2) uniform sampler2D velocityFieldOutgoingRays;
+layout (binding = 3) uniform sampler3D volumeTexture;
 
 
 const float STEP_SIZE = 0.01;

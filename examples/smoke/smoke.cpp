@@ -228,10 +228,13 @@ class VulkanExample : public VulkanExampleBase {
     imageCreateInfo.extent.depth = texture.depth;
     // Set initial layout of the image to undefined
     imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageCreateInfo.usage = (readOnly) ? (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                                          VK_IMAGE_USAGE_SAMPLED_BIT |
-                                          VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
-                                       : (VK_IMAGE_USAGE_STORAGE_BIT);
+    imageCreateInfo.usage =
+        (readOnly)
+            ? (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+               VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+               VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+            : (VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+
     VK_CHECK_RESULT(
         vkCreateImage(device_, &imageCreateInfo, nullptr, &texture.image));
 
@@ -282,7 +285,7 @@ class VulkanExample : public VulkanExampleBase {
 
     // Fill image descriptor image info to be used descriptor set setup
     if (readOnly) {
-      texture.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+      texture.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
       texture.descriptor.imageView = texture.view;
       texture.descriptor.sampler = texture.sampler;
     }
@@ -364,8 +367,7 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDescriptorImageInfo> writeOnlyTextureDescriptors(
         compute_.write_textures.size());
     for (size_t i = 0; i < compute_.texture_count; i++) {
-      readOnlyTextureDescriptors[i].imageLayout =
-          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+      readOnlyTextureDescriptors[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
       readOnlyTextureDescriptors[i].sampler = compute_.read_textures[i].sampler;
       readOnlyTextureDescriptors[i].imageView = compute_.read_textures[i].view;
 
@@ -561,7 +563,7 @@ class VulkanExample : public VulkanExampleBase {
     vkCreateImageView(device_, &viewInfo, nullptr, &buffer.imageView);
 
     // descriptor
-    buffer.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    buffer.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     buffer.descriptor.imageView = buffer.imageView;
     buffer.descriptor.sampler = graphics_.preMarchPass_.sampler;
   }
@@ -608,6 +610,11 @@ class VulkanExample : public VulkanExampleBase {
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_FRAGMENT_BIT,
             /*binding_id*/ 2),
+        // Binding 3 : Volume texture to render
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding_id*/ 3),
     };
 
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
@@ -655,6 +662,11 @@ class VulkanExample : public VulkanExampleBase {
               graphics_.descriptorSets_[i].rayMarch,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
               /*binding id*/ 2, &graphics_.preMarchPass_.outgoing.descriptor),
+          // Binding 3 : Volumetric texture to visualize
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptorSets_[i].rayMarch,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              /*binding id*/ 3, &compute_.read_textures[0].descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -824,7 +836,7 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             /*total texture count (across all pipelines) */ (
-                /*graphics*/ 2 +
+                /*graphics incoming + outgoing + volume*/ 3 +
                 /*compute textures*/ 1 + compute_.read_textures.size()) *
                 MAX_CONCURRENT_FRAMES),
         // textures for writing
@@ -926,8 +938,7 @@ class VulkanExample : public VulkanExampleBase {
       vks::tools::insertImageMemoryBarrier(
           cmdBuffer, compute_.read_textures[i].image, 0,
           VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-          VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+          VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
           VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
@@ -950,7 +961,38 @@ class VulkanExample : public VulkanExampleBase {
                   compute_.write_textures[0].height / 8,
                   compute_.write_textures[0].depth / 8);
 
-    vkEndCommandBuffer(cmdBuffer);
+    for (int i = 0; i < compute_.texture_count; i++) {
+      swapTextures(cmdBuffer, compute_.write_textures[i].image,
+                   compute_.read_textures[i].image);
+    }
+
+    VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
+  }
+
+  void swapTextures(VkCommandBuffer& cmdBuffer,
+                    VkImage& srcImage,
+                    VkImage& dstImage) {
+    VkImageCopy copyRegion = {};
+
+    copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copyRegion.srcSubresource.mipLevel = 0;
+    copyRegion.srcSubresource.baseArrayLayer = 0;
+    copyRegion.srcSubresource.layerCount = 1;
+    copyRegion.srcOffset = {0, 0, 0};
+
+    copyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copyRegion.dstSubresource.mipLevel = 0;
+    copyRegion.dstSubresource.baseArrayLayer = 0;
+    copyRegion.dstSubresource.layerCount = 1;
+    copyRegion.dstOffset = {0, 0, 0};
+
+    copyRegion.extent.width = COMPUTE_TEXTURE_DIMENSIONS;
+    copyRegion.extent.height = COMPUTE_TEXTURE_DIMENSIONS;
+    copyRegion.extent.depth = COMPUTE_TEXTURE_DIMENSIONS;
+
+    // Copy output of write to read buffer
+    vkCmdCopyImage(cmdBuffer, srcImage, VK_IMAGE_LAYOUT_GENERAL, dstImage,
+                   VK_IMAGE_LAYOUT_GENERAL, 1, &copyRegion);
   }
 
   void buildGraphicsCommandBuffer() {
@@ -1133,15 +1175,13 @@ class VulkanExample : public VulkanExampleBase {
     vks::tools::insertImageMemoryBarrier(
         cmdBuffer, graphics_.preMarchPass_.incoming.image, 0,
         VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
         VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
     vks::tools::insertImageMemoryBarrier(
         cmdBuffer, graphics_.preMarchPass_.outgoing.image, 0,
         VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
         VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 

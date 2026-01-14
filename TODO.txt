@@ -1,9 +1,8 @@
 Jan 13
 TODO: 
-	- fix validation layer errors (image barriers in compute pipeline)
-		- look at graphics rendering as an example
 	- try rendering the test 3D image using your ray march renderer
 		- pass output (128^3 3D texture) to cube marcher
+		- create a uniform buffer for advect.comp that holds which texture index to use
 
 DONE:
 
