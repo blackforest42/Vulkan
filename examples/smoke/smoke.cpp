@@ -247,7 +247,6 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(
         vkBindImageMemory(device_, texture.image, texture.deviceMemory, 0));
 
-    // Create sampler
     if (readOnly) {
       VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
       sampler.magFilter = VK_FILTER_LINEAR;
@@ -907,10 +906,10 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo,
                                   compute_.fences[currentBuffer_]));
 
-    // VulkanExampleBase::prepareFrame();
-    // updateUniformBuffers();
-    //  buildGraphicsCommandBuffer();
-    //  VulkanExampleBase::submitFrame();
+    VulkanExampleBase::prepareFrame();
+    updateUniformBuffers();
+    buildGraphicsCommandBuffer();
+    VulkanExampleBase::submitFrame();
   }
 
   void buildComputeCommandBuffer() {
@@ -921,6 +920,25 @@ class VulkanExample : public VulkanExampleBase {
 
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
+    // Layout transition for both read and write texture maps
+    for (int i = 0; i < compute_.texture_count; i++) {
+      // Read textures
+      vks::tools::insertImageMemoryBarrier(
+          cmdBuffer, compute_.read_textures[i].image, 0,
+          VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+          VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+
+      // Write textures
+      vks::tools::insertImageMemoryBarrier(
+          cmdBuffer, compute_.write_textures[i].image, 0,
+          VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+          VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+    }
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.advect);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
