@@ -1,5 +1,8 @@
 Jan 13
 TODO: 
+	- start next pipeline
+	
 
 DONE:
-	- added a line in raymarch.frag to check the 3D texture was successfully loaded
+	- ray marching 3D texture done and tested
+	- removed incoming/outgoing ray textures, replaced with simple model inversion

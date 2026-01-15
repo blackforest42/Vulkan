@@ -23,7 +23,7 @@ class VulkanExample : public VulkanExampleBase {
   // Handles rendering the compute outputs
   struct Graphics {
     // families differ and require additional barriers
-    uint32_t queueFamilyIndex;
+    uint32_t queueFamilyIndex{0};
 
     vks::Buffer cubeVerticesBuffer;
     vks::Buffer cubeIndicesBuffer;
@@ -76,16 +76,16 @@ class VulkanExample : public VulkanExampleBase {
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
-    uint32_t queueFamilyIndex;
+    uint32_t queueFamilyIndex{0};
     // Separate queue for compute commands (queue family may
     // differ from the one used for graphics)
-    VkQueue queue;
+    VkQueue queue{};
     // Use a separate command pool (queue family may
     // differ from the one used for graphics)
-    VkCommandPool commandPool;
+    VkCommandPool commandPool{};
     // Command buffer storing the dispatch commands and
     // barriers
-    std::array<VkCommandBuffer, MAX_CONCURRENT_FRAMES> commandBuffers;
+    std::array<VkCommandBuffer, MAX_CONCURRENT_FRAMES> commandBuffers{};
     // Fences to make sure command buffers are done
     std::array<VkFence, MAX_CONCURRENT_FRAMES> fences{};
 
@@ -104,11 +104,11 @@ class VulkanExample : public VulkanExampleBase {
     struct Texture3D {
       VkSampler sampler = VK_NULL_HANDLE;
       VkImage image = VK_NULL_HANDLE;
-      VkImageLayout imageLayout;
+      VkImageLayout imageLayout{};
       VkDeviceMemory deviceMemory = VK_NULL_HANDLE;
       VkImageView view = VK_NULL_HANDLE;
-      VkDescriptorImageInfo descriptor;
-      VkFormat format;
+      VkDescriptorImageInfo descriptor{};
+      VkFormat format{};
       uint32_t width{0};
       uint32_t height{0};
       uint32_t depth{0};
@@ -651,12 +651,11 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            /*total ubo count (across all pipelines) */ 2 *
-                MAX_CONCURRENT_FRAMES),
+            /*total ubo count */ /*graphics*/ 1 * MAX_CONCURRENT_FRAMES),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             /*total texture count (across all pipelines) */ (
-                /*graphics incoming + outgoing + volume*/ 3 +
+                /*graphics: volume texture*/ 1 +
                 /*compute textures*/ 1 + compute_.read_textures.size()) *
                 MAX_CONCURRENT_FRAMES),
         // textures for writing
@@ -667,7 +666,7 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
             poolSizes,
-            /*total descriptor count*/ (/*graphics*/ 2 + /*compute*/ 1) *
+            /*total descriptor count*/ (/*graphics*/ 1 + /*compute*/ 1) *
                 MAX_CONCURRENT_FRAMES);
     // Needed if using VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT in descriptor
     // bindings
