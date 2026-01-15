@@ -41,18 +41,19 @@ class VulkanExample : public VulkanExampleBase {
     vks::Buffer cubeIndicesBuffer;
     uint32_t indexCount{0};
 
-    struct MarchUBO {
+    struct RayMarchUBO {
       alignas(16) glm::mat4 model;
       alignas(16) glm::mat4 invModel;
       alignas(16) glm::mat4 cameraView;
       alignas(16) glm::mat4 perspective;
       alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
-      float time{0};
+      alignas(4) float time{0};
+      alignas(4) int toggleView{0};
     };
 
     struct UBO {
-      MarchUBO march;
+      RayMarchUBO march;
     } ubos_;
 
     // vk Buffers
@@ -689,7 +690,8 @@ class VulkanExample : public VulkanExampleBase {
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer.march, sizeof(Graphics::MarchUBO), &graphics_.ubos_.march));
+          &buffer.march, sizeof(Graphics::RayMarchUBO),
+          &graphics_.ubos_.march));
       VK_CHECK_RESULT(buffer.march.map());
     }
   }
@@ -713,7 +715,7 @@ class VulkanExample : public VulkanExampleBase {
             std::chrono::high_resolution_clock::now().time_since_epoch())
             .count();
     memcpy(graphics_.uniformBuffers_[currentBuffer_].march.mapped,
-           &graphics_.ubos_.march, sizeof(Graphics::MarchUBO));
+           &graphics_.ubos_.march, sizeof(Graphics::RayMarchUBO));
   }
 
   void prepareGraphics() {
@@ -977,7 +979,13 @@ class VulkanExample : public VulkanExampleBase {
         indices.data()));
   }
 
-  virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {}
+  virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {
+    if (overlay->header("Settings")) {
+      overlay->sliderInt("Toggle View", &graphics_.ubos_.march.toggleView,
+                         /*min*/ 0,
+                         /*max*/ 1);
+    }
+  }
 
   void prepareDebugExt() {
     vkCmdBeginDebugUtilsLabelEXT =

@@ -16,6 +16,7 @@ layout (binding = 0) uniform UBOView
     vec3 cameraPos;
     vec2 screenRes;
     float time;
+    int toggleView;
 } ubo;
 layout (binding = 1) uniform sampler3D volumeTexture;
 
@@ -38,9 +39,14 @@ void main() {
     vec3 worldPos = inPos;
     vec3 rayDir = normalize(worldPos - ubo.cameraPos);
 
+    vec4 color;
     // March rays starting from front face of cube
-    //vec4 color = rayMarch(inUVW, rayDir);
-    vec4 color = rayMarchNoise(inUVW, rayDir);
+    if (ubo.toggleView == 0) {
+        color = rayMarch(inUVW, rayDir);
+    }
+    else {
+        color = rayMarchNoise(inUVW, rayDir);
+    }
 	outFragColor = vec4(color);
 }
 
