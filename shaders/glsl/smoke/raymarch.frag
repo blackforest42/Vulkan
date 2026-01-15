@@ -1,28 +1,27 @@
 #version 450
 
 // in
-layout (location = 0) in vec3 inPos;
-layout (location = 1) in vec3 inUVW;
+layout(location = 0) in vec3 inPos;
+layout(location = 1) in vec3 inUVW;
 
 // out
-layout (location = 0) out vec4 outFragColor;
+layout(location = 0) out vec4 outFragColor;
 
-layout (binding = 0) uniform UBOView
-{
-	mat4 model;
-	mat4 invModel;
-	mat4 cameraView;
-	mat4 perspective;
-    vec3 cameraPos;
-    vec2 screenRes;
-    float time;
-    int toggleView;
-} ubo;
-layout (binding = 1) uniform sampler3D volumeTexture;
-
+layout(binding = 0) uniform RayMarchUBO {
+  mat4 model;
+  mat4 invModel;
+  mat4 cameraView;
+  mat4 perspective;
+  vec3 cameraPos;
+  vec2 screenRes;
+  float time;
+  int toggleView;
+}
+ubo;
+layout(binding = 1) uniform sampler3D volumeTexture;
 
 const float STEP_SIZE = 0.01;
-const float MAX_STEPS = 100;
+const float MAX_STEPS = 200;
 const float SMOKE_DENSITY = 3.f;
 const float CLOUD_SIZE = 1.0f;
 const vec3 SMOKE_COLOR = vec3(1.0);
@@ -35,99 +34,100 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection);
 vec4 rayMarchNoise(vec3 rayOrigin, vec3 rayDir);
 
 void main() {
-    // Ray direction from camera to this point on the cube
-    vec3 worldPos = inPos;
-    vec3 rayDir = normalize(worldPos - ubo.cameraPos);
+  // Ray direction from camera to this point on the cube
+  vec3 worldPos = inPos;
+  vec3 rayDir = worldPos - ubo.cameraPos;
+  vec3 rayDirTexSpace = normalize(mat3(ubo.invModel) * rayDir);
 
-    vec4 color;
-    // March rays starting from front face of cube
-    if (ubo.toggleView == 0) {
-        color = rayMarch(inUVW, rayDir);
-    }
-    else {
-        color = rayMarchNoise(inUVW, rayDir);
-    }
-	outFragColor = vec4(color);
+  vec4 color;
+  // March rays starting from front face of cube
+  if (ubo.toggleView == 0) {
+    color = rayMarch(inUVW, rayDirTexSpace);
+  } else {
+    color = rayMarchNoise(inUVW, rayDirTexSpace);
+  }
+  outFragColor = vec4(color);
 }
 
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {
-    vec4 final_color = vec4(0.0);
-    vec3 pos = rayOrigin;  // Start at the cube surface entry point
-    
-    // Ray march through volume
-    for(int i = 0; i < MAX_STEPS; i++) {
-        // Check if we're still inside the volume [0,1] cube, and opacity is high enough
-        if (any(lessThan(pos, vec3(0.0))) || any(greaterThan(pos, vec3(1.0))) || final_color.a >= 0.95) {
-            break;
-        }
-        
-        // Sample volume texture at current marching position
-        vec4 sampleColor = texture(volumeTexture, pos);
-        
-        // Pre-multiply alpha
-        vec3 srcRGB = sampleColor.rgb * sampleColor.a;
-        float srcA = sampleColor.a;
-        
-        // Accumulate front-to-back
-        final_color.rgb += (1.0 - final_color.a) * srcRGB;
-        final_color.a   += (1.0 - final_color.a) * srcA;
-        
-        // Step along ray
-        pos += rayDir * STEP_SIZE;
+  vec4 final_color = vec4(0.0);
+  vec3 pos = rayOrigin;  // Start at the cube surface entry point
+
+  // Ray march through volume
+  for (int i = 0; i < MAX_STEPS; i++) {
+    // Check if we're still inside the volume [0,1] cube or if opacity is high
+    // enough
+    if (any(lessThan(pos, vec3(0.0))) || any(greaterThan(pos, vec3(1.0))) ||
+        final_color.a >= 0.95) {
+      break;
     }
-    
-    return final_color;
+
+    // Sample volume texture at current marching position
+    vec4 sampleColor = texture(volumeTexture, pos);
+
+    // Pre-multiply alpha
+    vec3 srcRGB = sampleColor.rgb * sampleColor.a;
+    float srcA = sampleColor.a;
+
+    // Accumulate front-to-back
+    final_color.rgb += (1.0 - final_color.a) * srcRGB;
+    final_color.a += (1.0 - final_color.a) * srcA;
+
+    // Step along ray
+    pos += rayDir * STEP_SIZE;
+  }
+
+  return final_color;
 }
 
 vec4 rayMarchNoise(vec3 rayOrigin, vec3 rayDir) {
-	float depth = 0.0;
-	vec3 pos = rayOrigin;
-	float density = 0.f;
-	vec3 final_color = vec3(0);
-	// Animated position for smoke movement
-	vec3 windOffset = vec3(ubo.time * 0.1, ubo.time * 0.15, ubo.time * 0.08);
+  float depth = 0.0;
+  vec3 pos = rayOrigin;
+  float density = 0.f;
+  vec3 final_color = vec3(0);
+  // Animated position for smoke movement
+  vec3 windOffset = vec3(ubo.time * 0.1, ubo.time * 0.15, ubo.time * 0.08);
 
-	for (int i = 0; i < MAX_STEPS; i++) {
+  for (int i = 0; i < MAX_STEPS; i++) {
+    // Sample 3D noise texture with animation
+    vec3 samplePos = pos * 1.5 + windOffset;
+    float noise = fbm(samplePos);
 
-		// Sample 3D noise texture with animation
-		vec3 samplePos = pos * 1.5 + windOffset;
-		float noise = fbm(samplePos);
+    // Create smoke shape (spherical falloff)
+    float dist = length(pos);
+    float falloff = smoothstep(1.5 * CLOUD_SIZE, 0.5 * CLOUD_SIZE, dist);
 
-		// Create smoke shape (spherical falloff)
-		float dist = length(pos);
-		float falloff = smoothstep(1.5 * CLOUD_SIZE, 0.5 * CLOUD_SIZE, dist);
+    // Combine noise with falloff
+    float smokeDensity = max(0.0, noise * 0.5 + 0.5) * falloff * SMOKE_DENSITY;
 
-		// Combine noise with falloff
-		float smokeDensity = max(0.0, noise * 0.5 + 0.5) * falloff * SMOKE_DENSITY;
+    // Accumulate density
+    density += smokeDensity * STEP_SIZE * 3.0;
 
-		// Accumulate density
-		density += smokeDensity * STEP_SIZE * 3.0;
+    // Add lighting based on position
+    vec3 lightDir = normalize(vec3(1.0, 1.0, -0.5));
+    float lighting = max(0.3, dot(normalize(pos), lightDir) * 0.5 + 0.5);
 
-		// Add lighting based on position
-		vec3 lightDir = normalize(vec3(1.0, 1.0, -0.5));
-		float lighting = max(0.3, dot(normalize(pos), lightDir) * 0.5 + 0.5);
+    pos += rayDir * float(i) * STEP_SIZE;
 
-		pos += rayDir * float(i) * STEP_SIZE;
+    final_color += SMOKE_COLOR * smokeDensity * STEP_SIZE * 3.0 * lighting;
+  }
 
-		final_color += SMOKE_COLOR * smokeDensity * STEP_SIZE * 3.0 * lighting;
-	}
-
-	return vec4(final_color, 1.f);
+  return vec4(final_color, 1.f);
 }
 
 // Fractal Brownian Motion
 float fbm(vec3 pos) {
-    vec3 q = pos + ubo.time * 0.5 * vec3(1.0, -0.2, -1.0);
-	float value = 0.0;
-	float amplitude = 0.5;
-	float frequency = 1.0;
+  vec3 q = pos + ubo.time * 0.5 * vec3(1.0, -0.2, -1.0);
+  float value = 0.0;
+  float amplitude = 0.5;
+  float frequency = 1.0;
 
-	for(int i = 0; i < 5; i++) {
-		value += amplitude * snoise(q * frequency);
-		frequency *= 2.0;
-		amplitude *= 0.5;
-	}
-	return value;
+  for (int i = 0; i < 5; i++) {
+    value += amplitude * snoise(q * frequency);
+    frequency *= 2.0;
+    amplitude *= 0.5;
+  }
+  return value;
 }
 
 ///----

@@ -12,7 +12,7 @@
 
 #define VECTOR_FIELD_FORMAT VK_FORMAT_R32G32B32A32_SFLOAT
 #define SCALAR_FIELD_FORMAT VK_FORMAT_R32_SFLOAT
-#define COMPUTE_TEXTURE_DIMENSIONS 256
+#define COMPUTE_TEXTURE_DIMENSIONS 128
 
 // Vertex layout for this example
 struct Vertex {
@@ -698,14 +698,15 @@ class VulkanExample : public VulkanExampleBase {
 
   void updateUniformBuffers() {
     auto& model = graphics_.ubos_.march.model;
+    model = glm::scale(model, glm::vec3(2));
+    model = glm::translate(model, glm::vec3(1, -1, 3));
     float time =
         std::chrono::duration<float>(
             std::chrono::high_resolution_clock::now().time_since_epoch())
             .count();
     model = glm::rotate(glm::mat4(1.0), glm::radians(time * 10.f),
                         glm::vec3(0.f, 1.f, 0.f));
-    model = glm::scale(model, glm::vec3(2));
-    graphics_.ubos_.march.invModel = glm::inverse(glm::mat4(1.0));
+    graphics_.ubos_.march.invModel = glm::inverse(model);
     graphics_.ubos_.march.cameraView = camera_.matrices_.view;
     graphics_.ubos_.march.screenRes = glm::vec2(width_, height_);
     graphics_.ubos_.march.perspective = camera_.matrices_.perspective;
@@ -1016,13 +1017,9 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void setupFrameBuffer() override {
-    // With VK_KHR_dynamic_rendering we no longer need a frame buffer, so
-    // skip the sample base framebuffer setup
+    // With VK_KHR_dynamic_rendering we no longer need a frame buffer
+    // LEAVE THIS EMPTY
   }
-
-  void getEnabledFeatures() override {}
-
-  void getEnabledExtensions() override {}
 
   VulkanExample() : VulkanExampleBase() {
     title_ = "Smoke Simulation";
