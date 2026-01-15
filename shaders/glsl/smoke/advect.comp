@@ -8,6 +8,5 @@ layout (binding = 2) uniform sampler3D velocityFieldTex;
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
-    vec4 asdf = texture(inputTex[0], coord);
     imageStore(outputTex[0], coord, vec4(coord / 128.f, .5f));
 }

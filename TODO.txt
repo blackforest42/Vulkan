@@ -1,6 +1,12 @@
 Jan 13
 TODO: 
-	- start next pipeline
+	- start next pipelines:
+		- advection
+		- external forces
+		- vorticity
+		- vorticity confinement
+		- divergence
+		- jacobi
 
 DONE:
 	- ray marching 3D texture done and tested
