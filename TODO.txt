@@ -1,7 +1,6 @@
 Jan 13
 TODO: 
 	- start next pipeline
-	
 
 DONE:
 	- ray marching 3D texture done and tested

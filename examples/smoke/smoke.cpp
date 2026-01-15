@@ -17,8 +17,15 @@ struct Vertex {
 
 class VulkanExample : public VulkanExampleBase {
  public:
+  // Enable Vulkan 1.3
   VkPhysicalDeviceVulkan13Features enabledFeatures13_{
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
+
+  // Debug labeling ext
+  static constexpr std::array<float, 4> debugColor_ = {.7f, 0.4f, 0.4f, 1.0f};
+  static constexpr std::array<float, 4> swapColor_ = {0, 1, 1, 1};
+  PFN_vkCmdBeginDebugUtilsLabelEXT vkCmdBeginDebugUtilsLabelEXT{nullptr};
+  PFN_vkCmdEndDebugUtilsLabelEXT vkCmdEndDebugUtilsLabelEXT{nullptr};
 
   // Handles rendering the compute outputs
   struct Graphics {
@@ -210,11 +217,9 @@ class VulkanExample : public VulkanExampleBase {
     // Set initial layout of the image to undefined
     imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageCreateInfo.usage =
-        (readOnly)
-            ? (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-               VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-               VK_IMAGE_USAGE_TRANSFER_DST_BIT)
-            : (VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+        VK_IMAGE_USAGE_STORAGE_BIT;
 
     VK_CHECK_RESULT(
         vkCreateImage(device_, &imageCreateInfo, nullptr, &texture.image));
@@ -656,12 +661,13 @@ class VulkanExample : public VulkanExampleBase {
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             /*total texture count (across all pipelines) */ (
                 /*graphics: volume texture*/ 1 +
-                /*compute textures*/ 1 + compute_.read_textures.size()) *
+                /*compute textures*/ 1 +
+                (uint32_t)compute_.read_textures.size()) *
                 MAX_CONCURRENT_FRAMES),
         // textures for writing
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            compute_.write_textures.size() * MAX_CONCURRENT_FRAMES)};
+            (uint32_t)compute_.write_textures.size() * MAX_CONCURRENT_FRAMES)};
 
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
@@ -716,6 +722,7 @@ class VulkanExample : public VulkanExampleBase {
     prepareDescriptorPool();
     prepareCompute();
     prepareGraphics();
+    prepareDebugExt();
     prepared_ = true;
   }
 
@@ -728,6 +735,7 @@ class VulkanExample : public VulkanExampleBase {
     vkWaitForFences(device_, 1, &compute_.fences[currentBuffer_], VK_TRUE,
                     UINT64_MAX);
     vkResetFences(device_, 1, &compute_.fences[currentBuffer_]);
+
     buildComputeCommandBuffer();
 
     VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
@@ -750,7 +758,13 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::commandBufferBeginInfo();
 
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
+    cmdBeginLabel(cmdBuffer, "Compute Pipelines", {.5, .2, 3, 1});
+    advectCmd(cmdBuffer);
+    cmdEndLabel(cmdBuffer);
+    VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
+  }
 
+  void advectCmd(VkCommandBuffer& cmdBuffer) {
     // Layout transition for both read and write texture maps
     for (int i = 0; i < compute_.texture_count; i++) {
       // Read textures
@@ -775,17 +789,19 @@ class VulkanExample : public VulkanExampleBase {
                             compute_.pipelineLayouts_.advect, 0, 1,
                             &compute_.descriptorSets_[currentBuffer_].advect, 0,
                             nullptr);
-
+    cmdBeginLabel(cmdBuffer, "Advection", {1, 1, 0, 1});
     vkCmdDispatch(cmdBuffer, compute_.write_textures[0].width / 8,
                   compute_.write_textures[0].height / 8,
                   compute_.write_textures[0].depth / 8);
+    cmdEndLabel(cmdBuffer);
 
+    cmdBeginLabel(cmdBuffer, "Swap read/write textures", swapColor_);
     for (int i = 0; i < compute_.texture_count; i++) {
       swapTextures(cmdBuffer, compute_.write_textures[i].image,
                    compute_.read_textures[i].image);
     }
 
-    VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
+    cmdEndLabel(cmdBuffer);
   }
 
   void swapTextures(VkCommandBuffer& cmdBuffer,
@@ -820,11 +836,7 @@ class VulkanExample : public VulkanExampleBase {
     VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
-
-    // preMarchCmdFront(cmdBuffer);
-    // preMarchCmdBack(cmdBuffer);
     rayMarchCmd(cmdBuffer);
-
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
 
@@ -902,8 +914,14 @@ class VulkanExample : public VulkanExampleBase {
                            &graphics_.cubeVerticesBuffer.buffer, offsets);
     vkCmdBindIndexBuffer(cmdBuffer, graphics_.cubeIndicesBuffer.buffer, 0,
                          VK_INDEX_TYPE_UINT32);
+
+    cmdBeginLabel(cmdBuffer, "Cube Marching");
     vkCmdDrawIndexed(cmdBuffer, graphics_.indexCount, 1, 0, 0, 0);
+    cmdEndLabel(cmdBuffer);
+
+    cmdBeginLabel(cmdBuffer, "Draw UI", {0, 0, 0, 1});
     drawUI(cmdBuffer);
+    cmdEndLabel(cmdBuffer);
 
     // End dynamic rendering
     vkCmdEndRendering(cmdBuffer);
@@ -948,6 +966,28 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {}
+
+  void prepareDebugExt() {
+    vkCmdBeginDebugUtilsLabelEXT =
+        reinterpret_cast<PFN_vkCmdBeginDebugUtilsLabelEXT>(
+            vkGetInstanceProcAddr(instance_, "vkCmdBeginDebugUtilsLabelEXT"));
+    vkCmdEndDebugUtilsLabelEXT =
+        reinterpret_cast<PFN_vkCmdEndDebugUtilsLabelEXT>(
+            vkGetInstanceProcAddr(instance_, "vkCmdEndDebugUtilsLabelEXT"));
+  }
+
+  void cmdBeginLabel(VkCommandBuffer command_buffer,
+                     const char* label_name,
+                     std::array<float, 4> color = debugColor_) {
+    VkDebugUtilsLabelEXT label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT};
+    label.pLabelName = label_name;
+    memcpy(label.color, color.data(), sizeof(float) * 4);
+    vkCmdBeginDebugUtilsLabelEXT(command_buffer, &label);
+  }
+
+  void cmdEndLabel(VkCommandBuffer command_buffer) {
+    vkCmdEndDebugUtilsLabelEXT(command_buffer);
+  }
 
   void setupRenderPass() override {
     // With VK_KHR_dynamic_rendering we no longer need a render pass, so skip
