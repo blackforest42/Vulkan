@@ -12,7 +12,6 @@
 
 #define VECTOR_FIELD_FORMAT VK_FORMAT_R32G32B32A32_SFLOAT
 #define SCALAR_FIELD_FORMAT VK_FORMAT_R32_SFLOAT
-#define COMPUTE_TEXTURE_DIMENSIONS 128
 
 // Vertex layout for this example
 struct Vertex {
@@ -83,6 +82,9 @@ class VulkanExample : public VulkanExampleBase {
 
   // Handles all compute pipelines
   struct Compute {
+    static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 128;
+    static constexpr int WORKGROUP_SIZE = 8;
+
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
     uint32_t queueFamilyIndex{0};
@@ -183,9 +185,9 @@ class VulkanExample : public VulkanExampleBase {
                              bool readOnly,
                              VkFormat texture_format) {
     // A 3D texture is described as width x height x depth
-    texture.width = COMPUTE_TEXTURE_DIMENSIONS;
-    texture.height = COMPUTE_TEXTURE_DIMENSIONS;
-    texture.depth = COMPUTE_TEXTURE_DIMENSIONS;
+    texture.width = compute_.COMPUTE_TEXTURE_DIMENSIONS;
+    texture.height = compute_.COMPUTE_TEXTURE_DIMENSIONS;
+    texture.depth = compute_.COMPUTE_TEXTURE_DIMENSIONS;
     texture.mipLevels = 1;
     texture.format = texture_format;
 
@@ -801,9 +803,10 @@ class VulkanExample : public VulkanExampleBase {
                             &compute_.descriptorSets_[currentBuffer_].advect, 0,
                             nullptr);
     cmdBeginLabel(cmdBuffer, "Advection", {1, 1, 0, 1});
-    vkCmdDispatch(cmdBuffer, compute_.write_textures[0].width / 8,
-                  compute_.write_textures[0].height / 8,
-                  compute_.write_textures[0].depth / 8);
+    vkCmdDispatch(cmdBuffer,
+                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
+                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
+                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
     cmdEndLabel(cmdBuffer);
 
     cmdBeginLabel(cmdBuffer, "Swap read/write textures", swapColor_);
@@ -832,9 +835,9 @@ class VulkanExample : public VulkanExampleBase {
     copyRegion.dstSubresource.layerCount = 1;
     copyRegion.dstOffset = {0, 0, 0};
 
-    copyRegion.extent.width = COMPUTE_TEXTURE_DIMENSIONS;
-    copyRegion.extent.height = COMPUTE_TEXTURE_DIMENSIONS;
-    copyRegion.extent.depth = COMPUTE_TEXTURE_DIMENSIONS;
+    copyRegion.extent.width = compute_.COMPUTE_TEXTURE_DIMENSIONS;
+    copyRegion.extent.height = compute_.COMPUTE_TEXTURE_DIMENSIONS;
+    copyRegion.extent.depth = compute_.COMPUTE_TEXTURE_DIMENSIONS;
 
     // Copy output of write to read buffer
     vkCmdCopyImage(cmdBuffer, srcImage, VK_IMAGE_LAYOUT_GENERAL, dstImage,
