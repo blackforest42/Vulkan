@@ -10,6 +10,10 @@
 #include "VulkanglTFModel.h"
 #include "vulkanexamplebase.h"
 
+#define VECTOR_FIELD_FORMAT VK_FORMAT_R32G32B32A32_SFLOAT
+#define SCALAR_FIELD_FORMAT VK_FORMAT_R32_SFLOAT
+#define COMPUTE_TEXTURE_DIMENSIONS 256
+
 // Vertex layout for this example
 struct Vertex {
   float pos[3];
@@ -78,10 +82,6 @@ class VulkanExample : public VulkanExampleBase {
 
   // Handles all compute pipelines
   struct Compute {
-#define VECTOR_FIELD_FORMAT VK_FORMAT_R32G32B32A32_SFLOAT
-#define SCALAR_FIELD_FORMAT VK_FORMAT_R32_SFLOAT
-#define COMPUTE_TEXTURE_DIMENSIONS 256
-
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
     uint32_t queueFamilyIndex{0};
@@ -1018,9 +1018,9 @@ class VulkanExample : public VulkanExampleBase {
 
   VulkanExample() : VulkanExampleBase() {
     title_ = "Smoke Simulation";
-    camera_.type_ = Camera::CameraType::firstperson;
+    camera_.type_ = Camera::CameraType::lookat;
     camera_.setMovementSpeed(25.f);
-    camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.f));
+    camera_.setPosition(glm::vec3(0.0f, 0.0f, -3.f));
     camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 

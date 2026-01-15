@@ -21,10 +21,10 @@ layout (binding = 1) uniform sampler3D volumeTexture;
 
 
 const float STEP_SIZE = 0.01;
-const float MAX_STEPS = 300;
-const float SMOKE_DENSITY = 2.f;
-const vec4 SMOKE_COLOR = vec4(1.0);
-const float CLOUD_SIZE = 1.f;
+const float MAX_STEPS = 100;
+const float SMOKE_DENSITY = 3.f;
+const float CLOUD_SIZE = 1.0f;
+const vec3 SMOKE_COLOR = vec3(1.0);
 
 vec4 permute(vec4 x);
 vec4 taylorInvSqrt(vec4 r);
@@ -39,7 +39,8 @@ void main() {
     vec3 rayDir = normalize(worldPos - ubo.cameraPos);
 
     // March rays starting from front face of cube
-    vec4 color = rayMarch(inUVW, rayDir);
+    //vec4 color = rayMarch(inUVW, rayDir);
+    vec4 color = rayMarchNoise(inUVW, rayDir);
 	outFragColor = vec4(color);
 }
 
@@ -49,9 +50,9 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {
     
     // Ray march through volume
     for(int i = 0; i < MAX_STEPS; i++) {
-        // Check if we're still inside the volume [0,1] cube
+        // Check if we're still inside the volume [0,1] cube, and opacity is high enough
         if (any(lessThan(pos, vec3(0.0))) || any(greaterThan(pos, vec3(1.0))) || final_color.a >= 0.95) {
-            break;  // Exit if outside bounds
+            break;
         }
         
         // Sample volume texture at current marching position
@@ -72,26 +73,40 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {
     return final_color;
 }
 
-vec4 rayMarchNoise(vec3 rayOrigin, vec3 rayDirection) {
-  float depth = 0.0;
-  vec3 pos = rayOrigin;
-  vec4 res = vec4(0.0);
+vec4 rayMarchNoise(vec3 rayOrigin, vec3 rayDir) {
+	float depth = 0.0;
+	vec3 pos = rayOrigin;
+	float density = 0.f;
+	vec3 final_color = vec3(0);
+	// Animated position for smoke movement
+	vec3 windOffset = vec3(ubo.time * 0.1, ubo.time * 0.15, ubo.time * 0.08);
 
-  for (int i = 0; i < MAX_STEPS; i++) {
-    float density = fbm(pos);
+	for (int i = 0; i < MAX_STEPS; i++) {
 
-    // We only draw the density if it's greater than 0
-    if (density > 0.0) {
-      vec4 color = vec4(mix(vec3(1.0,1.0,1.0), vec3(0.0, 0.0, 0.0), density), density );
-      color.rgb *= color.a;
-      res += color * (1.0 - res.a);
-    }
+		// Sample 3D noise texture with animation
+		vec3 samplePos = pos * 1.5 + windOffset;
+		float noise = fbm(samplePos);
 
-    depth += STEP_SIZE;
-    pos = rayOrigin + depth * rayDirection;
-  }
+		// Create smoke shape (spherical falloff)
+		float dist = length(pos);
+		float falloff = smoothstep(1.5 * CLOUD_SIZE, 0.5 * CLOUD_SIZE, dist);
 
-  return res;
+		// Combine noise with falloff
+		float smokeDensity = max(0.0, noise * 0.5 + 0.5) * falloff * SMOKE_DENSITY;
+
+		// Accumulate density
+		density += smokeDensity * STEP_SIZE * 3.0;
+
+		// Add lighting based on position
+		vec3 lightDir = normalize(vec3(1.0, 1.0, -0.5));
+		float lighting = max(0.3, dot(normalize(pos), lightDir) * 0.5 + 0.5);
+
+		pos += rayDir * float(i) * STEP_SIZE;
+
+		final_color += SMOKE_COLOR * smokeDensity * STEP_SIZE * 3.0 * lighting;
+	}
+
+	return vec4(final_color, 1.f);
 }
 
 // Fractal Brownian Motion
