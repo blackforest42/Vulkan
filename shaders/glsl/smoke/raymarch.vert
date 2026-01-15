@@ -11,6 +11,7 @@ layout (location = 0) out vec3 outUVW;
 layout (binding = 0) uniform UBOView
 {
 	mat4 model;
+	mat4 invModel;
 	mat4 cameraView;
 	mat4 perspective;
     vec3 cameraPos;

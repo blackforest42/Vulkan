@@ -9,15 +9,14 @@ layout (location = 0) out vec4 outFragColor;
 layout (binding = 0) uniform UBOView
 {
 	mat4 model;
+	mat4 invModel;
 	mat4 cameraView;
 	mat4 perspective;
     vec3 cameraPos;
     vec2 screenRes;
     float time;
 } ubo;
-layout (binding = 1) uniform sampler2D velocityFieldIncomingRays;
-layout (binding = 2) uniform sampler2D velocityFieldOutgoingRays;
-layout (binding = 3) uniform sampler3D volumeTexture;
+layout (binding = 1) uniform sampler3D volumeTexture;
 
 
 const float STEP_SIZE = 0.01;
@@ -34,15 +33,15 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection);
 vec4 rayMarchNoise(vec3 rayOrigin, vec3 rayDir);
 
 void main() {
-    vec2 uv = gl_FragCoord.xy / ubo.screenRes.xy;
-
-    // Sample in/out ray velocity textures and calculate ray trajectory
-    vec3 inRayVelocity = texture(velocityFieldIncomingRays, uv).xyz;
-    vec3 outRayVelocity = texture(velocityFieldOutgoingRays, uv).xyz;
-	vec3 dir = normalize(outRayVelocity - inRayVelocity);
+    // Calculate world position of this fragment
+    // convert uvw back to model coordinates by + 0.5
+    vec3 worldPos = (ubo.invModel * vec4(inUVW - 0.5, 1.0)).xyz;
+    
+    // Ray direction from camera to this point on the cube
+    vec3 rayDir = normalize(worldPos - ubo.cameraPos);
 
     // March rays starting from front face of cube
-    vec4 color = rayMarch(inUVW, dir);
+    vec4 color = rayMarch(inUVW, rayDir);
 	outFragColor = vec4(color);
 }
 

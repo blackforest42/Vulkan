@@ -31,6 +31,7 @@ class VulkanExample : public VulkanExampleBase {
 
     struct MarchUBO {
       alignas(16) glm::mat4 model;
+      alignas(16) glm::mat4 invModel;
       alignas(16) glm::mat4 cameraView;
       alignas(16) glm::mat4 perspective;
       alignas(16) glm::vec3 cameraPos;
@@ -50,40 +51,20 @@ class VulkanExample : public VulkanExampleBase {
 
     // Pipelines
     struct {
-      // offscreen pass to generate entry/exit rays for ray marcher
-      VkPipeline preMarch{VK_NULL_HANDLE};
       VkPipeline rayMarch{VK_NULL_HANDLE};
     } pipelines_{};
     struct {
-      VkPipelineLayout preMarch{VK_NULL_HANDLE};
       VkPipelineLayout rayMarch{VK_NULL_HANDLE};
     } pipelineLayouts_;
 
     // Descriptors
     struct {
-      VkDescriptorSetLayout preMarch{VK_NULL_HANDLE};
       VkDescriptorSetLayout rayMarch{VK_NULL_HANDLE};
     } descriptorSetLayouts_;
     struct DescriptorSets {
-      VkDescriptorSet preMarch{VK_NULL_HANDLE};
       VkDescriptorSet rayMarch{VK_NULL_HANDLE};
     };
     std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
-
-    // Structure to hold offscreen velocity buffer
-    struct VelocityFieldBuffer {
-      VkImage image;
-      VkDeviceMemory memory;
-      VkImageView imageView;
-      VkDescriptorImageInfo descriptor;
-      VkFormat format;
-      VkExtent2D extent;
-    };
-    struct PreMarchPass {
-      VelocityFieldBuffer incoming;
-      VelocityFieldBuffer outgoing;
-      VkSampler sampler;
-    } preMarchPass_{};
 
   } graphics_;
 
@@ -499,99 +480,6 @@ class VulkanExample : public VulkanExampleBase {
         vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo, VK_NULL_HANDLE));
   }
 
-  // Create a 4 channel 16-bit float velocity buffer
-  void createVelocityFieldBuffer(Graphics::VelocityFieldBuffer& buffer) {
-    // Note: VK_FORMAT_R16G16B16_SFLOAT has limited support, so we use RGBA16
-    // The alpha channel will just be unused
-    buffer.format = VK_FORMAT_R16G16B16A16_SFLOAT;
-    buffer.extent = {width_, height_};
-
-    // Create image
-    VkImageCreateInfo imageInfo{};
-    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.format = buffer.format;
-    imageInfo.extent = {width_, height_, 1};
-    imageInfo.mipLevels = 1;
-    imageInfo.arrayLayers = 1;
-    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                      VK_IMAGE_USAGE_SAMPLED_BIT |  // For reading as texture
-                      VK_IMAGE_USAGE_TRANSFER_SRC_BIT;  // For copying/readback
-    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-    vkCreateImage(device_, &imageInfo, nullptr, &buffer.image);
-
-    // Allocate device_-local memory
-    VkMemoryRequirements memReqs;
-    vkGetImageMemoryRequirements(device_, buffer.image, &memReqs);
-
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memReqs.size;
-
-    // Find device_-local memory type
-    VkPhysicalDeviceMemoryProperties memProps;
-    vkGetPhysicalDeviceMemoryProperties(physicalDevice_, &memProps);
-
-    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
-      if ((memReqs.memoryTypeBits & (1 << i)) &&
-          (memProps.memoryTypes[i].propertyFlags &
-           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) {
-        allocInfo.memoryTypeIndex = i;
-        break;
-      }
-    }
-
-    vkAllocateMemory(device_, &allocInfo, nullptr, &buffer.memory);
-    vkBindImageMemory(device_, buffer.image, buffer.memory, 0);
-
-    // Create image view
-    VkImageViewCreateInfo viewInfo{};
-    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewInfo.image = buffer.image;
-    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = buffer.format;
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    viewInfo.subresourceRange.baseMipLevel = 0;
-    viewInfo.subresourceRange.levelCount = 1;
-    viewInfo.subresourceRange.baseArrayLayer = 0;
-    viewInfo.subresourceRange.layerCount = 1;
-
-    vkCreateImageView(device_, &viewInfo, nullptr, &buffer.imageView);
-
-    // descriptor
-    buffer.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    buffer.descriptor.imageView = buffer.imageView;
-    buffer.descriptor.sampler = graphics_.preMarchPass_.sampler;
-  }
-
-  void preparePreMarchPass() {
-    // Create sampler to sample from the textures
-    VkSamplerCreateInfo samplerCI = vks::initializers::samplerCreateInfo();
-    samplerCI.magFilter = VK_FILTER_LINEAR;
-    samplerCI.minFilter = VK_FILTER_LINEAR;
-    samplerCI.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    samplerCI.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    samplerCI.addressModeV = samplerCI.addressModeU;
-    samplerCI.addressModeW = samplerCI.addressModeU;
-    samplerCI.mipLodBias = 0.0f;
-    samplerCI.maxAnisotropy = 1.0f;
-    samplerCI.minLod = 0.0f;
-    samplerCI.maxLod = 1.0f;
-    samplerCI.unnormalizedCoordinates = VK_FALSE;
-    samplerCI.compareEnable = VK_FALSE;
-    samplerCI.compareOp = VK_COMPARE_OP_ALWAYS;
-    samplerCI.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-    VK_CHECK_RESULT(vkCreateSampler(device_, &samplerCI, nullptr,
-                                    &graphics_.preMarchPass_.sampler));
-
-    createVelocityFieldBuffer(graphics_.preMarchPass_.incoming);
-    createVelocityFieldBuffer(graphics_.preMarchPass_.outgoing);
-  }
-
   void setupDescriptors() {
     // Layout: Ray march
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -600,21 +488,11 @@ class VulkanExample : public VulkanExampleBase {
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
             /*binding_id*/ 0),
-        // Binding 1 : Velocity field texture: incoming rays
+        // Binding 1 : Volume texture to render
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_FRAGMENT_BIT,
             /*binding_id*/ 1),
-        // Binding 2 : Velocity field texture: outgoing rays
-        vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_FRAGMENT_BIT,
-            /*binding_id*/ 2),
-        // Binding 3 : Volume texture to render
-        vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_FRAGMENT_BIT,
-            /*binding_id*/ 3),
     };
 
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
@@ -622,20 +500,6 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(
         vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr,
                                     &graphics_.descriptorSetLayouts_.rayMarch));
-
-    // Layout: Pre march
-    setLayoutBindings = {
-        // Binding 0 : uniform buffer object
-        vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            /*binding id*/ 0)};
-
-    descriptorLayout =
-        vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-    VK_CHECK_RESULT(
-        vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr,
-                                    &graphics_.descriptorSetLayouts_.preMarch));
 
     // Sets per frame, just like the buffers themselves
     // Images do not need to be duplicated per frame, we reuse the same one
@@ -652,35 +516,11 @@ class VulkanExample : public VulkanExampleBase {
               graphics_.descriptorSets_[i].rayMarch,
               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
               /*binding id*/ 0, &graphics_.uniformBuffers_[i].march.descriptor),
-          // Binding 1 : Velocity field texture: incoming rays
+          // Binding 1 : Volumetric texture to visualize
           vks::initializers::writeDescriptorSet(
               graphics_.descriptorSets_[i].rayMarch,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-              /*binding id*/ 1, &graphics_.preMarchPass_.incoming.descriptor),
-          // Binding 2 : Velocity field texture: outgoing rays
-          vks::initializers::writeDescriptorSet(
-              graphics_.descriptorSets_[i].rayMarch,
-              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-              /*binding id*/ 2, &graphics_.preMarchPass_.outgoing.descriptor),
-          // Binding 3 : Volumetric texture to visualize
-          vks::initializers::writeDescriptorSet(
-              graphics_.descriptorSets_[i].rayMarch,
-              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-              /*binding id*/ 3, &compute_.read_textures[0].descriptor),
-      };
-      vkUpdateDescriptorSets(device_,
-                             static_cast<uint32_t>(writeDescriptorSets.size()),
-                             writeDescriptorSets.data(), 0, nullptr);
-
-      allocInfo = vks::initializers::descriptorSetAllocateInfo(
-          descriptorPool_, &graphics_.descriptorSetLayouts_.preMarch, 1);
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(
-          device_, &allocInfo, &graphics_.descriptorSets_[i].preMarch));
-      writeDescriptorSets = {
-          vks::initializers::writeDescriptorSet(
-              graphics_.descriptorSets_[i].preMarch,
-              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-              /*binding id*/ 0, &graphics_.uniformBuffers_[i].march.descriptor),
+              /*binding id*/ 1, &compute_.read_textures[0].descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -696,13 +536,6 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(
         vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
                                &graphics_.pipelineLayouts_.rayMarch));
-
-    // Layout: Pre march
-    pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
-        &graphics_.descriptorSetLayouts_.preMarch, 2);
-    VK_CHECK_RESULT(
-        vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
-                               &graphics_.pipelineLayouts_.preMarch));
 
     // Pipeline
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
@@ -738,13 +571,6 @@ class VulkanExample : public VulkanExampleBase {
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo =
         vks::initializers::pipelineCreateInfo();
-
-    // Pipeline: Pre march front
-    pipelineCreateInfo.layout = graphics_.pipelineLayouts_.preMarch;
-    shaderStages[0] = loadShader(getShadersPath() + "smoke/premarch.vert.spv",
-                                 VK_SHADER_STAGE_VERTEX_BIT);
-    shaderStages[1] = loadShader(getShadersPath() + "smoke/premarch.frag.spv",
-                                 VK_SHADER_STAGE_FRAGMENT_BIT);
 
     // Vertex bindings and attributes
     VkVertexInputBindingDescription vertexInputBinding = {
@@ -795,16 +621,10 @@ class VulkanExample : public VulkanExampleBase {
     pipelineRenderingCreateInfo.sType =
         VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
     pipelineRenderingCreateInfo.colorAttachmentCount = 1;
-    pipelineRenderingCreateInfo.pColorAttachmentFormats =
-        &graphics_.preMarchPass_.incoming.format;
     pipelineRenderingCreateInfo.depthAttachmentFormat = depthFormat_;
     pipelineRenderingCreateInfo.stencilAttachmentFormat = depthFormat_;
     // Chain into the pipeline create info
     pipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
-
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
-                                              &pipelineCreateInfo, nullptr,
-                                              &graphics_.pipelines_.preMarch));
 
     // Pipeline: Ray march
     pipelineCreateInfo.layout = graphics_.pipelineLayouts_.rayMarch;
@@ -870,6 +690,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void updateUniformBuffers() {
     graphics_.ubos_.march.model = glm::mat4(1.0);
+    graphics_.ubos_.march.invModel = glm::inverse(glm::mat4(1.0));
     graphics_.ubos_.march.cameraView = camera_.matrices_.view;
     graphics_.ubos_.march.screenRes = glm::vec2(width_, height_);
     graphics_.ubos_.march.perspective = camera_.matrices_.perspective;
@@ -884,7 +705,6 @@ class VulkanExample : public VulkanExampleBase {
 
   void prepareGraphics() {
     generateCube();
-    preparePreMarchPass();
     prepareUniformBuffers();
     setupDescriptors();
     preparePipelines();
@@ -1002,153 +822,11 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::commandBufferBeginInfo();
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
-    preMarchCmdFront(cmdBuffer);
-    preMarchCmdBack(cmdBuffer);
+    // preMarchCmdFront(cmdBuffer);
+    // preMarchCmdBack(cmdBuffer);
     rayMarchCmd(cmdBuffer);
 
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
-  }
-
-  void preMarchCmdFront(VkCommandBuffer& cmdBuffer) {
-    // With dynamic rendering there are no subpass dependencies, so we need to
-    // take care of proper layout transitions by using barriers This set of
-    // barriers prepares the color and depth images for output
-    vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, graphics_.preMarchPass_.incoming.image, 0,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
-    vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, depthStencil_.image, 0,
-        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-        VkImageSubresourceRange{
-            VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0,
-            1});
-
-    // New structures are used to define the attachments used in dynamic
-    // rendering
-    VkRenderingAttachmentInfoKHR colorAttachment{};
-    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    colorAttachment.imageView = graphics_.preMarchPass_.incoming.imageView;
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
-
-    VkRenderingInfoKHR renderingInfo{};
-    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-    renderingInfo.renderArea = {0, 0, width_, height_};
-    renderingInfo.layerCount = 1;
-    renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachments = &colorAttachment;
-    renderingInfo.pDepthAttachment = nullptr;
-    renderingInfo.pStencilAttachment = nullptr;
-
-    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
-
-    // Set viewport and scissor
-    VkViewport viewport{0.0f, 0.0f, (float)width_, (float)height_, 0.0f, 1.0f};
-    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
-
-    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
-    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
-
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      graphics_.pipelines_.preMarch);
-    vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_BACK_BIT));
-    vkCmdSetFrontFace(cmdBuffer, VK_FRONT_FACE_CLOCKWISE);
-
-    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            graphics_.pipelineLayouts_.preMarch, 0, 1,
-                            &graphics_.descriptorSets_[currentBuffer_].preMarch,
-                            0, nullptr);
-
-    VkDeviceSize offsets[1] = {0};
-    vkCmdBindVertexBuffers(cmdBuffer, 0, 1,
-                           &graphics_.cubeVerticesBuffer.buffer, offsets);
-    vkCmdBindIndexBuffer(cmdBuffer, graphics_.cubeIndicesBuffer.buffer, 0,
-                         VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(cmdBuffer, graphics_.indexCount, 1, 0, 0, 0);
-
-    vkCmdEndRendering(cmdBuffer);
-  }
-
-  void preMarchCmdBack(VkCommandBuffer& cmdBuffer) {
-    // With dynamic rendering there are no subpass dependencies, so we need to
-    // take care of proper layout transitions by using barriers This set of
-    // barriers prepares the color and depth images for output
-    vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, graphics_.preMarchPass_.outgoing.image, 0,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
-    vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, depthStencil_.image, 0,
-        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-        VkImageSubresourceRange{
-            VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0,
-            1});
-
-    // New structures are used to define the attachments used in dynamic
-    // rendering
-    VkRenderingAttachmentInfoKHR colorAttachment{};
-    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    colorAttachment.imageView = graphics_.preMarchPass_.outgoing.imageView;
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
-
-    VkRenderingInfoKHR renderingInfo{};
-    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-    renderingInfo.renderArea = {0, 0, width_, height_};
-    renderingInfo.layerCount = 1;
-    renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachments = &colorAttachment;
-    renderingInfo.pDepthAttachment = nullptr;
-    renderingInfo.pStencilAttachment = nullptr;
-
-    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
-
-    // Set viewport and scissor
-    VkViewport viewport{0.0f, 0.0f, (float)width_, (float)height_, 0.0f, 1.0f};
-    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
-
-    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
-    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
-
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      graphics_.pipelines_.preMarch);
-    vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_FRONT_BIT));
-    vkCmdSetFrontFace(cmdBuffer, VK_FRONT_FACE_CLOCKWISE);
-
-    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            graphics_.pipelineLayouts_.preMarch, 0, 1,
-                            &graphics_.descriptorSets_[currentBuffer_].preMarch,
-                            0, nullptr);
-
-    VkDeviceSize offsets[1] = {0};
-    vkCmdBindVertexBuffers(cmdBuffer, 0, 1,
-                           &graphics_.cubeVerticesBuffer.buffer, offsets);
-    vkCmdBindIndexBuffer(cmdBuffer, graphics_.cubeIndicesBuffer.buffer, 0,
-                         VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(cmdBuffer, graphics_.indexCount, 1, 0, 0, 0);
-
-    vkCmdEndRendering(cmdBuffer);
   }
 
   void rayMarchCmd(VkCommandBuffer& cmdBuffer) {
@@ -1170,20 +848,6 @@ class VulkanExample : public VulkanExampleBase {
         VkImageSubresourceRange{
             VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0,
             1});
-    // Need to change the format of the velocity textures before reading
-    // -_-
-    vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, graphics_.preMarchPass_.incoming.image, 0,
-        VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
-    vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, graphics_.preMarchPass_.outgoing.image, 0,
-        VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
     // New structures are used to define the attachments used in dynamic
     // rendering
@@ -1318,26 +982,11 @@ class VulkanExample : public VulkanExampleBase {
     if (device_) {
       // Graphics
       vkDestroyPipeline(device_, graphics_.pipelines_.rayMarch, nullptr);
-      vkDestroyPipeline(device_, graphics_.pipelines_.preMarch, nullptr);
-      vkDestroyPipelineLayout(device_, graphics_.pipelineLayouts_.preMarch,
-                              nullptr);
       vkDestroyPipelineLayout(device_, graphics_.pipelineLayouts_.rayMarch,
                               nullptr);
       vkDestroyDescriptorSetLayout(
-          device_, graphics_.descriptorSetLayouts_.preMarch, nullptr);
-      vkDestroyDescriptorSetLayout(
           device_, graphics_.descriptorSetLayouts_.rayMarch, nullptr);
 
-      vkDestroyImageView(device_, graphics_.preMarchPass_.incoming.imageView,
-                         nullptr);
-      vkDestroyImage(device_, graphics_.preMarchPass_.incoming.image, nullptr);
-      vkFreeMemory(device_, graphics_.preMarchPass_.incoming.memory, nullptr);
-
-      vkDestroyImageView(device_, graphics_.preMarchPass_.outgoing.imageView,
-                         nullptr);
-      vkDestroyImage(device_, graphics_.preMarchPass_.outgoing.image, nullptr);
-      vkFreeMemory(device_, graphics_.preMarchPass_.outgoing.memory, nullptr);
-      vkDestroySampler(device_, graphics_.preMarchPass_.sampler, nullptr);
       for (auto& buffer : graphics_.uniformBuffers_) {
         buffer.march.destroy();
       }
