@@ -1,7 +1,5 @@
 Jan 13
 TODO: 
-	- try rendering the test 3D image using your ray march renderer
-	- How to get uvw coords from world coordiantes
 
 DONE:
 	- added a line in raymarch.frag to check the 3D texture was successfully loaded

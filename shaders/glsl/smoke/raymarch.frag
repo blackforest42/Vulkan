@@ -1,7 +1,7 @@
 #version 450
 
 // in
-layout (location = 0) in vec3 inPos;
+layout (location = 0) in vec3 inUVW;
 
 // out
 layout (location = 0) out vec4 outFragColor;
@@ -31,7 +31,7 @@ vec4 taylorInvSqrt(vec4 r);
 float snoise(vec3 pos);
 float fbm(vec3 pos);
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection);
-vec4 rayMarch2(vec3 rayOrigin, vec3 rayDir);
+vec4 rayMarchNoise(vec3 rayOrigin, vec3 rayDir);
 
 void main() {
     vec2 uv = gl_FragCoord.xy / ubo.screenRes.xy;
@@ -42,11 +42,40 @@ void main() {
 	vec3 dir = normalize(outRayVelocity - inRayVelocity);
 
     // March rays starting from front face of cube
-    vec4 color = rayMarch2(inRayVelocity, dir);
+    vec4 color = rayMarch(inUVW, dir);
 	outFragColor = vec4(color);
 }
 
-vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection) {
+vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {
+    vec4 final_color = vec4(0.0);
+    vec3 pos = rayOrigin;  // Start at the cube surface entry point
+    
+    // Ray march through volume
+    for(int i = 0; i < MAX_STEPS; i++) {
+        // Check if we're still inside the volume [0,1] cube
+        if (any(lessThan(pos, vec3(0.0))) || any(greaterThan(pos, vec3(1.0))) || final_color.a >= 0.95) {
+            break;  // Exit if outside bounds
+        }
+        
+        // Sample volume texture at current marching position
+        vec4 sampleColor = texture(volumeTexture, pos);
+        
+        // Pre-multiply alpha
+        vec3 srcRGB = sampleColor.rgb * sampleColor.a;
+        float srcA = sampleColor.a;
+        
+        // Accumulate front-to-back
+        final_color.rgb += (1.0 - final_color.a) * srcRGB;
+        final_color.a   += (1.0 - final_color.a) * srcA;
+        
+        // Step along ray
+        pos += rayDir * STEP_SIZE;
+    }
+    
+    return final_color;
+}
+
+vec4 rayMarchNoise(vec3 rayOrigin, vec3 rayDirection) {
   float depth = 0.0;
   vec3 pos = rayOrigin;
   vec4 res = vec4(0.0);
@@ -67,39 +96,6 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection) {
 
   return res;
 }
-
-vec4 rayMarch2(vec3 rayOrigin, vec3 rayDir) {
-	float density = 0.0;
-	vec4 final_color = vec4(0.0);
-	vec3 pos = rayOrigin;
-        
-	// Ray march through volume
-	for(int i = 0; i < MAX_STEPS; i++) {
-		// get volumetric coordinates
-		vec3 uvw = vec3(gl_FragCoord.xy, 1.f * i / MAX_STEPS);
-		vec4 sampleColor = texture(volumeTexture, uvw);
-
-
-		// 2. Pre-multiply alpha if not already stored that way
-		// This represents the amount of light emitted/scattered by this voxel
-		vec3 srcRGB = sampleColor.rgb * sampleColor.a;
-		float srcA = sampleColor.a;
-
-		// 3. Accumulate front-to-back
-		// Only the "remaining" transparency (1.0 - acc.a) lets light through
-		final_color.rgb += (1.0 - final_color.a) * srcRGB;
-		final_color.a   += (1.0 - final_color.a) * srcA;
-
-		pos += rayDir * STEP_SIZE;
-
-        // Optimization: Break if we exit the [0,1] cube bounds or become opaque
-        if (any(greaterThan(pos, vec3(1.0))) || any(lessThan(pos, vec3(0.0))) || final_color.a >= 0.95) {
-            break;
-        }
-	}
-	return final_color;
-}
-
 
 // Fractal Brownian Motion
 float fbm(vec3 pos) {

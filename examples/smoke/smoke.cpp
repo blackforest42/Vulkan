@@ -869,7 +869,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    graphics_.ubos_.march.model = glm::scale(glm::mat4(1.0), glm::vec3(0.5));
+    graphics_.ubos_.march.model = glm::mat4(1.0);
     graphics_.ubos_.march.cameraView = camera_.matrices_.view;
     graphics_.ubos_.march.screenRes = glm::vec2(width_, height_);
     graphics_.ubos_.march.perspective = camera_.matrices_.perspective;
@@ -1249,14 +1249,14 @@ class VulkanExample : public VulkanExampleBase {
   void generateCube() {
     // Setup vertices indices for a colored cube
     std::vector<Vertex> vertices = {
-        {{-1.0f, -1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}},
-        {{1.0f, -1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}},
-        {{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
-        {{-1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}},
-        {{-1.0f, -1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}},
-        {{1.0f, -1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}},
-        {{1.0f, 1.0f, -1.0f}, {0.0f, 0.0f, 1.0f}},
-        {{-1.0f, 1.0f, -1.0f}, {0.0f, 0.0f, 0.0f}},
+        {{-0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}},
+        {{0.5f, -0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+        {{0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+        {{-0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 0.0f}},
+        {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+        {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+        {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}},
+        {{-0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 0.0f}},
     };
 
     std::vector<uint32_t> indices = {
