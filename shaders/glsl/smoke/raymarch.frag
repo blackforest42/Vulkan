@@ -1,7 +1,8 @@
 #version 450
 
 // in
-layout (location = 0) in vec3 inUVW;
+layout (location = 0) in vec3 inPos;
+layout (location = 1) in vec3 inUVW;
 
 // out
 layout (location = 0) out vec4 outFragColor;
@@ -20,7 +21,7 @@ layout (binding = 1) uniform sampler3D volumeTexture;
 
 
 const float STEP_SIZE = 0.01;
-const float MAX_STEPS = 100;
+const float MAX_STEPS = 300;
 const float SMOKE_DENSITY = 2.f;
 const vec4 SMOKE_COLOR = vec4(1.0);
 const float CLOUD_SIZE = 1.f;
@@ -33,11 +34,8 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection);
 vec4 rayMarchNoise(vec3 rayOrigin, vec3 rayDir);
 
 void main() {
-    // Calculate world position of this fragment
-    // convert uvw back to model coordinates by + 0.5
-    vec3 worldPos = (ubo.invModel * vec4(inUVW - 0.5, 1.0)).xyz;
-    
     // Ray direction from camera to this point on the cube
+    vec3 worldPos = inPos;
     vec3 rayDir = normalize(worldPos - ubo.cameraPos);
 
     // March rays starting from front face of cube

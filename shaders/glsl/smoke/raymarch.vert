@@ -3,10 +3,11 @@
 
 // in
 layout (location = 0) in vec3 inPos;
-layout (location = 1) in vec3 color;
+layout (location = 1) in vec3 inUVW;
 
 // out
-layout (location = 0) out vec3 outUVW;
+layout (location = 0) out vec3 outPos;
+layout (location = 1) out vec3 outUVW;
 
 layout (binding = 0) uniform UBOView
 {
@@ -21,8 +22,8 @@ layout (binding = 0) uniform UBOView
 
 
 void main() {
+    outPos = vec3(ubo.model * vec4(inPos, 1.f));
+    outUVW = inUVW;
     gl_Position = ubo.perspective * ubo.cameraView * ubo.model * vec4(inPos, 1.);
-    // Use vertex positions [-0.5, 0.5]to create UV positions [0, 1]
-    outUVW = (inPos + 0.5f);
 }
 

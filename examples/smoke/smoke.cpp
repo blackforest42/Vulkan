@@ -6,13 +6,14 @@
  * (http://opensource.org/licenses/MIT)
  */
 
+#include <chrono>
 #include "VulkanglTFModel.h"
 #include "vulkanexamplebase.h"
 
 // Vertex layout for this example
 struct Vertex {
   float pos[3];
-  float color[3];
+  float uvw[3];
 };
 
 class VulkanExample : public VulkanExampleBase {
@@ -23,7 +24,7 @@ class VulkanExample : public VulkanExampleBase {
 
   // Debug labeling ext
   static constexpr std::array<float, 4> debugColor_ = {.7f, 0.4f, 0.4f, 1.0f};
-  static constexpr std::array<float, 4> swapColor_ = {0, 1, 1, 1};
+  static constexpr std::array<float, 4> swapColor_ = {0.f, 1.f, 1.f, 1.f};
   PFN_vkCmdBeginDebugUtilsLabelEXT vkCmdBeginDebugUtilsLabelEXT{nullptr};
   PFN_vkCmdEndDebugUtilsLabelEXT vkCmdEndDebugUtilsLabelEXT{nullptr};
 
@@ -79,7 +80,7 @@ class VulkanExample : public VulkanExampleBase {
   struct Compute {
 #define VECTOR_FIELD_FORMAT VK_FORMAT_R32G32B32A32_SFLOAT
 #define SCALAR_FIELD_FORMAT VK_FORMAT_R32_SFLOAT
-#define COMPUTE_TEXTURE_DIMENSIONS 128
+#define COMPUTE_TEXTURE_DIMENSIONS 256
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
@@ -587,7 +588,7 @@ class VulkanExample : public VulkanExampleBase {
             offsetof(Vertex, pos)),  // Location 0 : Position
         vks::initializers::vertexInputAttributeDescription(
             0, 1, VK_FORMAT_R32G32B32_SFLOAT,
-            offsetof(Vertex, color)),  // Location 1 : Color
+            offsetof(Vertex, uvw)),  // Location 1 : UVW
     };
     VkPipelineVertexInputStateCreateInfo vertexInputStateCI =
         vks::initializers::pipelineVertexInputStateCreateInfo();
@@ -694,7 +695,14 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    graphics_.ubos_.march.model = glm::mat4(1.0);
+    auto& model = graphics_.ubos_.march.model;
+    float time =
+        std::chrono::duration<float>(
+            std::chrono::high_resolution_clock::now().time_since_epoch())
+            .count();
+    model = glm::rotate(glm::mat4(1.0), glm::radians(time * 10.f),
+                        glm::vec3(0.f, 1.f, 0.f));
+    model = glm::scale(model, glm::vec3(2));
     graphics_.ubos_.march.invModel = glm::inverse(glm::mat4(1.0));
     graphics_.ubos_.march.cameraView = camera_.matrices_.view;
     graphics_.ubos_.march.screenRes = glm::vec2(width_, height_);
@@ -758,7 +766,7 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::commandBufferBeginInfo();
 
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
-    cmdBeginLabel(cmdBuffer, "Compute Pipelines", {.5, .2, 3, 1});
+    cmdBeginLabel(cmdBuffer, "Compute Pipelines", {.5f, 0.2f, 3.f, 1.f});
     advectCmd(cmdBuffer);
     cmdEndLabel(cmdBuffer);
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
@@ -928,21 +936,25 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void generateCube() {
-    // Setup vertices indices for a colored cube
+    // Setup vertices indices for a cube
     std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{0.5f, -0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-        {{-0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 0.0f}},
-        {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}},
-        {{-0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 0.0f}},
+        {{-0.5, -0.5, -0.5}, {0, 0, 0}},  // 0: back-bottom-left
+        {{0.5, -0.5, -0.5}, {1, 0, 0}},   // 1: back-bottom-right
+        {{0.5, 0.5, -0.5}, {1, 1, 0}},    // 2: back-top-right
+        {{-0.5, 0.5, -0.5}, {0, 1, 0}},   // 3: back-top-left
+        {{-0.5, -0.5, 0.5}, {0, 0, 1}},   // 4: front-bottom-left
+        {{0.5, -0.5, 0.5}, {1, 0, 1}},    // 5: front-bottom-right
+        {{0.5, 0.5, 0.5}, {1, 1, 1}},     // 6: front-top-right
+        {{-0.5, 0.5, 0.5}, {0, 1, 1}},    // 7: front-top-left
     };
 
     std::vector<uint32_t> indices = {
-        0, 1, 2, 2, 3, 0, 1, 5, 6, 6, 2, 1, 7, 6, 5, 5, 4, 7,
-        4, 0, 3, 3, 7, 4, 4, 5, 1, 1, 0, 4, 3, 2, 6, 6, 7, 3,
+        4, 5, 6, 4, 6, 7,  // Front
+        1, 0, 3, 1, 3, 2,  // Back
+        7, 6, 2, 7, 2, 3,  // Top
+        0, 1, 5, 0, 5, 4,  // Bottom
+        5, 1, 2, 5, 2, 6,  // Right
+        0, 4, 7, 0, 7, 3,  // Left
     };
 
     graphics_.indexCount = static_cast<uint32_t>(indices.size());
@@ -990,14 +1002,14 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void setupRenderPass() override {
-    // With VK_KHR_dynamic_rendering we no longer need a render pass, so skip
-    // the sample base render pass setup
+    // With VK_KHR_dynamic_rendering we no longer need a render pass, so
+    // skip the sample base render pass setup
     renderPass_ = VK_NULL_HANDLE;
   }
 
   void setupFrameBuffer() override {
-    // With VK_KHR_dynamic_rendering we no longer need a frame buffer, so skip
-    // the sample base framebuffer setup
+    // With VK_KHR_dynamic_rendering we no longer need a frame buffer, so
+    // skip the sample base framebuffer setup
   }
 
   void getEnabledFeatures() override {}
@@ -1006,7 +1018,7 @@ class VulkanExample : public VulkanExampleBase {
 
   VulkanExample() : VulkanExampleBase() {
     title_ = "Smoke Simulation";
-    camera_.type_ = Camera::CameraType::lookat;
+    camera_.type_ = Camera::CameraType::firstperson;
     camera_.setMovementSpeed(25.f);
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.f));
     camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
