@@ -1,8 +1,7 @@
 Jan 13
 TODO: 
 	- try rendering the test 3D image using your ray march renderer
-		- pass output (128^3 3D texture) to cube marcher
-		- create a uniform buffer for advect.comp that holds which texture index to use
+	- How to get uvw coords from world coordiantes
 
 DONE:
-
+	- added a line in raymarch.frag to check the 3D texture was successfully loaded

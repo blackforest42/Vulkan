@@ -70,36 +70,34 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection) {
 
 vec4 rayMarch2(vec3 rayOrigin, vec3 rayDir) {
 	float density = 0.0;
-	vec4 col = vec4(0.0);
+	vec4 final_color = vec4(0.0);
 	vec3 pos = rayOrigin;
-
-	// Animated position for smoke movement
-	vec3 windOffset = vec3(ubo.time * 0.5, ubo.time * 1.15, ubo.time * 0.8);
         
 	// Ray march through volume
 	for(int i = 0; i < MAX_STEPS; i++) {
-		// Sample 3D noise texture with animation
-		vec3 samplePos = pos * 1.5 + windOffset;
-		float noise = fbm(samplePos);
+		// get volumetric coordinates
+		vec3 uvw = vec3(gl_FragCoord.xy, 1.f * i / MAX_STEPS);
+		vec4 sampleColor = texture(volumeTexture, uvw);
 
-		// Create smoke shape (spherical falloff)
-		float dist = length(pos);
-		float falloff = smoothstep(1.5 * CLOUD_SIZE, 0.5 * CLOUD_SIZE, dist);
 
-		// Combine noise with falloff
-		float smokeDensity = max(0.0, noise * 0.5 + 0.5) * falloff * SMOKE_DENSITY;
+		// 2. Pre-multiply alpha if not already stored that way
+		// This represents the amount of light emitted/scattered by this voxel
+		vec3 srcRGB = sampleColor.rgb * sampleColor.a;
+		float srcA = sampleColor.a;
 
-		// Accumulate density
-		density += smokeDensity * STEP_SIZE * 3.0;
+		// 3. Accumulate front-to-back
+		// Only the "remaining" transparency (1.0 - acc.a) lets light through
+		final_color.rgb += (1.0 - final_color.a) * srcRGB;
+		final_color.a   += (1.0 - final_color.a) * srcA;
 
-		// Add lighting based on position
-		vec3 lightDir = normalize(vec3(1.0, 1.0, -0.5));
-		float lighting = max(0.3, dot(normalize(pos), lightDir) * 0.5 + 0.5);
-
-		col += SMOKE_COLOR * smokeDensity * STEP_SIZE * 3.0 * lighting;
 		pos += rayDir * STEP_SIZE;
+
+        // Optimization: Break if we exit the [0,1] cube bounds or become opaque
+        if (any(greaterThan(pos, vec3(1.0))) || any(lessThan(pos, vec3(0.0))) || final_color.a >= 0.95) {
+            break;
+        }
 	}
-	return col;
+	return final_color;
 }
 
 
