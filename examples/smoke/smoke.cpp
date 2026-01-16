@@ -102,14 +102,23 @@ class VulkanExample : public VulkanExampleBase {
       alignas(4) float cellSize{1.f / COMPUTE_TEXTURE_DIMENSIONS};
     };
 
+    struct VortConfinementUBO {
+      alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
+      alignas(4) float deltaTime;
+      alignas(4) float epsilon;  // Vorticity strength
+      alignas(4) float cellSize;
+    };
+
     struct {
       BuoyancyUBO buoyancy;
       VorticityUBO vorticity;
+      VortConfinementUBO vortConfiment;
     } ubos_;
 
     struct UniformBuffers {
       vks::Buffer buoyancy;
       vks::Buffer vorticity;
+      vks::Buffer vortConfinement;
     };
     std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
@@ -121,11 +130,13 @@ class VulkanExample : public VulkanExampleBase {
       VkPipeline buoyancy;
       VkPipeline advection;
       VkPipeline vorticity;
+      VkPipeline vortConfiment;
     } pipelines_{};
     struct {
       VkPipelineLayout buoyancy{VK_NULL_HANDLE};
       VkPipelineLayout advection{VK_NULL_HANDLE};
       VkPipelineLayout vorticity{VK_NULL_HANDLE};
+      VkPipelineLayout vortConfiment{VK_NULL_HANDLE};
     } pipelineLayouts_;
 
     // Descriptors
@@ -133,11 +144,13 @@ class VulkanExample : public VulkanExampleBase {
       VkDescriptorSetLayout buoyancy{VK_NULL_HANDLE};
       VkDescriptorSetLayout advection{VK_NULL_HANDLE};
       VkDescriptorSetLayout vorticity{VK_NULL_HANDLE};
+      VkDescriptorSetLayout vortConfiment{VK_NULL_HANDLE};
     } descriptorSetLayouts_;
     struct DescriptorSets {
       VkDescriptorSet buoyancy{VK_NULL_HANDLE};
       VkDescriptorSet advection{VK_NULL_HANDLE};
       VkDescriptorSet vorticity{VK_NULL_HANDLE};
+      VkDescriptorSet vortConfiment{VK_NULL_HANDLE};
     };
     std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
   } compute_;
@@ -333,6 +346,14 @@ class VulkanExample : public VulkanExampleBase {
           &buffer.vorticity, sizeof(Compute::VorticityUBO),
           &compute_.ubos_.buoyancy));
       VK_CHECK_RESULT(buffer.vorticity.map());
+
+      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.vortConfinement, sizeof(Compute::VortConfinementUBO),
+          &compute_.ubos_.buoyancy));
+      VK_CHECK_RESULT(buffer.vortConfinement.map());
     }
   }
 
