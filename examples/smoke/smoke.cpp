@@ -147,11 +147,11 @@ class VulkanExample : public VulkanExampleBase {
       VkPipeline buoyancy;
       VkPipeline advection;
       VkPipeline velocityBoundary;
-
     } pipelines_{};
     struct {
       VkPipelineLayout buoyancy{VK_NULL_HANDLE};
       VkPipelineLayout advection{VK_NULL_HANDLE};
+      VkPipelineLayout velocityBoundary{VK_NULL_HANDLE};
     } pipelineLayouts_;
 
     // Descriptors
@@ -329,12 +329,16 @@ class VulkanExample : public VulkanExampleBase {
                                     &compute_.descriptorSetLayouts_.advection));
   }
 
-  void prepareCompute() {
+  void prepareComputeTextures() {
     // Create a compute capable device queue
     vkGetDeviceQueue(device_, compute_.queueFamilyIndex, 0, &compute_.queue);
 
     createTexturesForDescriptorIndexing();
+  }
 
+  void prepareComputeUniformBuffers() {}
+
+  void setupComputeDescriptors() {
     // Image descriptors for the 3D texture array
     std::vector<VkDescriptorImageInfo> readOnlyTextureDescriptors(
         compute_.read_textures.size());
@@ -399,7 +403,9 @@ class VulkanExample : public VulkanExampleBase {
           device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
           computeWriteDescriptorSets.data(), 0, nullptr);
     }
+  }
 
+  void prepareComputePipelines() {
     // Create pipelines
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
         vks::initializers::pipelineLayoutCreateInfo(
@@ -433,7 +439,9 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateComputePipelines(
         device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
         &compute_.pipelines_.advection));
+  }
 
+  void prepareComputeCommandPoolBuffersFencesAndSemaphores() {
     // Separate command pool as queue family for compute may be different than
     // graphics
     VkCommandPoolCreateInfo cmdPoolInfo =
@@ -471,6 +479,14 @@ class VulkanExample : public VulkanExampleBase {
         &compute_.semaphores[MAX_CONCURRENT_FRAMES - 1].ready;
     VK_CHECK_RESULT(
         vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo, VK_NULL_HANDLE));
+  }
+
+  void prepareCompute() {
+    prepareComputeTextures();
+    prepareComputeUniformBuffers();
+    setupComputeDescriptors();
+    prepareComputePipelines();
+    prepareComputeCommandPoolBuffersFencesAndSemaphores();
   }
 
   void setupDescriptors() {
