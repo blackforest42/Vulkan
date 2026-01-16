@@ -2,8 +2,8 @@ Jan 15
 TODO: 
 Compute Pipelines:
 	x Add Buoyancy Pipeline
-	- Vorticity Computation Pipeline
-	- Vorticity Confinement Pipeline
+	x Vorticity Computation Pipeline
+	x Vorticity Confinement Pipeline
 	- Advection Pipeline (reusable for velocity, density, temperature)
 	- Divergence Computation Pipeline
 	- Jacobi Iteration Pipeline (pressure solve)

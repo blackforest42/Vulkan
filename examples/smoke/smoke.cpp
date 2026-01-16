@@ -24,6 +24,8 @@ class VulkanExample : public VulkanExampleBase {
   // Enable Vulkan 1.3
   VkPhysicalDeviceVulkan13Features enabledFeatures13_{
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
+  VkPhysicalDeviceVulkan12Features enabledFeatures12_{
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
 
   // Debug labeling ext
   static constexpr std::array<float, 4> debugColor_ = {.7f, 0.4f, 0.4f, 1.0f};
@@ -88,6 +90,12 @@ class VulkanExample : public VulkanExampleBase {
     std::array<Texture3D, texture_count> read_textures;
     std::array<Texture3D, texture_count> write_textures;
 
+    struct AdvectionUBO {
+      alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
+      alignas(4) float deltaTime{TIME_DELTA};
+      alignas(4) float dissipation{};
+    };
+
     struct BuoyancyUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(16) glm::vec3 gravity{0, 0, 0};
@@ -111,12 +119,14 @@ class VulkanExample : public VulkanExampleBase {
 
     struct {
       BuoyancyUBO buoyancy;
+      AdvectionUBO advection;
       VorticityUBO vorticity;
       VortConfinementUBO vortConfinement;
     } ubos_;
 
     struct UniformBuffers {
       vks::Buffer buoyancy;
+      vks::Buffer advection;
       vks::Buffer vorticity;
       vks::Buffer vortConfinement;
     };
@@ -354,6 +364,14 @@ class VulkanExample : public VulkanExampleBase {
           &buffer.vortConfinement, sizeof(Compute::VortConfinementUBO),
           &compute_.ubos_.buoyancy));
       VK_CHECK_RESULT(buffer.vortConfinement.map());
+
+      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.advection, sizeof(Compute::AdvectionUBO),
+          &compute_.ubos_.advection));
+      VK_CHECK_RESULT(buffer.advection.map());
     }
   }
 
@@ -369,10 +387,9 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
             /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
-        // Binding 2 : Single velocity field texture
+        // Binding 2 : Uniform Buffer
         vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_COMPUTE_BIT,
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
             /*binding id*/ 2, 1)};
     VkDescriptorSetLayoutCreateInfo descriptorLayoutCI =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
@@ -408,7 +425,7 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
             /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
-        // Binding 2 : Single velocity field texture
+        // Binding 2 : Uniform Buffer
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
             /*binding id*/ 2, 1)};
@@ -450,7 +467,7 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
             /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
-        // Binding 2 : Single velocity field texture
+        // Binding 2 : Uniform Buffer
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
             /*binding id*/ 2, 1)};
@@ -518,8 +535,8 @@ class VulkanExample : public VulkanExampleBase {
           writeOnlyTextureArrayDescriptor,
           vks::initializers::writeDescriptorSet(
               compute_.descriptorSets_[i].advection,
-              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, /*binding id*/ 2,
-              &compute_.read_textures[0].descriptor),
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, /*binding id*/ 2,
+              &compute_.uniformBuffers_[i].advection.descriptor),
       };
       vkUpdateDescriptorSets(
           device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
@@ -1340,7 +1357,16 @@ class VulkanExample : public VulkanExampleBase {
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 
     apiVersion_ = VK_API_VERSION_1_3;
+
+    // Descriptor indexing
+    enabledFeatures12_.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    enabledFeatures12_.runtimeDescriptorArray = VK_TRUE;
+    enabledFeatures12_.descriptorBindingVariableDescriptorCount = VK_TRUE;
+
+    // Dynamic rendering
     enabledFeatures13_.dynamicRendering = VK_TRUE;
+    enabledFeatures13_.pNext = &enabledFeatures12_;
+
     deviceCreatepNextChain_ = &enabledFeatures13_;
   }
 
@@ -1395,6 +1421,7 @@ class VulkanExample : public VulkanExampleBase {
       }
       for (auto& buffer : compute_.uniformBuffers_) {
         buffer.buoyancy.destroy();
+        buffer.advection.destroy();
         buffer.vorticity.destroy();
         buffer.vortConfinement.destroy();
       }
