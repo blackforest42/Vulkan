@@ -139,10 +139,10 @@ class VulkanExample : public VulkanExampleBase {
 
     struct BuoyancyUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(16) glm::vec3 gravity{0, 9.8, 0};
+      alignas(16) glm::vec3 gravity{0, 0, 0};
       alignas(4) float deltaTime{TIME_DELTA};
       alignas(4) float buoyancyAlpha{};
-      alignas(4) float buoyancyBeta{1.f};
+      alignas(4) float buoyancyBeta{0.f};
       alignas(4) float ambientTemp{0.f};
     };
 
@@ -546,6 +546,12 @@ class VulkanExample : public VulkanExampleBase {
         vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
                                &compute_.pipelineLayouts_.advection));
 
+    pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
+        &compute_.descriptorSetLayouts_.vorticity, 1);
+    VK_CHECK_RESULT(
+        vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
+                               &compute_.pipelineLayouts_.vorticity));
+
     // Advection
     VkComputePipelineCreateInfo computePipelineCreateInfo =
         vks::initializers::computePipelineCreateInfo(
@@ -581,6 +587,142 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateComputePipelines(
         device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
         &compute_.pipelines_.buoyancy));
+
+    // Vorticity
+    computePipelineCreateInfo = vks::initializers::computePipelineCreateInfo(
+        compute_.pipelineLayouts_.vorticity, 0);
+    computePipelineCreateInfo.layout = compute_.pipelineLayouts_.vorticity;
+    computePipelineCreateInfo.stage = loadShader(
+        getShadersPath() + "smoke/vort.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+    VK_CHECK_RESULT(vkCreateComputePipelines(
+        device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
+        &compute_.pipelines_.vorticity));
+  }
+
+  void buildComputeCommandBuffer() {
+    VkCommandBuffer cmdBuffer = compute_.commandBuffers[currentBuffer_];
+
+    VkCommandBufferBeginInfo cmdBufInfo =
+        vks::initializers::commandBufferBeginInfo();
+
+    VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
+    cmdBeginLabel(cmdBuffer, "Compute Pipelines", {.5f, 0.2f, 3.f, 1.f});
+
+    advectCmd(cmdBuffer);
+    swapTexturesCmd(cmdBuffer);
+
+    buoyancyCmd(cmdBuffer);
+    swapTexturesCmd(cmdBuffer);
+
+    vorticityCmd(cmdBuffer);
+    swapTexturesCmd(cmdBuffer);
+    cmdEndLabel(cmdBuffer);
+
+    VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
+  }
+
+  void transitionLayoutsForReadAndWriteComputeTextures(
+      VkCommandBuffer& cmdBuffer) {
+    // Layout transition for both read and write texture maps
+    for (int i = 0; i < compute_.texture_count; i++) {
+      // Read textures
+      vks::tools::insertImageMemoryBarrier(
+          cmdBuffer, compute_.read_textures[i].image, 0,
+          VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+          VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+
+      // Write textures
+      vks::tools::insertImageMemoryBarrier(
+          cmdBuffer, compute_.write_textures[i].image, 0,
+          VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+          VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+    }
+  }
+
+  void buoyancyCmd(VkCommandBuffer& cmdBuffer) {
+    transitionLayoutsForReadAndWriteComputeTextures(cmdBuffer);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      compute_.pipelines_.buoyancy);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            compute_.pipelineLayouts_.buoyancy, 0, 1,
+                            &compute_.descriptorSets_[currentBuffer_].buoyancy,
+                            0, nullptr);
+    cmdBeginLabel(cmdBuffer, "Buoyancy", {1.f, .4f, .4f, 1.f});
+    vkCmdDispatch(cmdBuffer,
+                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
+                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
+                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
+    cmdEndLabel(cmdBuffer);
+  }
+
+  void advectCmd(VkCommandBuffer& cmdBuffer) {
+    transitionLayoutsForReadAndWriteComputeTextures(cmdBuffer);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      compute_.pipelines_.advection);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            compute_.pipelineLayouts_.advection, 0, 1,
+                            &compute_.descriptorSets_[currentBuffer_].advection,
+                            0, nullptr);
+    cmdBeginLabel(cmdBuffer, "Advection", {1, 0, 0, 1});
+    vkCmdDispatch(cmdBuffer,
+                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
+                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
+                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
+    cmdEndLabel(cmdBuffer);
+  }
+
+  void vorticityCmd(VkCommandBuffer& cmdBuffer) {
+    transitionLayoutsForReadAndWriteComputeTextures(cmdBuffer);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      compute_.pipelines_.vorticity);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            compute_.pipelineLayouts_.vorticity, 0, 1,
+                            &compute_.descriptorSets_[currentBuffer_].vorticity,
+                            0, nullptr);
+    cmdBeginLabel(cmdBuffer, "Vorticity", {1, 1, 0, 1});
+    vkCmdDispatch(cmdBuffer,
+                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
+                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
+                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
+    cmdEndLabel(cmdBuffer);
+  }
+
+  void swapTexturesCmd(VkCommandBuffer& cmdBuffer) {
+    cmdBeginLabel(cmdBuffer, "Swap read/write textures", swapColor_);
+
+    for (int i = 0; i < compute_.texture_count; i++) {
+      VkImageCopy copyRegion = {};
+
+      copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+      copyRegion.srcSubresource.mipLevel = 0;
+      copyRegion.srcSubresource.baseArrayLayer = 0;
+      copyRegion.srcSubresource.layerCount = 1;
+      copyRegion.srcOffset = {0, 0, 0};
+
+      copyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+      copyRegion.dstSubresource.mipLevel = 0;
+      copyRegion.dstSubresource.baseArrayLayer = 0;
+      copyRegion.dstSubresource.layerCount = 1;
+      copyRegion.dstOffset = {0, 0, 0};
+
+      copyRegion.extent.width = compute_.COMPUTE_TEXTURE_DIMENSIONS;
+      copyRegion.extent.height = compute_.COMPUTE_TEXTURE_DIMENSIONS;
+      copyRegion.extent.depth = compute_.COMPUTE_TEXTURE_DIMENSIONS;
+
+      // Copy output of write to read buffer
+      vkCmdCopyImage(cmdBuffer, compute_.write_textures[i].image,
+                     VK_IMAGE_LAYOUT_GENERAL, compute_.read_textures[i].image,
+                     VK_IMAGE_LAYOUT_GENERAL, 1, &copyRegion);
+    }
+
+    cmdEndLabel(cmdBuffer);
   }
 
   void prepareCompute() {
@@ -866,129 +1008,6 @@ class VulkanExample : public VulkanExampleBase {
     VulkanExampleBase::submitFrame();
   }
 
-  void buildComputeCommandBuffer() {
-    VkCommandBuffer cmdBuffer = compute_.commandBuffers[currentBuffer_];
-
-    VkCommandBufferBeginInfo cmdBufInfo =
-        vks::initializers::commandBufferBeginInfo();
-
-    VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
-    cmdBeginLabel(cmdBuffer, "Compute Pipelines", {.5f, 0.2f, 3.f, 1.f});
-    advectCmd(cmdBuffer);
-    buoyancyCmd(cmdBuffer);
-    cmdEndLabel(cmdBuffer);
-
-    VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
-  }
-
-  void buoyancyCmd(VkCommandBuffer& cmdBuffer) {
-    // Layout transition for both read and write texture maps
-    for (int i = 0; i < compute_.texture_count; i++) {
-      // Read textures
-      vks::tools::insertImageMemoryBarrier(
-          cmdBuffer, compute_.read_textures[i].image, 0,
-          VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-          VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-          VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
-
-      // Write textures
-      vks::tools::insertImageMemoryBarrier(
-          cmdBuffer, compute_.write_textures[i].image, 0,
-          VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-          VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-          VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
-    }
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                      compute_.pipelines_.buoyancy);
-    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                            compute_.pipelineLayouts_.buoyancy, 0, 1,
-                            &compute_.descriptorSets_[currentBuffer_].buoyancy,
-                            0, nullptr);
-    cmdBeginLabel(cmdBuffer, "Buoyancy", {1, 0, 1, 1});
-    vkCmdDispatch(cmdBuffer,
-                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
-    cmdEndLabel(cmdBuffer);
-
-    cmdBeginLabel(cmdBuffer, "Swap read/write textures", swapColor_);
-    for (int i = 0; i < compute_.texture_count; i++) {
-      swapTextures(cmdBuffer, compute_.write_textures[i].image,
-                   compute_.read_textures[i].image);
-    }
-
-    cmdEndLabel(cmdBuffer);
-  }
-
-  void advectCmd(VkCommandBuffer& cmdBuffer) {
-    // Layout transition for both read and write texture maps
-    for (int i = 0; i < compute_.texture_count; i++) {
-      // Read textures
-      vks::tools::insertImageMemoryBarrier(
-          cmdBuffer, compute_.read_textures[i].image, 0,
-          VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-          VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-          VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
-
-      // Write textures
-      vks::tools::insertImageMemoryBarrier(
-          cmdBuffer, compute_.write_textures[i].image, 0,
-          VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-          VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-          VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
-    }
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                      compute_.pipelines_.advection);
-    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                            compute_.pipelineLayouts_.advection, 0, 1,
-                            &compute_.descriptorSets_[currentBuffer_].advection,
-                            0, nullptr);
-    cmdBeginLabel(cmdBuffer, "Advection", {1, 1, 0, 1});
-    vkCmdDispatch(cmdBuffer,
-                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
-    cmdEndLabel(cmdBuffer);
-
-    cmdBeginLabel(cmdBuffer, "Swap read/write textures", swapColor_);
-    for (int i = 0; i < compute_.texture_count; i++) {
-      swapTextures(cmdBuffer, compute_.write_textures[i].image,
-                   compute_.read_textures[i].image);
-    }
-
-    cmdEndLabel(cmdBuffer);
-  }
-
-  void swapTextures(VkCommandBuffer& cmdBuffer,
-                    VkImage& srcImage,
-                    VkImage& dstImage) {
-    VkImageCopy copyRegion = {};
-
-    copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    copyRegion.srcSubresource.mipLevel = 0;
-    copyRegion.srcSubresource.baseArrayLayer = 0;
-    copyRegion.srcSubresource.layerCount = 1;
-    copyRegion.srcOffset = {0, 0, 0};
-
-    copyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    copyRegion.dstSubresource.mipLevel = 0;
-    copyRegion.dstSubresource.baseArrayLayer = 0;
-    copyRegion.dstSubresource.layerCount = 1;
-    copyRegion.dstOffset = {0, 0, 0};
-
-    copyRegion.extent.width = compute_.COMPUTE_TEXTURE_DIMENSIONS;
-    copyRegion.extent.height = compute_.COMPUTE_TEXTURE_DIMENSIONS;
-    copyRegion.extent.depth = compute_.COMPUTE_TEXTURE_DIMENSIONS;
-
-    // Copy output of write to read buffer
-    vkCmdCopyImage(cmdBuffer, srcImage, VK_IMAGE_LAYOUT_GENERAL, dstImage,
-                   VK_IMAGE_LAYOUT_GENERAL, 1, &copyRegion);
-  }
-
   void buildGraphicsCommandBuffer() {
     VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
 
@@ -1240,9 +1259,13 @@ class VulkanExample : public VulkanExampleBase {
       // Compute
       vkDestroyPipeline(device_, compute_.pipelines_.advection, nullptr);
       vkDestroyPipeline(device_, compute_.pipelines_.buoyancy, nullptr);
+      vkDestroyPipeline(device_, compute_.pipelines_.vorticity, nullptr);
+
       vkDestroyPipelineLayout(device_, compute_.pipelineLayouts_.advection,
                               nullptr);
       vkDestroyPipelineLayout(device_, compute_.pipelineLayouts_.buoyancy,
+                              nullptr);
+      vkDestroyPipelineLayout(device_, compute_.pipelineLayouts_.vorticity,
                               nullptr);
       for (auto& texture : compute_.read_textures) {
         if (texture.view != VK_NULL_HANDLE)
