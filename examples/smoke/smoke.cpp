@@ -156,9 +156,11 @@ class VulkanExample : public VulkanExampleBase {
 
     // Descriptors
     struct {
+      VkDescriptorSetLayout buoyancy{VK_NULL_HANDLE};
       VkDescriptorSetLayout advection{VK_NULL_HANDLE};
     } descriptorSetLayouts_;
     struct DescriptorSets {
+      VkDescriptorSet buoyancy{VK_NULL_HANDLE};
       VkDescriptorSet advection{VK_NULL_HANDLE};
     };
     std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
@@ -409,13 +411,22 @@ class VulkanExample : public VulkanExampleBase {
     // Create pipelines
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
         vks::initializers::pipelineLayoutCreateInfo(
-            &compute_.descriptorSetLayouts_.advection, 1);
+            &compute_.descriptorSetLayouts_.buoyancy, 1);
+    VK_CHECK_RESULT(
+        vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
+                               &compute_.pipelineLayouts_.buoyancy));
+    VkComputePipelineCreateInfo computePipelineCreateInfo =
+        vks::initializers::computePipelineCreateInfo(
+            compute_.pipelineLayouts_.buoyancy, 0);
+
+    // Advection
+    pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
+        &compute_.descriptorSetLayouts_.advection, 1);
     VK_CHECK_RESULT(
         vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
                                &compute_.pipelineLayouts_.advection));
-    VkComputePipelineCreateInfo computePipelineCreateInfo =
-        vks::initializers::computePipelineCreateInfo(
-            compute_.pipelineLayouts_.advection, 0);
+    computePipelineCreateInfo = vks::initializers::computePipelineCreateInfo(
+        compute_.pipelineLayouts_.advection, 0);
 
     // 1st pass
     computePipelineCreateInfo.stage =
@@ -439,6 +450,11 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateComputePipelines(
         device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
         &compute_.pipelines_.advection));
+
+    // Buoyancy
+    VK_CHECK_RESULT(vkCreateComputePipelines(
+        device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
+        &compute_.pipelines_.buoyancy));
   }
 
   void prepareComputeCommandPoolBuffersFencesAndSemaphores() {
@@ -685,7 +701,6 @@ class VulkanExample : public VulkanExampleBase {
                                            nullptr, &descriptorPool_));
   }
 
-  // Prepare and initialize uniform buffer containing shader uniforms
   void prepareUniformBuffers() {
     for (auto& buffer : graphics_.uniformBuffers_) {
       VK_CHECK_RESULT(vulkanDevice_->createBuffer(

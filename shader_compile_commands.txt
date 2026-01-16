@@ -1,3 +1,4 @@
 glslc -g raymarch.vert -o raymarch.vert.spv
 glslc -g raymarch.frag -o raymarch.frag.spv
 glslc -g advect.comp -o advect.comp.spv
+glslc -g buoyancy.comp -o buoyancy.comp.spv

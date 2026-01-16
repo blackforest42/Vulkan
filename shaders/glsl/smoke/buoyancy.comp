@@ -1,0 +1,54 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+layout (binding = 0) uniform sampler3D readOnlyTexs[];
+layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
+
+// Texture index mappings
+// 0 velocity
+// 1 pressure
+// 2 divergence
+// 3 vorticity
+// 4 density
+// 5 temperature
+
+layout(binding = 2) uniform SimParams {
+    ivec3 gridSize;
+    float deltaTime;
+    float buoyancyAlpha;
+    float buoyancyBeta;
+    vec3 gravity;
+    float ambientTemp;
+} params;
+
+bool isSolid(ivec3 coord) {
+    if (any(lessThan(coord, ivec3(0))) || any(greaterThanEqual(coord, params.gridSize))) {
+        return true;
+    }
+    return false;
+}
+
+void main() {
+    ivec3 coord = ivec3(gl_GlobalInvocationID);
+    if (any(greaterThanEqual(coord, params.gridSize))) return;
+    
+    // Skip solid cells
+    if (isSolid(coord)) {
+        imageStore(writeOnlyTexs[0], coord, vec4(0.0));
+        return;
+    }
+    
+    vec4 vel = texture(readOnlyTexs[0], coord);
+    float temp = texture(readOnlyTexs[5], coord).r;
+    
+    // Buoyancy force: F = beta * (T - T_ambient)
+    float buoyancy = params.buoyancyBeta * (temp - params.ambientTemp);
+    
+    // Apply forces
+    vec3 force = params.gravity * params.deltaTime;
+    force.y += buoyancy * params.deltaTime;
+    
+    vel.xyz += force;
+    imageStore(writeOnlyTexs[0], coord, vel);
+}
