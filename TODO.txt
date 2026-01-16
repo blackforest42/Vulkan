@@ -4,7 +4,7 @@ Compute Pipelines:
 	x Add Buoyancy Pipeline
 	x Vorticity Computation Pipeline
 	x Vorticity Confinement Pipeline
-	- Advection Pipeline (reusable for velocity, density, temperature)
+	x Advection Pipeline (reusable for velocity, density, temperature)
 	- Divergence Computation Pipeline
 	- Jacobi Iteration Pipeline (pressure solve)
 	- Gradient Subtraction Pipeline
