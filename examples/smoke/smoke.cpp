@@ -108,24 +108,6 @@ class VulkanExample : public VulkanExampleBase {
     };
     std::array<ComputeSemaphores, MAX_CONCURRENT_FRAMES> semaphores{};
 
-    struct BuoyancyUBO {
-      alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(16) glm::vec3 gravity{0, 9.8, 0};
-      alignas(4) float deltaTime{TIME_DELTA};
-      alignas(4) float buoyancyAlpha{};
-      alignas(4) float buoyancyBeta{1.f};
-      alignas(4) float ambientTemp{0.f};
-    };
-
-    struct {
-      BuoyancyUBO buyoancy;
-    } ubos_;
-
-    struct UniformBuffers {
-      vks::Buffer buoyancy;
-    };
-    std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
-
     // Contains all Vulkan objects that are required to store and use a 3D
     // texture
     struct Texture3D {
@@ -155,6 +137,31 @@ class VulkanExample : public VulkanExampleBase {
     std::array<Texture3D, texture_count> read_textures;
     std::array<Texture3D, texture_count> write_textures;
 
+    struct BuoyancyUBO {
+      alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
+      alignas(16) glm::vec3 gravity{0, 9.8, 0};
+      alignas(4) float deltaTime{TIME_DELTA};
+      alignas(4) float buoyancyAlpha{};
+      alignas(4) float buoyancyBeta{1.f};
+      alignas(4) float ambientTemp{0.f};
+    };
+
+    struct VorticityUBO {
+      alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
+      alignas(4) float cellSize{1.f / COMPUTE_TEXTURE_DIMENSIONS};
+    };
+
+    struct {
+      BuoyancyUBO buoyancy;
+      VorticityUBO vorticity;
+    } ubos_;
+
+    struct UniformBuffers {
+      vks::Buffer buoyancy;
+      vks::Buffer vorticity;
+    };
+    std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+
     // Buffers
     std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers;
 
@@ -162,25 +169,26 @@ class VulkanExample : public VulkanExampleBase {
     struct {
       VkPipeline buoyancy;
       VkPipeline advection;
-      VkPipeline velocityBoundary;
+      VkPipeline vorticity;
     } pipelines_{};
     struct {
       VkPipelineLayout buoyancy{VK_NULL_HANDLE};
       VkPipelineLayout advection{VK_NULL_HANDLE};
-      VkPipelineLayout velocityBoundary{VK_NULL_HANDLE};
+      VkPipelineLayout vorticity{VK_NULL_HANDLE};
     } pipelineLayouts_;
 
     // Descriptors
     struct {
       VkDescriptorSetLayout buoyancy{VK_NULL_HANDLE};
       VkDescriptorSetLayout advection{VK_NULL_HANDLE};
+      VkDescriptorSetLayout vorticity{VK_NULL_HANDLE};
     } descriptorSetLayouts_;
     struct DescriptorSets {
       VkDescriptorSet buoyancy{VK_NULL_HANDLE};
       VkDescriptorSet advection{VK_NULL_HANDLE};
+      VkDescriptorSet vorticity{VK_NULL_HANDLE};
     };
     std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
-
   } compute_;
 
   void prepareComputeTexture(Compute::Texture3D& texture,
@@ -315,8 +323,16 @@ class VulkanExample : public VulkanExampleBase {
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
           &buffer.buoyancy, sizeof(Compute::BuoyancyUBO),
-          &compute_.ubos_.buyoancy));
+          &compute_.ubos_.buoyancy));
       VK_CHECK_RESULT(buffer.buoyancy.map());
+
+      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.vorticity, sizeof(Compute::VorticityUBO),
+          &compute_.ubos_.buoyancy));
+      VK_CHECK_RESULT(buffer.vorticity.map());
     }
   }
 
@@ -380,6 +396,27 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(
         vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr,
                                     &compute_.descriptorSetLayouts_.buoyancy));
+
+    // Buoyancy
+    setLayoutBindings = {
+        // Binding 0 : Array of read-only texs
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
+            (uint32_t)compute_.read_textures.size()),
+        // Binding 1 : Array of write-only textures to write result
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
+        // Binding 2 : Single velocity field texture
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 2, 1)};
+    descriptorLayoutCI =
+        vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr,
+                                    &compute_.descriptorSetLayouts_.vorticity));
 
     // Image descriptors for the 3D texture array
     std::vector<VkDescriptorImageInfo> readOnlyTextureDescriptors(
@@ -463,7 +500,31 @@ class VulkanExample : public VulkanExampleBase {
               compute_.descriptorSets_[i].buoyancy,
               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, /*binding id*/ 2,
               &compute_.uniformBuffers_[i].buoyancy.descriptor),
+
       };
+      vkUpdateDescriptorSets(
+          device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
+          computeWriteDescriptorSets.data(), 0, nullptr);
+
+      // Vorticity
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool_, &compute_.descriptorSetLayouts_.vorticity, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device_, &allocInfo, &compute_.descriptorSets_[i].vorticity));
+
+      readOnlyTextureArrayDescriptor.dstSet =
+          compute_.descriptorSets_[i].vorticity;
+      writeOnlyTextureArrayDescriptor.dstSet =
+          compute_.descriptorSets_[i].vorticity;
+      computeWriteDescriptorSets = {
+          readOnlyTextureArrayDescriptor,
+          writeOnlyTextureArrayDescriptor,
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptorSets_[i].vorticity,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, /*binding id*/ 2,
+              &compute_.uniformBuffers_[i].vorticity.descriptor),
+      };
+
       vkUpdateDescriptorSets(
           device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
           computeWriteDescriptorSets.data(), 0, nullptr);
@@ -520,46 +581,6 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateComputePipelines(
         device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
         &compute_.pipelines_.buoyancy));
-  }
-
-  void prepareComputeCommandPoolBuffersFencesAndSemaphores() {
-    // Separate command pool as queue family for compute may be different than
-    // graphics
-    VkCommandPoolCreateInfo cmdPoolInfo =
-        vks::initializers::commandPoolCreateInfo();
-    cmdPoolInfo.queueFamilyIndex = compute_.queueFamilyIndex;
-    cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    VK_CHECK_RESULT(vkCreateCommandPool(device_, &cmdPoolInfo, nullptr,
-                                        &compute_.commandPool));
-
-    // Create command buffers for compute operations
-    for (auto& cmdBuffer : compute_.commandBuffers) {
-      cmdBuffer = vulkanDevice_->createCommandBuffer(
-          VK_COMMAND_BUFFER_LEVEL_PRIMARY, compute_.commandPool);
-    }
-
-    // Fences to check for command buffer completion
-    for (auto& fence : compute_.fences) {
-      VkFenceCreateInfo fenceCreateInfo =
-          vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
-      VK_CHECK_RESULT(
-          vkCreateFence(device_, &fenceCreateInfo, nullptr, &fence));
-    }
-
-    // Semaphores to order compute and graphics submissions
-    for (auto& semaphore : compute_.semaphores) {
-      VkSemaphoreCreateInfo semaphoreInfo{
-          .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-      vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &semaphore.ready);
-      vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &semaphore.complete);
-    }
-    // Signal first used ready semaphore
-    VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
-    computeSubmitInfo.signalSemaphoreCount = 1;
-    computeSubmitInfo.pSignalSemaphores =
-        &compute_.semaphores[MAX_CONCURRENT_FRAMES - 1].ready;
-    VK_CHECK_RESULT(
-        vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo, VK_NULL_HANDLE));
   }
 
   void prepareCompute() {
@@ -741,13 +762,13 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            /*total ubo count */ (/*graphics*/ 1 + /*compute*/ 1) *
+            /*total ubo count */ (/*graphics*/ 1 + /*compute*/ 2) *
                 MAX_CONCURRENT_FRAMES),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             /*total texture count (across all pipelines) */ (
                 /*graphics: volume texture*/ 1 +
-                /*compute textures*/ 1 +
+                /*compute textures*/ /*velocityfield tex in advection*/ 1 +
                 (uint32_t)compute_.read_textures.size()) *
                 MAX_CONCURRENT_FRAMES),
         // textures for writing
@@ -758,10 +779,10 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
             poolSizes,
-            /*total descriptor count*/ (/*graphics*/ 1 + /*compute*/ 2) *
+            /*total descriptor count*/ (/*graphics*/ 1 + /*compute*/ 3) *
                 MAX_CONCURRENT_FRAMES);
-    // Needed if using VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT in descriptor
-    // bindings
+    // Needed if using VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT in
+    // descriptor bindings
     descriptorPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
     VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
                                            nullptr, &descriptorPool_));
@@ -824,8 +845,8 @@ class VulkanExample : public VulkanExampleBase {
     if (!prepared_) {
       return;
     }
-    // Use a fence to ensure that compute command buffer has finished executing
-    // before using it again
+    // Use a fence to ensure that compute command buffer has finished
+    // executing before using it again
     vkWaitForFences(device_, 1, &compute_.fences[currentBuffer_], VK_TRUE,
                     UINT64_MAX);
     vkResetFences(device_, 1, &compute_.fences[currentBuffer_]);
@@ -1107,6 +1128,46 @@ class VulkanExample : public VulkanExampleBase {
         indices.data()));
   }
 
+  void prepareComputeCommandPoolBuffersFencesAndSemaphores() {
+    // Separate command pool as queue family for compute may be different than
+    // graphics
+    VkCommandPoolCreateInfo cmdPoolInfo =
+        vks::initializers::commandPoolCreateInfo();
+    cmdPoolInfo.queueFamilyIndex = compute_.queueFamilyIndex;
+    cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    VK_CHECK_RESULT(vkCreateCommandPool(device_, &cmdPoolInfo, nullptr,
+                                        &compute_.commandPool));
+
+    // Create command buffers for compute operations
+    for (auto& cmdBuffer : compute_.commandBuffers) {
+      cmdBuffer = vulkanDevice_->createCommandBuffer(
+          VK_COMMAND_BUFFER_LEVEL_PRIMARY, compute_.commandPool);
+    }
+
+    // Fences to check for command buffer completion
+    for (auto& fence : compute_.fences) {
+      VkFenceCreateInfo fenceCreateInfo =
+          vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
+      VK_CHECK_RESULT(
+          vkCreateFence(device_, &fenceCreateInfo, nullptr, &fence));
+    }
+
+    // Semaphores to order compute and graphics submissions
+    for (auto& semaphore : compute_.semaphores) {
+      VkSemaphoreCreateInfo semaphoreInfo{
+          .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+      vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &semaphore.ready);
+      vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &semaphore.complete);
+    }
+    // Signal first used ready semaphore
+    VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
+    computeSubmitInfo.signalSemaphoreCount = 1;
+    computeSubmitInfo.pSignalSemaphores =
+        &compute_.semaphores[MAX_CONCURRENT_FRAMES - 1].ready;
+    VK_CHECK_RESULT(
+        vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo, VK_NULL_HANDLE));
+  }
+
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {
     if (overlay->header("Settings")) {
       overlay->sliderInt("Toggle View", &graphics_.ubos_.march.toggleView,
@@ -1205,12 +1266,15 @@ class VulkanExample : public VulkanExampleBase {
       }
       for (auto& buffer : compute_.uniformBuffers_) {
         buffer.buoyancy.destroy();
+        buffer.vorticity.destroy();
       }
 
       vkDestroyDescriptorSetLayout(
           device_, compute_.descriptorSetLayouts_.advection, nullptr);
       vkDestroyDescriptorSetLayout(
           device_, compute_.descriptorSetLayouts_.buoyancy, nullptr);
+      vkDestroyDescriptorSetLayout(
+          device_, compute_.descriptorSetLayouts_.vorticity, nullptr);
       vkDestroyCommandPool(device_, compute_.commandPool, nullptr);
       for (auto& fence : compute_.fences) {
         vkDestroyFence(device_, fence, nullptr);
