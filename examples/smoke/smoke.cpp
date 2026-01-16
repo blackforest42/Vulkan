@@ -144,38 +144,22 @@ class VulkanExample : public VulkanExampleBase {
 
     // Pipelines
     struct {
-      VkPipeline advect;
-      VkPipeline divergence;
-      VkPipeline jacobi;
-      VkPipeline gradient;
-      VkPipeline vorticity;
-      VkPipeline vorticityConfinement;
+      VkPipeline buoyancy;
+      VkPipeline advection;
+      VkPipeline velocityBoundary;
+
     } pipelines_{};
     struct {
-      VkPipelineLayout advect{VK_NULL_HANDLE};
-      VkPipelineLayout divergence{VK_NULL_HANDLE};
-      VkPipelineLayout jacobi{VK_NULL_HANDLE};
-      VkPipelineLayout gradient{VK_NULL_HANDLE};
-      VkPipelineLayout vorticity{VK_NULL_HANDLE};
-      VkPipelineLayout vorticityConfintement{VK_NULL_HANDLE};
+      VkPipelineLayout buoyancy{VK_NULL_HANDLE};
+      VkPipelineLayout advection{VK_NULL_HANDLE};
     } pipelineLayouts_;
 
     // Descriptors
     struct {
-      VkDescriptorSetLayout advect{VK_NULL_HANDLE};
-      VkDescriptorSetLayout divergence{VK_NULL_HANDLE};
-      VkDescriptorSetLayout jacobi{VK_NULL_HANDLE};
-      VkDescriptorSetLayout gradient{VK_NULL_HANDLE};
-      VkDescriptorSetLayout vorticity{VK_NULL_HANDLE};
-      VkDescriptorSetLayout vorticityConfinement{VK_NULL_HANDLE};
+      VkDescriptorSetLayout advection{VK_NULL_HANDLE};
     } descriptorSetLayouts_;
     struct DescriptorSets {
-      VkDescriptorSet advect{VK_NULL_HANDLE};
-      VkDescriptorSet divergence{VK_NULL_HANDLE};
-      VkDescriptorSet jacobi{VK_NULL_HANDLE};
-      VkDescriptorSet gradient{VK_NULL_HANDLE};
-      VkDescriptorSet vorticity{VK_NULL_HANDLE};
-      VkDescriptorSet vorticityConfinement{VK_NULL_HANDLE};
+      VkDescriptorSet advection{VK_NULL_HANDLE};
     };
     std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
@@ -342,7 +326,7 @@ class VulkanExample : public VulkanExampleBase {
 
     VK_CHECK_RESULT(
         vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr,
-                                    &compute_.descriptorSetLayouts_.advect));
+                                    &compute_.descriptorSetLayouts_.advection));
   }
 
   void prepareCompute() {
@@ -394,20 +378,20 @@ class VulkanExample : public VulkanExampleBase {
     for (auto i = 0; i < compute_.uniformBuffers.size(); i++) {
       VkDescriptorSetAllocateInfo allocInfo =
           vks::initializers::descriptorSetAllocateInfo(
-              descriptorPool_, &compute_.descriptorSetLayouts_.advect, 1);
+              descriptorPool_, &compute_.descriptorSetLayouts_.advection, 1);
       VK_CHECK_RESULT(vkAllocateDescriptorSets(
-          device_, &allocInfo, &compute_.descriptorSets_[i].advect));
+          device_, &allocInfo, &compute_.descriptorSets_[i].advection));
 
       readOnlyTextureArrayDescriptor.dstSet =
-          compute_.descriptorSets_[i].advect;
+          compute_.descriptorSets_[i].advection;
       writeOnlyTextureArrayDescriptor.dstSet =
-          compute_.descriptorSets_[i].advect;
+          compute_.descriptorSets_[i].advection;
 
       std::vector<VkWriteDescriptorSet> computeWriteDescriptorSets = {
           readOnlyTextureArrayDescriptor,
           writeOnlyTextureArrayDescriptor,
           vks::initializers::writeDescriptorSet(
-              compute_.descriptorSets_[i].advect,
+              compute_.descriptorSets_[i].advection,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, /*binding id*/ 2,
               &compute_.read_textures[0].descriptor),
       };
@@ -419,13 +403,13 @@ class VulkanExample : public VulkanExampleBase {
     // Create pipelines
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
         vks::initializers::pipelineLayoutCreateInfo(
-            &compute_.descriptorSetLayouts_.advect, 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo,
-                                           nullptr,
-                                           &compute_.pipelineLayouts_.advect));
+            &compute_.descriptorSetLayouts_.advection, 1);
+    VK_CHECK_RESULT(
+        vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
+                               &compute_.pipelineLayouts_.advection));
     VkComputePipelineCreateInfo computePipelineCreateInfo =
         vks::initializers::computePipelineCreateInfo(
-            compute_.pipelineLayouts_.advect, 0);
+            compute_.pipelineLayouts_.advection, 0);
 
     // 1st pass
     computePipelineCreateInfo.stage =
@@ -448,7 +432,7 @@ class VulkanExample : public VulkanExampleBase {
 
     VK_CHECK_RESULT(vkCreateComputePipelines(
         device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
-        &compute_.pipelines_.advect));
+        &compute_.pipelines_.advection));
 
     // Separate command pool as queue family for compute may be different than
     // graphics
@@ -797,11 +781,11 @@ class VulkanExample : public VulkanExampleBase {
           VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
     }
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                      compute_.pipelines_.advect);
+                      compute_.pipelines_.advection);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                            compute_.pipelineLayouts_.advect, 0, 1,
-                            &compute_.descriptorSets_[currentBuffer_].advect, 0,
-                            nullptr);
+                            compute_.pipelineLayouts_.advection, 0, 1,
+                            &compute_.descriptorSets_[currentBuffer_].advection,
+                            0, nullptr);
     cmdBeginLabel(cmdBuffer, "Advection", {1, 1, 0, 1});
     vkCmdDispatch(cmdBuffer,
                   compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
@@ -1075,11 +1059,11 @@ class VulkanExample : public VulkanExampleBase {
           vkFreeMemory(device_, texture.deviceMemory, nullptr);
       }
 
-      vkDestroyPipeline(device_, compute_.pipelines_.advect, nullptr);
-      vkDestroyPipelineLayout(device_, compute_.pipelineLayouts_.advect,
+      vkDestroyPipeline(device_, compute_.pipelines_.advection, nullptr);
+      vkDestroyPipelineLayout(device_, compute_.pipelineLayouts_.advection,
                               nullptr);
       vkDestroyDescriptorSetLayout(
-          device_, compute_.descriptorSetLayouts_.advect, nullptr);
+          device_, compute_.descriptorSetLayouts_.advection, nullptr);
       vkDestroyCommandPool(device_, compute_.commandPool, nullptr);
       for (auto& fence : compute_.fences) {
         vkDestroyFence(device_, fence, nullptr);

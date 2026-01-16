@@ -1,12 +1,15 @@
 Jan 15
 TODO: 
-	- start next pipelines:
-		- advection
-		- external forces
-		- vorticity
-		- vorticity confinement
-		- divergence
-		- jacobi
+Compute Pipelines:
+	- Add Forces Pipeline (buoyancy, impulse optional)
+	- Vorticity Computation Pipeline
+	- Vorticity Confinement Pipeline
+	- Advection Pipeline (reusable for velocity, density, temperature)
+	- Divergence Computation Pipeline
+	- Jacobi Iteration Pipeline (pressure solve)
+	- Gradient Subtraction Pipeline
+	- Velocity Boundary Pipeline
+	- Scalar Boundary Pipeline (for density, temperature, pressure)
 
 DONE:
 	- ray marching 3D texture done and tested
