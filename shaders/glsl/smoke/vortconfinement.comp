@@ -1,0 +1,67 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+layout (binding = 0) uniform sampler3D readOnlyTexs[];
+layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
+
+layout(binding = 2) uniform SimParams {
+    ivec3 gridSize;
+    float deltaTime;
+    float epsilon;  // Vorticity strength
+    float cellSize;
+} params;
+
+// Texture index mappings
+// 0 velocity
+// 1 pressure
+// 2 divergence
+// 3 vorticity
+// 4 density
+// 5 temperature
+
+bool isSolid(ivec3 coord) {
+    if (any(lessThan(coord, ivec3(0))) || any(greaterThanEqual(coord, params.gridSize))) {
+        return true;
+    }
+    return false;
+}
+
+float getVorticityMagnitude(ivec3 coord) {
+    if (isSolid(coord)) return 0.0;
+    return texture(readOnlyTexs[3], coord).w;
+}
+
+void main() {
+    ivec3 coord = ivec3(gl_GlobalInvocationID);
+    if (any(greaterThanEqual(coord, params.gridSize))) return;
+    
+    // Skip solid cells
+    if (isSolid(coord)) {
+        imageStore(writeOnlyTexs[3], coord, vec4(0.0));
+        return;
+    }
+    
+    // Compute gradient of vorticity magnitude
+    float wL = getVorticityMagnitude(coord - ivec3(1, 0, 0));
+    float wR = getVorticityMagnitude(coord + ivec3(1, 0, 0));
+    float wD = getVorticityMagnitude(coord - ivec3(0, 1, 0));
+    float wU = getVorticityMagnitude(coord + ivec3(0, 1, 0));
+    float wB = getVorticityMagnitude(coord - ivec3(0, 0, 1));
+    float wF = getVorticityMagnitude(coord + ivec3(0, 0, 1));
+    
+    vec3 gradMag = vec3(wR - wL, wU - wD, wF - wB) * 0.5;
+    
+    float len = length(gradMag);
+    if (len > 0.0001) {
+        vec3 N = gradMag / len;  // Normalized gradient
+        vec3 omega = texture(readOnlyTexs[3], coord).xyz;
+        
+        // Confinement force: f = e * h * (N x w)
+        vec3 force = params.epsilon * params.cellSize * cross(N, omega);
+        
+        vec4 vel = texture(readOnlyTexs[0], coord);
+        vel.xyz += force * params.deltaTime;
+        imageStore(writeOnlyTexs[0], coord, vel);
+    }
+}

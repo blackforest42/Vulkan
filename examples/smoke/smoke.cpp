@@ -31,55 +31,6 @@ class VulkanExample : public VulkanExampleBase {
   PFN_vkCmdBeginDebugUtilsLabelEXT vkCmdBeginDebugUtilsLabelEXT{nullptr};
   PFN_vkCmdEndDebugUtilsLabelEXT vkCmdEndDebugUtilsLabelEXT{nullptr};
 
-  // Handles rendering the compute outputs
-  struct Graphics {
-    // families differ and require additional barriers
-    uint32_t queueFamilyIndex{0};
-
-    vks::Buffer cubeVerticesBuffer;
-    vks::Buffer cubeIndicesBuffer;
-    uint32_t indexCount{0};
-
-    struct RayMarchUBO {
-      alignas(16) glm::mat4 model;
-      alignas(16) glm::mat4 invModel;
-      alignas(16) glm::mat4 cameraView;
-      alignas(16) glm::mat4 perspective;
-      alignas(16) glm::vec3 cameraPos;
-      alignas(8) glm::vec2 screenRes;
-      alignas(4) float time{0};
-      alignas(4) int toggleView{0};
-    };
-
-    struct UBO {
-      RayMarchUBO march;
-    } ubos_;
-
-    // vk Buffers
-    struct UniformBuffers {
-      vks::Buffer march;
-    };
-    std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
-
-    // Pipelines
-    struct {
-      VkPipeline rayMarch{VK_NULL_HANDLE};
-    } pipelines_{};
-    struct {
-      VkPipelineLayout rayMarch{VK_NULL_HANDLE};
-    } pipelineLayouts_;
-
-    // Descriptors
-    struct {
-      VkDescriptorSetLayout rayMarch{VK_NULL_HANDLE};
-    } descriptorSetLayouts_;
-    struct DescriptorSets {
-      VkDescriptorSet rayMarch{VK_NULL_HANDLE};
-    };
-    std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
-
-  } graphics_;
-
   // Handles all compute pipelines
   struct Compute {
     static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 128;
@@ -190,6 +141,55 @@ class VulkanExample : public VulkanExampleBase {
     };
     std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
   } compute_;
+
+  // Handles rendering the compute outputs
+  struct Graphics {
+    // families differ and require additional barriers
+    uint32_t queueFamilyIndex{0};
+
+    vks::Buffer cubeVerticesBuffer;
+    vks::Buffer cubeIndicesBuffer;
+    uint32_t indexCount{0};
+
+    struct RayMarchUBO {
+      alignas(16) glm::mat4 model;
+      alignas(16) glm::mat4 invModel;
+      alignas(16) glm::mat4 cameraView;
+      alignas(16) glm::mat4 perspective;
+      alignas(16) glm::vec3 cameraPos;
+      alignas(8) glm::vec2 screenRes;
+      alignas(4) float time{0};
+      alignas(4) int toggleView{0};
+    };
+
+    struct UBO {
+      RayMarchUBO march;
+    } ubos_;
+
+    // vk Buffers
+    struct UniformBuffers {
+      vks::Buffer march;
+    };
+    std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+
+    // Pipelines
+    struct {
+      VkPipeline rayMarch{VK_NULL_HANDLE};
+    } pipelines_{};
+    struct {
+      VkPipelineLayout rayMarch{VK_NULL_HANDLE};
+    } pipelineLayouts_;
+
+    // Descriptors
+    struct {
+      VkDescriptorSetLayout rayMarch{VK_NULL_HANDLE};
+    } descriptorSetLayouts_;
+    struct DescriptorSets {
+      VkDescriptorSet rayMarch{VK_NULL_HANDLE};
+    };
+    std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+
+  } graphics_;
 
   void prepareComputeTexture(Compute::Texture3D& texture,
                              bool readOnly,
