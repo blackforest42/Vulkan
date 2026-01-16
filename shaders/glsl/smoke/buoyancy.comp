@@ -15,10 +15,10 @@ layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 
 layout(binding = 2) uniform SimParams {
     ivec3 gridSize;
+    vec3 gravity;
     float deltaTime;
     float buoyancyAlpha;
     float buoyancyBeta;
-    vec3 gravity;
     float ambientTemp;
 } params;
 

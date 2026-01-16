@@ -84,6 +84,7 @@ class VulkanExample : public VulkanExampleBase {
   struct Compute {
     static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 128;
     static constexpr int WORKGROUP_SIZE = 8;
+    static constexpr float TIME_DELTA = 0.1f;
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
@@ -107,8 +108,24 @@ class VulkanExample : public VulkanExampleBase {
     };
     std::array<ComputeSemaphores, MAX_CONCURRENT_FRAMES> semaphores{};
 
-    // uniform buffers
-    std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+    struct BuoyancyUBO {
+      glm::vec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS, COMPUTE_TEXTURE_DIMENSIONS,
+                         COMPUTE_TEXTURE_DIMENSIONS};
+      glm::vec3 gravity{0, 9.8, 0};
+      float deltaTime{TIME_DELTA};
+      float buoyancyAlpha{};
+      float buoyancyBeta{1.f};
+      float ambientTemp{0.f};
+    };
+
+    struct {
+      BuoyancyUBO buyoancy;
+    } ubos_;
+
+    struct UniformBuffers {
+      vks::Buffer buoyancy;
+    };
+    std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
     // Contains all Vulkan objects that are required to store and use a 3D
     // texture
@@ -283,7 +300,29 @@ class VulkanExample : public VulkanExampleBase {
       prepareComputeTexture(compute_.write_textures[i], false,
                             SCALAR_FIELD_FORMAT);
     }
+  }
 
+  void prepareComputeTextures() {
+    // Create a compute capable device queue
+    vkGetDeviceQueue(device_, compute_.queueFamilyIndex, 0, &compute_.queue);
+
+    createTexturesForDescriptorIndexing();
+  }
+
+  void prepareComputeUniformBuffers() {
+    for (auto& buffer : compute_.uniformBuffers_) {
+      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.buoyancy, sizeof(Compute::BuoyancyUBO),
+          &compute_.ubos_.buyoancy));
+      VK_CHECK_RESULT(buffer.buoyancy.map());
+    }
+  }
+
+  void setupComputeDescriptors() {
+    // Advection
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
         // Binding 0 : Array of INPUT textures to advect
         vks::initializers::descriptorSetLayoutBinding(
@@ -310,13 +349,6 @@ class VulkanExample : public VulkanExampleBase {
         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
             VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT};
 
-    VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsInfo{};
-    bindingFlagsInfo.sType =
-        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
-    bindingFlagsInfo.pNext = nullptr;
-    bindingFlagsInfo.bindingCount = static_cast<uint32_t>(bindingFlags.size());
-    bindingFlagsInfo.pBindingFlags = bindingFlags.data();
-
     descriptorLayoutCI.sType =
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     descriptorLayoutCI.pNext = nullptr;
@@ -325,22 +357,31 @@ class VulkanExample : public VulkanExampleBase {
     descriptorLayoutCI.bindingCount =
         static_cast<uint32_t>(setLayoutBindings.size());
     descriptorLayoutCI.pBindings = setLayoutBindings.data();
-
     VK_CHECK_RESULT(
         vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr,
                                     &compute_.descriptorSetLayouts_.advection));
-  }
 
-  void prepareComputeTextures() {
-    // Create a compute capable device queue
-    vkGetDeviceQueue(device_, compute_.queueFamilyIndex, 0, &compute_.queue);
+    // Buoyancy
+    setLayoutBindings = {
+        // Binding 0 : Array of read-only texs
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
+            (uint32_t)compute_.read_textures.size()),
+        // Binding 1 : Array of write-only textures to write result
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
+        // Binding 2 : Single velocity field texture
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 2, 1)};
+    descriptorLayoutCI =
+        vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr,
+                                    &compute_.descriptorSetLayouts_.buoyancy));
 
-    createTexturesForDescriptorIndexing();
-  }
-
-  void prepareComputeUniformBuffers() {}
-
-  void setupComputeDescriptors() {
     // Image descriptors for the 3D texture array
     std::vector<VkDescriptorImageInfo> readOnlyTextureDescriptors(
         compute_.read_textures.size());
@@ -382,6 +423,7 @@ class VulkanExample : public VulkanExampleBase {
         writeOnlyTextureDescriptors.data();
 
     for (auto i = 0; i < compute_.uniformBuffers.size(); i++) {
+      // Advection
       VkDescriptorSetAllocateInfo allocInfo =
           vks::initializers::descriptorSetAllocateInfo(
               descriptorPool_, &compute_.descriptorSetLayouts_.advection, 1);
@@ -404,6 +446,23 @@ class VulkanExample : public VulkanExampleBase {
       vkUpdateDescriptorSets(
           device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
           computeWriteDescriptorSets.data(), 0, nullptr);
+
+      // Buoyancy
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool_, &compute_.descriptorSetLayouts_.buoyancy, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device_, &allocInfo, &compute_.descriptorSets_[i].buoyancy));
+      computeWriteDescriptorSets = {
+          readOnlyTextureArrayDescriptor,
+          writeOnlyTextureArrayDescriptor,
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptorSets_[i].buoyancy,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, /*binding id*/ 2,
+              &compute_.uniformBuffers_[i].buoyancy.descriptor),
+      };
+      vkUpdateDescriptorSets(
+          device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
+          computeWriteDescriptorSets.data(), 0, nullptr);
     }
   }
 
@@ -415,20 +474,17 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(
         vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
                                &compute_.pipelineLayouts_.buoyancy));
-    VkComputePipelineCreateInfo computePipelineCreateInfo =
-        vks::initializers::computePipelineCreateInfo(
-            compute_.pipelineLayouts_.buoyancy, 0);
 
-    // Advection
     pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
         &compute_.descriptorSetLayouts_.advection, 1);
     VK_CHECK_RESULT(
         vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
                                &compute_.pipelineLayouts_.advection));
-    computePipelineCreateInfo = vks::initializers::computePipelineCreateInfo(
-        compute_.pipelineLayouts_.advection, 0);
 
-    // 1st pass
+    // Advection
+    VkComputePipelineCreateInfo computePipelineCreateInfo =
+        vks::initializers::computePipelineCreateInfo(
+            compute_.pipelineLayouts_.advection, 0);
     computePipelineCreateInfo.stage =
         loadShader(getShadersPath() + "smoke/advect.comp.spv",
                    VK_SHADER_STAGE_COMPUTE_BIT);
@@ -452,6 +508,12 @@ class VulkanExample : public VulkanExampleBase {
         &compute_.pipelines_.advection));
 
     // Buoyancy
+    computePipelineCreateInfo = vks::initializers::computePipelineCreateInfo(
+        compute_.pipelineLayouts_.buoyancy, 0);
+    computePipelineCreateInfo.layout = compute_.pipelineLayouts_.buoyancy;
+    computePipelineCreateInfo.stage =
+        loadShader(getShadersPath() + "smoke/buoyancy.comp.spv",
+                   VK_SHADER_STAGE_COMPUTE_BIT);
     VK_CHECK_RESULT(vkCreateComputePipelines(
         device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
         &compute_.pipelines_.buoyancy));
@@ -676,7 +738,8 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            /*total ubo count */ /*graphics*/ 1 * MAX_CONCURRENT_FRAMES),
+            /*total ubo count */ (/*graphics*/ 1 + /*compute*/ 1) *
+                MAX_CONCURRENT_FRAMES),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             /*total texture count (across all pipelines) */ (
@@ -692,7 +755,7 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
             poolSizes,
-            /*total descriptor count*/ (/*graphics*/ 1 + /*compute*/ 1) *
+            /*total descriptor count*/ (/*graphics*/ 1 + /*compute*/ 2) *
                 MAX_CONCURRENT_FRAMES);
     // Needed if using VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT in descriptor
     // bindings
@@ -1068,7 +1131,12 @@ class VulkanExample : public VulkanExampleBase {
       graphics_.cubeIndicesBuffer.destroy();
 
       // Compute
-      // Textures
+      vkDestroyPipeline(device_, compute_.pipelines_.advection, nullptr);
+      vkDestroyPipeline(device_, compute_.pipelines_.buoyancy, nullptr);
+      vkDestroyPipelineLayout(device_, compute_.pipelineLayouts_.advection,
+                              nullptr);
+      vkDestroyPipelineLayout(device_, compute_.pipelineLayouts_.buoyancy,
+                              nullptr);
       for (auto& texture : compute_.read_textures) {
         if (texture.view != VK_NULL_HANDLE)
           vkDestroyImageView(device_, texture.view, nullptr);
@@ -1089,12 +1157,14 @@ class VulkanExample : public VulkanExampleBase {
         if (texture.deviceMemory != VK_NULL_HANDLE)
           vkFreeMemory(device_, texture.deviceMemory, nullptr);
       }
+      for (auto& buffer : compute_.uniformBuffers_) {
+        buffer.buoyancy.destroy();
+      }
 
-      vkDestroyPipeline(device_, compute_.pipelines_.advection, nullptr);
-      vkDestroyPipelineLayout(device_, compute_.pipelineLayouts_.advection,
-                              nullptr);
       vkDestroyDescriptorSetLayout(
           device_, compute_.descriptorSetLayouts_.advection, nullptr);
+      vkDestroyDescriptorSetLayout(
+          device_, compute_.descriptorSetLayouts_.buoyancy, nullptr);
       vkDestroyCommandPool(device_, compute_.commandPool, nullptr);
       for (auto& fence : compute_.fences) {
         vkDestroyFence(device_, fence, nullptr);
