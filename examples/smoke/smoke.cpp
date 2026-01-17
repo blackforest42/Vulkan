@@ -38,6 +38,7 @@ class VulkanExample : public VulkanExampleBase {
     static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 128;
     static constexpr int WORKGROUP_SIZE = 8;
     static constexpr float TIME_DELTA = 0.1f;
+    static constexpr int JACOBI_ITERATION_COUNT = 60;
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
@@ -401,6 +402,13 @@ class VulkanExample : public VulkanExampleBase {
           &buffer.divergence, sizeof(Compute::DivergenceUBO),
           &compute_.ubos_.divergence));
       VK_CHECK_RESULT(buffer.divergence.map());
+
+      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.jacobi, sizeof(Compute::JacobiUBO), &compute_.ubos_.jacobi));
+      VK_CHECK_RESULT(buffer.jacobi.map());
     }
   }
 
@@ -526,6 +534,27 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
         device_, &descriptorLayoutCI, nullptr,
         &compute_.descriptorSetLayouts_.divergence));
+
+    // Jacobi
+    setLayoutBindings = {
+        // Binding 0 : Array of read-only texs
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
+            (uint32_t)compute_.read_textures.size()),
+        // Binding 1 : Array of write-only textures to write result
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
+        // Binding 2 : Uniform Buffer
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 2, 1)};
+    descriptorLayoutCI =
+        vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr,
+                                    &compute_.descriptorSetLayouts_.jacobi));
 
     // Image descriptors for the 3D texture array
     std::vector<VkDescriptorImageInfo> readOnlyTextureDescriptors(
@@ -682,6 +711,28 @@ class VulkanExample : public VulkanExampleBase {
       vkUpdateDescriptorSets(
           device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
           computeWriteDescriptorSets.data(), 0, nullptr);
+
+      // Jacobi
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool_, &compute_.descriptorSetLayouts_.jacobi, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device_, &allocInfo, &compute_.descriptorSets_[i].jacobi));
+
+      readOnlyTextureArrayDescriptor.dstSet =
+          compute_.descriptorSets_[i].jacobi;
+      writeOnlyTextureArrayDescriptor.dstSet =
+          compute_.descriptorSets_[i].jacobi;
+      computeWriteDescriptorSets = {
+          readOnlyTextureArrayDescriptor,
+          writeOnlyTextureArrayDescriptor,
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptorSets_[i].jacobi,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, /*binding id*/ 2,
+              &compute_.uniformBuffers_[i].jacobi.descriptor),
+      };
+      vkUpdateDescriptorSets(
+          device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
+          computeWriteDescriptorSets.data(), 0, nullptr);
     }
   }
 
@@ -717,6 +768,12 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(
         vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
                                &compute_.pipelineLayouts_.divergence));
+
+    pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
+        &compute_.descriptorSetLayouts_.jacobi, 1);
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo,
+                                           nullptr,
+                                           &compute_.pipelineLayouts_.jacobi));
 
     // Advection
     VkComputePipelineCreateInfo computePipelineCreateInfo =
@@ -786,6 +843,17 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateComputePipelines(
         device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
         &compute_.pipelines_.divergence));
+
+    // Jacobi
+    computePipelineCreateInfo = vks::initializers::computePipelineCreateInfo(
+        compute_.pipelineLayouts_.jacobi, 0);
+    computePipelineCreateInfo.layout = compute_.pipelineLayouts_.jacobi;
+    computePipelineCreateInfo.stage =
+        loadShader(getShadersPath() + "smoke/jacobi.comp.spv",
+                   VK_SHADER_STAGE_COMPUTE_BIT);
+    VK_CHECK_RESULT(vkCreateComputePipelines(
+        device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
+        &compute_.pipelines_.jacobi));
   }
 
   void buildComputeCommandBuffer() {
@@ -811,6 +879,16 @@ class VulkanExample : public VulkanExampleBase {
 
     divergenceCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
+
+    cmdBeginLabel(cmdBuffer, "Jacobi Iterations Start", {.3, 0.5f, 0.8f, 1});
+    for (int i = 0; i < compute_.JACOBI_ITERATION_COUNT; i++) {
+      std::string text_label = "iteration: " + std::to_string(i);
+      cmdBeginLabel(cmdBuffer, text_label.c_str(), {.3, 0.5f, 0.8f, 1});
+      jacobiCmd(cmdBuffer);
+      swapTexturesCmd(cmdBuffer);
+      cmdEndLabel(cmdBuffer);
+    }
+    cmdEndLabel(cmdBuffer);
 
     cmdEndLabel(cmdBuffer);
 
@@ -922,6 +1000,21 @@ class VulkanExample : public VulkanExampleBase {
                   compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
                   compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
     cmdEndLabel(cmdBuffer);
+  }
+
+  void jacobiCmd(VkCommandBuffer& cmdBuffer) {
+    transitionLayoutsForReadAndWriteComputeTextures(cmdBuffer);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      compute_.pipelines_.jacobi);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            compute_.pipelineLayouts_.jacobi, 0, 1,
+                            &compute_.descriptorSets_[currentBuffer_].jacobi, 0,
+                            nullptr);
+    vkCmdDispatch(cmdBuffer,
+                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
+                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
+                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
   }
 
   void swapTexturesCmd(VkCommandBuffer& cmdBuffer) {
@@ -1134,7 +1227,7 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            /*total ubo count */ (/*graphics*/ 1 + /*compute*/ 4) *
+            /*total ubo count */ (/*graphics*/ 1 + /*compute*/ 5) *
                 MAX_CONCURRENT_FRAMES),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -1151,7 +1244,7 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
             poolSizes,
-            /*total descriptor count*/ (/*graphics*/ 1 + /*compute*/ 5) *
+            /*total descriptor count*/ (/*graphics*/ 1 + /*compute*/ 6) *
                 MAX_CONCURRENT_FRAMES);
     // Needed if using VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT in
     // descriptor bindings

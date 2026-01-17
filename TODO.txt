@@ -14,3 +14,6 @@ Compute Pipelines:
 DONE:
 	- ray marching 3D texture done and tested
 	- removed incoming/outgoing ray textures, replaced with simple model inversion
+
+TODO2:
+	- Minimize the number of descriptor and pipeline layouts. Lots of overlap.
