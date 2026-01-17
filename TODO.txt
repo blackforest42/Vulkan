@@ -5,7 +5,7 @@ Compute Pipelines:
 	x Vorticity Computation Pipeline
 	x Vorticity Confinement Pipeline
 	x Advection Pipeline (reusable for velocity, density, temperature)
-	- Divergence Computation Pipeline
+	x Divergence Computation Pipeline
 	- Jacobi Iteration Pipeline (pressure solve)
 	- Gradient Subtraction Pipeline
 	- VelocityField Boundary Pipeline
