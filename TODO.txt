@@ -6,14 +6,11 @@ Compute Pipelines:
 	x Vorticity Confinement Pipeline
 	x Advection Pipeline (reusable for velocity, density, temperature)
 	x Divergence Computation Pipeline
-	- Jacobi Iteration Pipeline (pressure solve)
-	- Gradient Subtraction Pipeline
-	- VelocityField Boundary Pipeline
-	- ScalarField Boundary Pipeline (for density, temperature, pressure)
+	x Jacobi Iteration Pipeline (pressure solve)
+	x Gradient Subtraction Pipeline
+	- VelocityField and ScalarField Boundary Pipeline
+		- set up push constant for passing which texture ID
 
-DONE:
-	- ray marching 3D texture done and tested
-	- removed incoming/outgoing ray textures, replaced with simple model inversion
 
 TODO2:
 	- Minimize the number of descriptor and pipeline layouts. Lots of overlap.

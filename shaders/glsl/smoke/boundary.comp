@@ -1,0 +1,207 @@
+#version 450
+#extension GL_EXT_nonuniform_qualifier : enable
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+layout (binding = 0) uniform sampler3D readOnlyTexs[];
+layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
+
+layout(binding = 2) uniform SimUBO {
+    ivec3 gridSize;
+    uint boundaryTypes[6];  // -X, +X, -Y, +Y, -Z, +Z
+    uint useNoSlip;         // 0=free-slip, 1=no-slip
+} ubo;
+
+layout (push_constant) uniform PushConsts {
+	// Texture index mappings
+	// 0 velocity
+	// 1 pressure
+	// 2 divergence
+	// 3 vorticity
+	// 4 density
+	// 5 temperature
+    uint textureIdx;
+} pushConsts;
+
+const uint BOUNDARY_SOLID = 0;
+const uint BOUNDARY_OPEN = 1;
+
+float getFieldSafe(ivec3 coord);
+bool isSolid(ivec3 coord);
+vec3 getVelocitySafe(ivec3 coord);
+void vectorField();
+void scalarField(const uint);
+
+void main() {
+    uint texId = pushConsts.textureIdx;
+
+    if (texId == 0) {
+        // velocity
+        vectorField();
+    }
+    else {
+        scalarField(texId);
+    }
+}
+
+bool isSolid(ivec3 coord) {
+    if (any(lessThan(coord, ivec3(0))) || any(greaterThanEqual(coord, ubo.gridSize))) {
+        return true;
+    }
+    return false;
+}
+
+vec3 getVelocitySafe(ivec3 coord) {
+    if (any(lessThan(coord, ivec3(0))) || any(greaterThanEqual(coord, ubo.gridSize))) {
+        return vec3(0.0);
+    }
+    if (isSolid(coord)) return vec3(0.0);
+    return texture(readOnlyTexs[0], coord).xyz;
+}
+
+float getFieldSafe(uint texId, ivec3 coord) {
+    if (any(lessThan(coord, ivec3(0))) || any(greaterThanEqual(coord, ubo.gridSize))) {
+        return 0.0;
+    }
+    if (isSolid(coord)) return 0.0;
+    return texture(readOnlyTexs[texId], coord).r;
+}
+
+void vectorField() {
+    ivec3 coord = ivec3(gl_GlobalInvocationID);
+    if (any(greaterThanEqual(coord, ubo.gridSize))) return;
+    
+    // Handle interior obstacle cells
+    if (isSolid(coord)) {
+        imageStore(writeOnlyTexs[0], coord, vec4(0.0));
+        return;
+    }
+    
+    vec3 vel = texture(readOnlyTexs[0], coord).xyz;
+    
+    // Check if on domain boundary
+    bool atMinX = (coord.x == 0);
+    bool atMaxX = (coord.x == ubo.gridSize.x - 1);
+    bool atMinY = (coord.y == 0);
+    bool atMaxY = (coord.y == ubo.gridSize.y - 1);
+    bool atMinZ = (coord.z == 0);
+    bool atMaxZ = (coord.z == ubo.gridSize.z - 1);
+    
+    // Apply boundary conditions for each face
+    if (atMinX && ubo.boundaryTypes[0] == BOUNDARY_SOLID) {
+        vel = ubo.useNoSlip == 1 ? vec3(0.0) : vec3(0.0, vel.y, vel.z);
+    }
+    if (atMaxX && ubo.boundaryTypes[1] == BOUNDARY_SOLID) {
+        vel = ubo.useNoSlip == 1 ? vec3(0.0) : vec3(0.0, vel.y, vel.z);
+    }
+    if (atMinY && ubo.boundaryTypes[2] == BOUNDARY_SOLID) {
+        vel = ubo.useNoSlip == 1 ? vec3(0.0) : vec3(vel.x, 0.0, vel.z);
+    }
+    if (atMaxY && ubo.boundaryTypes[3] == BOUNDARY_SOLID) {
+        vel = ubo.useNoSlip == 1 ? vec3(0.0) : vec3(vel.x, 0.0, vel.z);
+    }
+    if (atMinZ && ubo.boundaryTypes[4] == BOUNDARY_SOLID) {
+        vel = ubo.useNoSlip == 1 ? vec3(0.0) : vec3(vel.x, vel.y, 0.0);
+    }
+    if (atMaxZ && ubo.boundaryTypes[5] == BOUNDARY_SOLID) {
+        vel = ubo.useNoSlip == 1 ? vec3(0.0) : vec3(vel.x, vel.y, 0.0);
+    }
+    
+    // Open boundaries: extrapolate from interior
+    if (atMinX && ubo.boundaryTypes[0] == BOUNDARY_OPEN) {
+        vel = getVelocitySafe(coord + ivec3(1, 0, 0));
+    }
+    if (atMaxX && ubo.boundaryTypes[1] == BOUNDARY_OPEN) {
+        vel = getVelocitySafe(coord - ivec3(1, 0, 0));
+    }
+    if (atMinY && ubo.boundaryTypes[2] == BOUNDARY_OPEN) {
+        vel = getVelocitySafe(coord + ivec3(0, 1, 0));
+    }
+    if (atMaxY && ubo.boundaryTypes[3] == BOUNDARY_OPEN) {
+        vel = getVelocitySafe(coord - ivec3(0, 1, 0));
+    }
+    if (atMinZ && ubo.boundaryTypes[4] == BOUNDARY_OPEN) {
+        vel = getVelocitySafe(coord + ivec3(0, 0, 1));
+    }
+    if (atMaxZ && ubo.boundaryTypes[5] == BOUNDARY_OPEN) {
+        vel = getVelocitySafe(coord - ivec3(0, 0, 1));
+    }
+    
+    // Handle cells adjacent to obstacles
+    bool hasObstacleNeighbor = false;
+    vec3 normal = vec3(0.0);
+    
+    if (isSolid(coord - ivec3(1, 0, 0))) {
+        normal += vec3(1.0, 0.0, 0.0);
+        hasObstacleNeighbor = true;
+    }
+    if (isSolid(coord + ivec3(1, 0, 0))) {
+        normal += vec3(-1.0, 0.0, 0.0);
+        hasObstacleNeighbor = true;
+    }
+    if (isSolid(coord - ivec3(0, 1, 0))) {
+        normal += vec3(0.0, 1.0, 0.0);
+        hasObstacleNeighbor = true;
+    }
+    if (isSolid(coord + ivec3(0, 1, 0))) {
+        normal += vec3(0.0, -1.0, 0.0);
+        hasObstacleNeighbor = true;
+    }
+    if (isSolid(coord - ivec3(0, 0, 1))) {
+        normal += vec3(0.0, 0.0, 1.0);
+        hasObstacleNeighbor = true;
+    }
+    if (isSolid(coord + ivec3(0, 0, 1))) {
+        normal += vec3(0.0, 0.0, -1.0);
+        hasObstacleNeighbor = true;
+    }
+    
+    if (hasObstacleNeighbor) {
+        float len = length(normal);
+        if (len > 0.0) {
+            normal /= len;
+            if (ubo.useNoSlip == 1) {
+                vel = vec3(0.0);
+            } else {
+                vel = vel - dot(vel, normal) * normal;
+            }
+        }
+    }
+    
+    imageStore(writeOnlyTexs[0], coord, vec4(vel, 0.0));
+}
+
+void scalarField(const uint texId) {
+    ivec3 coord = ivec3(gl_GlobalInvocationID);
+    if (any(greaterThanEqual(coord, ubo.gridSize))) return;
+    
+    // Solid cells have zero scalar value
+    if (isSolid(coord)) {
+        imageStore(writeOnlyTexs[texId], coord, vec4(0.0));
+        return;
+    }
+    
+    float value = texture(readOnlyTexs[texId], coord).r;
+    
+    // Neumann boundary conditions (zero gradient) for solid boundaries
+    if (coord.x == 0 && ubo.boundaryTypes[0] == BOUNDARY_SOLID) {
+        value = getFieldSafe(texId, coord + ivec3(1, 0, 0));
+    }
+    if (coord.x == ubo.gridSize.x - 1 && ubo.boundaryTypes[1] == BOUNDARY_SOLID) {
+        value = getFieldSafe(texId, coord - ivec3(1, 0, 0));
+    }
+    if (coord.y == 0 && ubo.boundaryTypes[2] == BOUNDARY_SOLID) {
+        value = getFieldSafe(texId, coord + ivec3(0, 1, 0));
+    }
+    if (coord.y == ubo.gridSize.y - 1 && ubo.boundaryTypes[3] == BOUNDARY_SOLID) {
+        value = getFieldSafe(texId, coord - ivec3(0, 1, 0));
+    }
+    if (coord.z == 0 && ubo.boundaryTypes[4] == BOUNDARY_SOLID) {
+        value = getFieldSafe(texId, coord + ivec3(0, 0, 1));
+    }
+    if (coord.z == ubo.gridSize.z - 1 && ubo.boundaryTypes[5] == BOUNDARY_SOLID) {
+        value = getFieldSafe(texId, coord - ivec3(0, 0, 1));
+    }
+    
+    imageStore(writeOnlyTexs[texId], coord, vec4(value));
+}

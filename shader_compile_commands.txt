@@ -7,3 +7,4 @@ glslc -g vortconfinement.comp -o vortconfinement.comp.spv
 glslc -g divergence.comp -o divergence.comp.spv
 glslc -g jacobi.comp -o jacobi.comp.spv
 glslc -g gradient.comp -o gradient.comp.spv
+glslc -g boundary.comp -o boundary.comp.spv
