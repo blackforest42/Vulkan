@@ -139,6 +139,10 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) uint32_t useNoSlip{0};  // 0=free-slip, 1=no-slip
     };
 
+    struct BoundaryPushConstants {
+      uint32_t texture_id{};
+    };
+
     struct {
       BuoyancyUBO buoyancy;
       AdvectionUBO advection;
@@ -907,6 +911,20 @@ class VulkanExample : public VulkanExampleBase {
         vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
                                &compute_.pipelineLayouts_.gradient));
 
+    // Boundary
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(Compute::BoundaryPushConstants);
+
+    pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
+        &compute_.descriptorSetLayouts_.boundary, 1);
+    pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+    pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
+    VK_CHECK_RESULT(
+        vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
+                               &compute_.pipelineLayouts_.boundary));
+
     // Advection
     VkComputePipelineCreateInfo computePipelineCreateInfo =
         vks::initializers::computePipelineCreateInfo(
@@ -997,6 +1015,17 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateComputePipelines(
         device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
         &compute_.pipelines_.gradient));
+
+    // Boundary
+    computePipelineCreateInfo = vks::initializers::computePipelineCreateInfo(
+        compute_.pipelineLayouts_.boundary, 0);
+    computePipelineCreateInfo.layout = compute_.pipelineLayouts_.boundary;
+    computePipelineCreateInfo.stage =
+        loadShader(getShadersPath() + "smoke/boundary.comp.spv",
+                   VK_SHADER_STAGE_COMPUTE_BIT);
+    VK_CHECK_RESULT(vkCreateComputePipelines(
+        device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
+        &compute_.pipelines_.boundary));
   }
 
   void buildComputeCommandBuffer() {
