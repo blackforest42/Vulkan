@@ -37,7 +37,7 @@ class VulkanExample : public VulkanExampleBase {
   struct Compute {
     static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 128;
     static constexpr int WORKGROUP_SIZE = 8;
-    static constexpr float TIME_DELTA = 0.1f;
+    static constexpr float TIME_DELTA = 0.016f;
     static constexpr int JACOBI_ITERATION_COUNT = 60;
 
     // Used to check if compute and graphics queue
@@ -94,15 +94,15 @@ class VulkanExample : public VulkanExampleBase {
     struct AdvectionUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(4) float deltaTime{TIME_DELTA};
-      alignas(4) float dissipation{};
+      alignas(4) float dissipation{0.003f};
     };
 
     struct BuoyancyUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(16) glm::vec3 gravity{0, 0, 0};
+      alignas(16) glm::vec3 gravity{0.f, -0.5f, 0.f};
       alignas(4) float deltaTime{TIME_DELTA};
-      alignas(4) float buoyancyAlpha{};
-      alignas(4) float buoyancyBeta{0.f};
+      alignas(4) float buoyancyAlpha{0.0f};
+      alignas(4) float buoyancyBeta{0.5f};
       alignas(4) float ambientTemp{0.f};
     };
 
