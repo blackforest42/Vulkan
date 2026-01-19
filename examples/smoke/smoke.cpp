@@ -132,6 +132,13 @@ class VulkanExample : public VulkanExampleBase {
       alignas(4) float cellSize{1.f / COMPUTE_TEXTURE_DIMENSIONS};
     };
 
+    struct BoundaryUBO {
+      alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
+      // {-X, +X, -Y, +Y,-Z, +Z}  0 = solid, 1 = open
+      alignas(16) uint32_t boundaryTypes[6] = {0, 0, 0, 0, 0, 0};
+      alignas(16) uint32_t useNoSlip{0};  // 0=free-slip, 1=no-slip
+    };
+
     struct {
       BuoyancyUBO buoyancy;
       AdvectionUBO advection;
@@ -140,6 +147,7 @@ class VulkanExample : public VulkanExampleBase {
       DivergenceUBO divergence;
       JacobiUBO jacobi;
       GradientUBO gradient;
+      BoundaryUBO boundary;
     } ubos_;
 
     struct UniformBuffers {
@@ -959,10 +967,10 @@ class VulkanExample : public VulkanExampleBase {
     divergenceCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
 
-    cmdBeginLabel(cmdBuffer, "Jacobi Iterations Start", {.3, 0.5f, 0.8f, 1});
+    cmdBeginLabel(cmdBuffer, "Jacobi Iterations Start", {.3f, 0.5f, 0.8f, 1.f});
     for (int i = 0; i < compute_.JACOBI_ITERATION_COUNT; i++) {
       std::string text_label = "iteration: " + std::to_string(i);
-      cmdBeginLabel(cmdBuffer, text_label.c_str(), {.3, 0.5f, 0.8f, 1});
+      cmdBeginLabel(cmdBuffer, text_label.c_str(), {.3f, 0.5f, 0.8f, 1.f});
       jacobiCmd(cmdBuffer);
       swapTexturesCmd(cmdBuffer);
       cmdEndLabel(cmdBuffer);
@@ -1108,7 +1116,7 @@ class VulkanExample : public VulkanExampleBase {
                             compute_.pipelineLayouts_.gradient, 0, 1,
                             &compute_.descriptorSets_[currentBuffer_].gradient,
                             0, nullptr);
-    cmdBeginLabel(cmdBuffer, "Divergence", {.7, .3f, 0.5f, 1});
+    cmdBeginLabel(cmdBuffer, "Divergence", {.7f, .3f, 0.5f, 1.f});
     vkCmdDispatch(cmdBuffer,
                   compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
                   compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
