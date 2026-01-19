@@ -93,7 +93,7 @@ class VulkanExample : public VulkanExampleBase {
 
     struct EmissionUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(16) glm::vec3 sourceCenter{-.5f, -.5f, -.5f};
+      alignas(16) glm::vec3 sourceCenter{1.f, 0.f, 1.f};
       alignas(4) float sourceRadius{15.f};
       alignas(4) float emissionRate{2.f};   // Density added per second
       alignas(4) float emissionTemp{15.f};  // Temperature of emitted smoke
@@ -339,6 +339,35 @@ class VulkanExample : public VulkanExampleBase {
                                      &texture.deviceMemory));
     VK_CHECK_RESULT(
         vkBindImageMemory(device_, texture.image, texture.deviceMemory, 0));
+
+    // Transition read textures
+    VkCommandBuffer layoutCmd = vulkanDevice_->createCommandBuffer(
+        VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+    texture.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    vks::tools::setImageLayout(layoutCmd, texture.image,
+                               VK_IMAGE_ASPECT_COLOR_BIT,
+                               VK_IMAGE_LAYOUT_UNDEFINED, texture.imageLayout);
+    if (vulkanDevice_->queueFamilyIndices.graphics !=
+        vulkanDevice_->queueFamilyIndices.compute) {
+      VkImageMemoryBarrier imageMemoryBarrier = {};
+      imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+      imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+      imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+      imageMemoryBarrier.image = texture.image;
+      imageMemoryBarrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0,
+                                             1};
+      imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+      imageMemoryBarrier.dstAccessMask = 0;
+      imageMemoryBarrier.srcQueueFamilyIndex =
+          vulkanDevice_->queueFamilyIndices.graphics;
+      imageMemoryBarrier.dstQueueFamilyIndex =
+          vulkanDevice_->queueFamilyIndices.compute;
+      vkCmdPipelineBarrier(layoutCmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                           VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_FLAGS_NONE,
+                           0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+    }
+
+    vulkanDevice_->flushCommandBuffer(layoutCmd, queue_, true);
 
     if (readOnly) {
       VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
@@ -1170,31 +1199,7 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
 
-  void transitionLayoutsForReadAndWriteComputeTextures(
-      VkCommandBuffer& cmdBuffer) {
-    // Layout transition for both read and write texture maps
-    for (int i = 0; i < compute_.texture_count; i++) {
-      // Read textures
-      vks::tools::insertImageMemoryBarrier(
-          cmdBuffer, compute_.read_textures[i].image, 0,
-          VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-          VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-          VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
-
-      // Write textures
-      vks::tools::insertImageMemoryBarrier(
-          cmdBuffer, compute_.write_textures[i].image, 0,
-          VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-          VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-          VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
-    }
-  }
-
   void emissionCmd(VkCommandBuffer& cmdBuffer) {
-    transitionLayoutsForReadAndWriteComputeTextures(cmdBuffer);
-
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.emission);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -1210,8 +1215,6 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void buoyancyCmd(VkCommandBuffer& cmdBuffer) {
-    transitionLayoutsForReadAndWriteComputeTextures(cmdBuffer);
-
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.buoyancy);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -1227,8 +1230,6 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void advectCmd(VkCommandBuffer& cmdBuffer) {
-    transitionLayoutsForReadAndWriteComputeTextures(cmdBuffer);
-
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.advection);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -1244,8 +1245,6 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void vorticityCmd(VkCommandBuffer& cmdBuffer) {
-    transitionLayoutsForReadAndWriteComputeTextures(cmdBuffer);
-
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.vorticity);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -1261,8 +1260,6 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void vortConfinementCmd(VkCommandBuffer& cmdBuffer) {
-    transitionLayoutsForReadAndWriteComputeTextures(cmdBuffer);
-
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.vortConfinement);
     vkCmdBindDescriptorSets(
@@ -1278,8 +1275,6 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void divergenceCmd(VkCommandBuffer& cmdBuffer) {
-    transitionLayoutsForReadAndWriteComputeTextures(cmdBuffer);
-
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.divergence);
     vkCmdBindDescriptorSets(
@@ -1295,8 +1290,6 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void jacobiCmd(VkCommandBuffer& cmdBuffer) {
-    transitionLayoutsForReadAndWriteComputeTextures(cmdBuffer);
-
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.jacobi);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -1310,8 +1303,6 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void gradientCmd(VkCommandBuffer& cmdBuffer) {
-    transitionLayoutsForReadAndWriteComputeTextures(cmdBuffer);
-
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.gradient);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -1331,8 +1322,6 @@ class VulkanExample : public VulkanExampleBase {
   void boundaryCmd(VkCommandBuffer& cmdBuffer,
                    uint32_t textureId,
                    int allTextures = 0) {
-    transitionLayoutsForReadAndWriteComputeTextures(cmdBuffer);
-
     compute_.boundaryPC.texture_id = textureId;
     compute_.boundaryPC.allTextures = allTextures;
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
