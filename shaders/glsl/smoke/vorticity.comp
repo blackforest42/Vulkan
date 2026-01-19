@@ -27,7 +27,7 @@ bool isSolid(ivec3 coord) {
 
 vec3 getVelocity(ivec3 coord) {
     if (isSolid(coord)) return vec3(0.0);
-    return texture(readOnlyTexs[0], coord).xyz;
+    return texelFetch(readOnlyTexs[0], coord, 0).xyz;
 }
 
 void main() {

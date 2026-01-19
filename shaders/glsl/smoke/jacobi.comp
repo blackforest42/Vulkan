@@ -27,7 +27,7 @@ bool isSolid(ivec3 coord) {
 
 float getPressure(ivec3 coord) {
     if (isSolid(coord)) return 0.0;
-    return texture(readOnlyTexs[1], coord).r;
+    return texelFetch(readOnlyTexs[1], coord, 0).r;
 }
 
 void main() {
@@ -48,7 +48,7 @@ void main() {
     float pB = getPressure(coord - ivec3(0, 0, 1));
     float pF = getPressure(coord + ivec3(0, 0, 1));
     
-    float div = texture(readOnlyTexs[2], coord).r;
+    float div = texelFetch(readOnlyTexs[2], coord, 0).r;
     
     // Count fluid neighbors
     int numFluid = 0;

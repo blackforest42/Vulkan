@@ -93,10 +93,12 @@ class VulkanExample : public VulkanExampleBase {
 
     struct EmissionUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(16) glm::vec3 sourceCenter{1.f, 0.f, 1.f};
+      alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 2.0f,
+                                         5.0f,  // Near floor
+                                         COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
       alignas(4) float sourceRadius{15.f};
-      alignas(4) float emissionRate{2.f};   // Density added per second
-      alignas(4) float emissionTemp{15.f};  // Temperature of emitted smoke
+      alignas(4) float emissionRate{200.f};  // Density added per second
+      alignas(4) float emissionTemp{150.f};  // Temperature of emitted smoke
       alignas(4) float ambientTemp{0.f};
       alignas(4) float deltaTime{TIME_DELTA};
     };

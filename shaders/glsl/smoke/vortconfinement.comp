@@ -29,7 +29,7 @@ bool isSolid(ivec3 coord) {
 
 float getVorticityMagnitude(ivec3 coord) {
     if (isSolid(coord)) return 0.0;
-    return texture(readOnlyTexs[3], coord).w;
+    return texelFetch(readOnlyTexs[3], coord, 0).w;
 }
 
 void main() {
@@ -55,12 +55,12 @@ void main() {
     float len = length(gradMag);
     if (len > 0.0001) {
         vec3 N = gradMag / len;  // Normalized gradient
-        vec3 omega = texture(readOnlyTexs[3], coord).xyz;
+        vec3 omega = texelFetch(readOnlyTexs[3], coord, 0).xyz;
         
         // Confinement force: f = e * h * (N x w)
         vec3 force = params.epsilon * params.cellSize * cross(N, omega);
         
-        vec4 vel = texture(readOnlyTexs[0], coord);
+        vec4 vel = texelFetch(readOnlyTexs[0], coord, 0);
         vel.xyz += force * params.deltaTime;
         imageStore(writeOnlyTexs[0], coord, vel);
     }

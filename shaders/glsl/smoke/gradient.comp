@@ -27,7 +27,7 @@ bool isSolid(ivec3 coord) {
 
 float getPressure(ivec3 coord) {
     if (isSolid(coord)) return 0.0;
-    return texture(readOnlyTexs[1], coord).r;
+    return texelFetch(readOnlyTexs[1], coord, 0).r;
 }
 
 void main() {
@@ -51,7 +51,7 @@ void main() {
     vec3 gradP = vec3(pR - pL, pU - pD, pF - pB) * 0.5 / params.cellSize;
     
     // Subtract gradient
-    vec4 vel = texture(readOnlyTexs[0], coord);
+    vec4 vel = texelFetch(readOnlyTexs[0], coord, 0);
     vel.xyz -= gradP;
     imageStore(writeOnlyTexs[0], coord, vel);
 }

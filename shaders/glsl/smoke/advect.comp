@@ -38,7 +38,7 @@ void advectFieldByIndex(const int idx) {
     
     // Backtrace to find where this particle came from
     vec3 pos = vec3(coord) + 0.5;
-    vec3 vel = texture(readOnlyTexs[0], coord).xyz;
+    vec3 vel = texelFetch(readOnlyTexs[0], coord, 0).xyz;
     vec3 prevPos = pos - vel * ubo.deltaTime;
     
     // Convert to texture coordinates [0, 1]

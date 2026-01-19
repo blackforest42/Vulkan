@@ -1,16 +1,7 @@
-Jan 15
+Jan 19
 TODO: 
-Compute Pipelines:
-	x Add Buoyancy Pipeline
-	x Vorticity Computation Pipeline
-	x Vorticity Confinement Pipeline
-	x Advection Pipeline (reusable for velocity, density, temperature)
-	x Divergence Computation Pipeline
-	x Jacobi Iteration Pipeline (pressure solve)
-	x Gradient Subtraction Pipeline
-	- VelocityField and ScalarField Boundary Pipeline
-		- set up push constant for passing which texture ID
-
+	- smoke emission is at the top instead of bottom due to using texture coords
+	- begin debugging by removing all other pipelines except Emission, render only that pipeline, and add expose parameters in UI for faster debugging
 
 TODO2:
 	- Minimize the number of descriptor and pipeline layouts. Lots of overlap.

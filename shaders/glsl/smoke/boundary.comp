@@ -65,7 +65,7 @@ vec3 getVelocitySafe(ivec3 coord) {
         return vec3(0.0);
     }
     if (isSolid(coord)) return vec3(0.0);
-    return texture(readOnlyTexs[0], coord).xyz;
+    return texelFetch(readOnlyTexs[0], coord, 0).xyz;
 }
 
 float getFieldSafe(uint texId, ivec3 coord) {
@@ -73,7 +73,7 @@ float getFieldSafe(uint texId, ivec3 coord) {
         return 0.0;
     }
     if (isSolid(coord)) return 0.0;
-    return texture(readOnlyTexs[texId], coord).r;
+    return texelFetch(readOnlyTexs[texId], coord, 0).r;
 }
 
 void velocityField() {
@@ -86,7 +86,7 @@ void velocityField() {
         return;
     }
     
-    vec3 vel = texture(readOnlyTexs[0], coord).xyz;
+    vec3 vel = texelFetch(readOnlyTexs[0], coord, 0).xyz;
     
     // Check if on domain boundary
     bool atMinX = (coord.x == 0);
@@ -190,7 +190,7 @@ void scalarField(const uint texId) {
         return;
     }
     
-    float value = texture(readOnlyTexs[texId], coord).r;
+    float value = texelFetch(readOnlyTexs[texId], coord, 0).r;
     
     // Neumann boundary conditions (zero gradient) for solid boundaries
     if (coord.x == 0 && ubo.boundaryTypes[0] == BOUNDARY_SOLID) {

@@ -39,8 +39,8 @@ void main() {
         return;
     }
     
-    vec4 vel = texture(readOnlyTexs[0], coord);
-    float temp = texture(readOnlyTexs[5], coord).r;
+    vec4 vel = texelFetch(readOnlyTexs[0], coord, 0);
+    float temp = texelFetch(readOnlyTexs[5], coord, 0).r;
     
     // Buoyancy force: F = beta * (T - T_ambient)
     float buoyancy = params.buoyancyBeta * (temp - params.ambientTemp);

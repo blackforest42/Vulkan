@@ -1,4 +1,5 @@
 #version 450
+#extension GL_EXT_debug_printf : enable
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
@@ -45,13 +46,13 @@ void main() {
         float falloff = t * t;
         
         // Add density (accumulate, don't replace)
-        float currentDensity = texture(readOnlyTexs[4], coord).r;
+        float currentDensity = texelFetch(readOnlyTexs[4], coord, 0).r;
         float addedDensity = ubo.emissionRate * ubo.deltaTime * falloff;
         float newDensity = min(currentDensity + addedDensity, 2.0);  // Cap at 2.0
         imageStore(writeOnlyTexs[4], coord, vec4(newDensity));
         
         // Set temperature (take maximum of current and emission temp)
-        float currentTemp = texture(readOnlyTexs[5], coord).r;
+        float currentTemp = texelFetch(readOnlyTexs[5], coord, 0).r;
         float emissionTemp = ubo.ambientTemp + ubo.emissionTemp * falloff;
         float newTemp = max(currentTemp, emissionTemp);
         imageStore(writeOnlyTexs[5], coord, vec4(newTemp));
