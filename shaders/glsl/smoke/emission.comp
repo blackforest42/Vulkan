@@ -1,0 +1,53 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+layout(binding = 0, r32f) uniform image3D densityImg;
+layout(binding = 1, r32f) uniform image3D temperatureImg;
+layout(binding = 2, r32ui) uniform readonly uimage3D obstaclesImg;
+
+layout(binding = 3) uniform EmissionParams {
+    ivec3 gridSize;
+    vec3 sourceCenter;
+    float sourceRadius;
+    float emissionRate;      // Density added per second
+    float emissionTemp;      // Temperature of emitted smoke
+    float ambientTemp;
+    float deltaTime;
+} params;
+
+bool isSolid(ivec3 coord) {
+    if (any(lessThan(coord, ivec3(0))) || 
+        any(greaterThanEqual(coord, params.gridSize))) {
+        return true;
+    }
+    return imageLoad(obstaclesImg, coord).r != 0u;
+}
+
+void main() {
+    ivec3 coord = ivec3(gl_GlobalInvocationID);
+    if (any(greaterThanEqual(coord, params.gridSize))) return;
+    
+    if (isSolid(coord)) return;
+    
+    vec3 pos = vec3(coord) + 0.5;
+    float dist = length(pos - params.sourceCenter);
+    
+    if (dist < params.sourceRadius) {
+        // Smooth falloff
+        float t = 1.0 - (dist / params.sourceRadius);
+        float falloff = t * t;
+        
+        // Add density (accumulate, don't replace)
+        float currentDensity = imageLoad(densityImg, coord).r;
+        float addedDensity = params.emissionRate * params.deltaTime * falloff;
+        float newDensity = min(currentDensity + addedDensity, 2.0);  // Cap at 2.0
+        imageStore(densityImg, coord, vec4(newDensity));
+        
+        // Set temperature (take maximum of current and emission temp)
+        float currentTemp = imageLoad(temperatureImg, coord).r;
+        float emissionTemp = params.ambientTemp + params.emissionTemp * falloff;
+        float newTemp = max(currentTemp, emissionTemp);
+        imageStore(temperatureImg, coord, vec4(newTemp));
+    }
+}
