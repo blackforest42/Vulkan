@@ -141,7 +141,8 @@ class VulkanExample : public VulkanExampleBase {
 
     struct BoundaryPushConstants {
       uint32_t texture_id{};
-    };
+      int32_t allTextures{0};
+    } boundaryPC;
 
     struct {
       BuoyancyUBO buoyancy;
@@ -1038,15 +1039,18 @@ class VulkanExample : public VulkanExampleBase {
     cmdBeginLabel(cmdBuffer, "Begin Compute Pipelines", {.5f, 0.2f, 3.f, 1.f});
 
     buoyancyCmd(cmdBuffer);
+    boundaryCmd(cmdBuffer, /*Velocity*/ 0);
     swapTexturesCmd(cmdBuffer);
 
     vorticityCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
 
     vortConfinementCmd(cmdBuffer);
+    boundaryCmd(cmdBuffer, /*Velocity*/ 0);
     swapTexturesCmd(cmdBuffer);
 
     advectCmd(cmdBuffer);
+    boundaryCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
 
     divergenceCmd(cmdBuffer);
@@ -1061,8 +1065,10 @@ class VulkanExample : public VulkanExampleBase {
       cmdEndLabel(cmdBuffer);
     }
     cmdEndLabel(cmdBuffer);
+    boundaryCmd(cmdBuffer, /*Pressure*/ 1);
 
     gradientCmd(cmdBuffer);
+    boundaryCmd(cmdBuffer, /*Velocity*/ 0);
     swapTexturesCmd(cmdBuffer);
 
     cmdEndLabel(cmdBuffer);
@@ -1201,7 +1207,35 @@ class VulkanExample : public VulkanExampleBase {
                             compute_.pipelineLayouts_.gradient, 0, 1,
                             &compute_.descriptorSets_[currentBuffer_].gradient,
                             0, nullptr);
-    cmdBeginLabel(cmdBuffer, "Divergence", {.7f, .3f, 0.5f, 1.f});
+    cmdBeginLabel(cmdBuffer, "Gradient", {.5f, .7f, 0.3f, 1.f});
+    vkCmdDispatch(cmdBuffer,
+                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
+                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
+                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
+    cmdEndLabel(cmdBuffer);
+  }
+
+  void boundaryCmd(VkCommandBuffer& cmdBuffer) { boundaryCmd(cmdBuffer, 0, 1); }
+
+  void boundaryCmd(VkCommandBuffer& cmdBuffer,
+                   uint32_t textureId,
+                   int allTextures = 0) {
+    transitionLayoutsForReadAndWriteComputeTextures(cmdBuffer);
+
+    compute_.boundaryPC.texture_id = textureId;
+    compute_.boundaryPC.allTextures = allTextures;
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      compute_.pipelines_.boundary);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            compute_.pipelineLayouts_.boundary, 0, 1,
+                            &compute_.descriptorSets_[currentBuffer_].boundary,
+                            0, nullptr);
+    cmdBeginLabel(cmdBuffer, "Boundary", {.7f, .3f, 0.5f, 1.f});
+    vkCmdPushConstants(cmdBuffer, compute_.pipelineLayouts_.boundary,
+                       VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                       sizeof(Compute::BoundaryPushConstants),
+                       &compute_.boundaryPC);
+
     vkCmdDispatch(cmdBuffer,
                   compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
                   compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,

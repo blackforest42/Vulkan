@@ -21,6 +21,7 @@ layout (push_constant) uniform PushConsts {
 	// 4 density
 	// 5 temperature
     uint textureIdx;
+    int allTextures;
 } pushConsts;
 
 const uint BOUNDARY_SOLID = 0;
@@ -29,15 +30,23 @@ const uint BOUNDARY_OPEN = 1;
 float getFieldSafe(ivec3 coord);
 bool isSolid(ivec3 coord);
 vec3 getVelocitySafe(ivec3 coord);
-void vectorField();
+void velocityField();
 void scalarField(const uint);
 
 void main() {
     uint texId = pushConsts.textureIdx;
 
+    if (pushConsts.allTextures == 1) {
+        velocityField();
+        scalarField(0);
+        scalarField(4);
+        scalarField(5);
+        return;
+    }
+
     if (texId == 0) {
         // velocity
-        vectorField();
+        velocityField();
     }
     else {
         scalarField(texId);
@@ -67,7 +76,7 @@ float getFieldSafe(uint texId, ivec3 coord) {
     return texture(readOnlyTexs[texId], coord).r;
 }
 
-void vectorField() {
+void velocityField() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
     if (any(greaterThanEqual(coord, ubo.gridSize))) return;
     
