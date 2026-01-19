@@ -158,6 +158,7 @@ class VulkanExample : public VulkanExampleBase {
       vks::Buffer divergence;
       vks::Buffer jacobi;
       vks::Buffer gradient;
+      vks::Buffer boundary;
     };
     std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
@@ -173,6 +174,7 @@ class VulkanExample : public VulkanExampleBase {
       VkPipeline divergence;
       VkPipeline jacobi;
       VkPipeline gradient;
+      VkPipeline boundary;
     } pipelines_{};
     struct {
       VkPipelineLayout buoyancy{VK_NULL_HANDLE};
@@ -182,6 +184,7 @@ class VulkanExample : public VulkanExampleBase {
       VkPipelineLayout divergence{VK_NULL_HANDLE};
       VkPipelineLayout jacobi{VK_NULL_HANDLE};
       VkPipelineLayout gradient{VK_NULL_HANDLE};
+      VkPipelineLayout boundary{VK_NULL_HANDLE};
     } pipelineLayouts_;
 
     // Descriptors
@@ -193,6 +196,7 @@ class VulkanExample : public VulkanExampleBase {
       VkDescriptorSetLayout divergence{VK_NULL_HANDLE};
       VkDescriptorSetLayout jacobi{VK_NULL_HANDLE};
       VkDescriptorSetLayout gradient{VK_NULL_HANDLE};
+      VkDescriptorSetLayout boundary{VK_NULL_HANDLE};
     } descriptorSetLayouts_;
     struct DescriptorSets {
       VkDescriptorSet buoyancy{VK_NULL_HANDLE};
@@ -202,6 +206,7 @@ class VulkanExample : public VulkanExampleBase {
       VkDescriptorSet divergence{VK_NULL_HANDLE};
       VkDescriptorSet jacobi{VK_NULL_HANDLE};
       VkDescriptorSet gradient{VK_NULL_HANDLE};
+      VkDescriptorSet boundary{VK_NULL_HANDLE};
     };
     std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
   } compute_;
@@ -436,6 +441,14 @@ class VulkanExample : public VulkanExampleBase {
           &buffer.gradient, sizeof(Compute::GradientUBO),
           &compute_.ubos_.gradient));
       VK_CHECK_RESULT(buffer.gradient.map());
+
+      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.boundary, sizeof(Compute::BoundaryUBO),
+          &compute_.ubos_.boundary));
+      VK_CHECK_RESULT(buffer.boundary.map());
     }
   }
 
@@ -603,6 +616,27 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(
         vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr,
                                     &compute_.descriptorSetLayouts_.gradient));
+
+    // Boudary
+    setLayoutBindings = {
+        // Binding 0 : Array of read-only texs
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
+            (uint32_t)compute_.read_textures.size()),
+        // Binding 1 : Array of write-only textures to write result
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
+        // Binding 2 : Uniform Buffer
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 2, 1)};
+    descriptorLayoutCI =
+        vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr,
+                                    &compute_.descriptorSetLayouts_.boundary));
 
     // Image descriptors for the 3D texture array
     std::vector<VkDescriptorImageInfo> readOnlyTextureDescriptors(
@@ -799,6 +833,28 @@ class VulkanExample : public VulkanExampleBase {
               compute_.descriptorSets_[i].gradient,
               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, /*binding id*/ 2,
               &compute_.uniformBuffers_[i].gradient.descriptor),
+      };
+      vkUpdateDescriptorSets(
+          device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
+          computeWriteDescriptorSets.data(), 0, nullptr);
+
+      // Boundary
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool_, &compute_.descriptorSetLayouts_.boundary, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device_, &allocInfo, &compute_.descriptorSets_[i].boundary));
+
+      readOnlyTextureArrayDescriptor.dstSet =
+          compute_.descriptorSets_[i].boundary;
+      writeOnlyTextureArrayDescriptor.dstSet =
+          compute_.descriptorSets_[i].boundary;
+      computeWriteDescriptorSets = {
+          readOnlyTextureArrayDescriptor,
+          writeOnlyTextureArrayDescriptor,
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptorSets_[i].boundary,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, /*binding id*/ 2,
+              &compute_.uniformBuffers_[i].boundary.descriptor),
       };
       vkUpdateDescriptorSets(
           device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
@@ -1155,6 +1211,37 @@ class VulkanExample : public VulkanExampleBase {
     cmdEndLabel(cmdBuffer);
   }
 
+  void prepareDescriptorPool() {
+    // Pool
+    std::vector<VkDescriptorPoolSize> poolSizes = {
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            /*total ubo count */ (/*graphics*/ 1 + /*compute*/ 7) *
+                MAX_CONCURRENT_FRAMES),
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            /*total texture count (across all pipelines) */ (
+                /*graphics: volume texture*/ 1 +
+                /*compute textures*/
+                (uint32_t)compute_.read_textures.size()) *
+                MAX_CONCURRENT_FRAMES),
+        // textures for writing
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            (uint32_t)compute_.write_textures.size() * MAX_CONCURRENT_FRAMES)};
+
+    VkDescriptorPoolCreateInfo descriptorPoolInfo =
+        vks::initializers::descriptorPoolCreateInfo(
+            poolSizes,
+            /*total descriptor count*/ (/*graphics*/ 1 + /*compute*/ 8) *
+                MAX_CONCURRENT_FRAMES);
+    // Needed if using VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT in
+    // descriptor bindings
+    descriptorPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
+                                           nullptr, &descriptorPool_));
+  }
+
   void prepareCompute() {
     prepareComputeTextures();
     prepareComputeUniformBuffers();
@@ -1327,37 +1414,6 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCreateInfo, nullptr,
                                               &graphics_.pipelines_.rayMarch));
-  }
-
-  void prepareDescriptorPool() {
-    // Pool
-    std::vector<VkDescriptorPoolSize> poolSizes = {
-        vks::initializers::descriptorPoolSize(
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            /*total ubo count */ (/*graphics*/ 1 + /*compute*/ 6) *
-                MAX_CONCURRENT_FRAMES),
-        vks::initializers::descriptorPoolSize(
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            /*total texture count (across all pipelines) */ (
-                /*graphics: volume texture*/ 1 +
-                /*compute textures*/
-                (uint32_t)compute_.read_textures.size()) *
-                MAX_CONCURRENT_FRAMES),
-        // textures for writing
-        vks::initializers::descriptorPoolSize(
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            (uint32_t)compute_.write_textures.size() * MAX_CONCURRENT_FRAMES)};
-
-    VkDescriptorPoolCreateInfo descriptorPoolInfo =
-        vks::initializers::descriptorPoolCreateInfo(
-            poolSizes,
-            /*total descriptor count*/ (/*graphics*/ 1 + /*compute*/ 7) *
-                MAX_CONCURRENT_FRAMES);
-    // Needed if using VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT in
-    // descriptor bindings
-    descriptorPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
-    VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
-                                           nullptr, &descriptorPool_));
   }
 
   void prepareUniformBuffers() {
@@ -1703,6 +1759,7 @@ class VulkanExample : public VulkanExampleBase {
       vkDestroyPipeline(device_, compute_.pipelines_.divergence, nullptr);
       vkDestroyPipeline(device_, compute_.pipelines_.jacobi, nullptr);
       vkDestroyPipeline(device_, compute_.pipelines_.gradient, nullptr);
+      vkDestroyPipeline(device_, compute_.pipelines_.boundary, nullptr);
 
       vkDestroyPipelineLayout(device_, compute_.pipelineLayouts_.advection,
                               nullptr);
@@ -1717,6 +1774,8 @@ class VulkanExample : public VulkanExampleBase {
       vkDestroyPipelineLayout(device_, compute_.pipelineLayouts_.jacobi,
                               nullptr);
       vkDestroyPipelineLayout(device_, compute_.pipelineLayouts_.gradient,
+                              nullptr);
+      vkDestroyPipelineLayout(device_, compute_.pipelineLayouts_.boundary,
                               nullptr);
 
       // Compute Textures
@@ -1750,6 +1809,7 @@ class VulkanExample : public VulkanExampleBase {
         buffer.divergence.destroy();
         buffer.jacobi.destroy();
         buffer.gradient.destroy();
+        buffer.boundary.destroy();
       }
 
       vkDestroyDescriptorSetLayout(
@@ -1766,6 +1826,8 @@ class VulkanExample : public VulkanExampleBase {
           device_, compute_.descriptorSetLayouts_.jacobi, nullptr);
       vkDestroyDescriptorSetLayout(
           device_, compute_.descriptorSetLayouts_.gradient, nullptr);
+      vkDestroyDescriptorSetLayout(
+          device_, compute_.descriptorSetLayouts_.boundary, nullptr);
 
       vkDestroyCommandPool(device_, compute_.commandPool, nullptr);
       for (auto& fence : compute_.fences) {
