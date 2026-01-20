@@ -94,10 +94,10 @@ class VulkanExample : public VulkanExampleBase {
     struct EmissionUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 2.0f,
-                                         5.0f,
+                                         COMPUTE_TEXTURE_DIMENSIONS / 2.0f,
                                          COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
-      alignas(4) float sourceRadius{30.f};
-      alignas(4) float emissionRate{200.f};  // Density added per second
+      alignas(4) float sourceRadius{60.f};
+      alignas(4) float emissionRate{5.f};    // Density added per second
       alignas(4) float emissionTemp{150.f};  // Temperature of emitted smoke
       alignas(4) float ambientTemp{0.f};
       alignas(4) float deltaTime{TIME_DELTA};
@@ -1628,7 +1628,7 @@ class VulkanExample : public VulkanExampleBase {
             std::chrono::high_resolution_clock::now().time_since_epoch())
             .count();
     model = graphics_.ui_features.toggleRotation
-                ? glm::rotate(model, glm::radians(time * 1.f / 200000),
+                ? glm::rotate(model, glm::radians(time * 1.f / 10000),
                               glm::vec3(0.f, 1.f, 0.f))
                 : model;
     graphics_.ubos_.march.invModel = glm::inverse(model);
@@ -1761,7 +1761,7 @@ class VulkanExample : public VulkanExampleBase {
                             0, nullptr);
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       graphics_.pipelines_.rayMarch);
-    vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_BACK_BIT));
+    vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_NONE));
     vkCmdSetFrontFace(cmdBuffer, VK_FRONT_FACE_COUNTER_CLOCKWISE);
 
     VkDeviceSize offsets[1] = {0};
@@ -1866,9 +1866,7 @@ class VulkanExample : public VulkanExampleBase {
 
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {
     if (overlay->header("Settings")) {
-      overlay->sliderInt("Toggle View", &graphics_.ubos_.march.toggleView,
-                         /*min*/ 0,
-                         /*max*/ 1);
+      overlay->checkBox("Toggle View", &graphics_.ubos_.march.toggleView);
       overlay->checkBox("Toggle Rotation",
                         &graphics_.ui_features.toggleRotation);
     }

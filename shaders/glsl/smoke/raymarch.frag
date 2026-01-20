@@ -25,7 +25,7 @@ const float MAX_STEPS = 200;
 const float SMOKE_DENSITY = 1.0f;
 const float CLOUD_SIZE = 1.0f;
 const vec3 SMOKE_COLOR = vec3(1.0);
-const float DENSITY_SCALE = 10.0f;
+const float DENSITY_SCALE = 1.0f;
 
 vec4 permute(vec4 x);
 vec4 taylorInvSqrt(vec4 r);
@@ -33,6 +33,7 @@ float snoise(vec3 pos);
 float fbm(vec3 pos);
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection);
 vec4 rayMarchNoise(vec3 rayOrigin, vec3 rayDir);
+bool intersectBox(vec3 rayOrigin, vec3 rayDir, out float tNear, out float tFar);
 
 void main() {
 	// Ray direction from camera to this point on the cube
@@ -65,44 +66,56 @@ void main() {
 }
 
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {
-  vec4 final_color = vec4(0.0);
-  vec3 pos = rayOrigin;  // Start at the cube surface entry point
-
-  // Ray march through volume
-  for (int i = 0; i < MAX_STEPS; i++) {
-    // Check if we're still inside the volume [0,1] cube or if opacity is high
-    // enough
-    if (any(lessThan(pos, vec3(0.0))) || any(greaterThan(pos, vec3(1.0))) ||
-        final_color.a >= 0.95) {
-      break;
+    vec4 final_color = vec4(0.0);
+    
+    // Calculate proper entry and exit points
+    float tNear, tFar;
+    if (!intersectBox(rayOrigin, rayDir, tNear, tFar)) {
+        return vec4(0.0);  // Ray completely misses the volume
     }
-
-    // 2. Sample R32 Density
-    // R32 textures store data in the .r channel
-    float density = texture(volumeTexture, pos).r;
-
-    if (density > 0.0) {
-      // 3. Apply Transfer Function/Density Scaling
-      // Adjust opacity by STEP_SIZE so the volume looks consistent if steps change
-      float srcA = clamp(density * DENSITY_SCALE * STEP_SIZE, 0.0, 1.0);
-      
-      // Use a uniform color or map the density to a color gradient
-      vec3 srcRGB = SMOKE_COLOR * srcA; 
-
-      // 4. Front-to-Back Accumulation
-      // dst.rgb = dst.rgb + (1.0 - dst.a) * src.rgb
-      // dst.a   = dst.a   + (1.0 - dst.a) * src.a
-      float weight = (1.0 - final_color.a);
-      final_color.rgb += weight * srcRGB;
-      final_color.a   += weight * srcA;
+    
+    // Start at entry point (or origin if already inside)
+    float t = max(0.0, tNear);
+    vec3 pos = rayOrigin + rayDir * t;
+    
+    // March from entry to exit
+    for (int i = 0; i < MAX_STEPS && t < tFar; i++) {
+        float density = texture(volumeTexture, pos).r;
+        
+        if (density > 0.001) {  // Small threshold to skip empty space
+            float srcA = clamp(density * DENSITY_SCALE * STEP_SIZE, 0.0, 1.0);
+            vec3 srcRGB = SMOKE_COLOR * srcA;
+            
+            float weight = 1.0 - final_color.a;
+            final_color.rgb += weight * srcRGB;
+            final_color.a += weight * srcA;
+            
+            if (final_color.a >= 0.95) break;
+        }
+        
+        // Step along ray parametrically
+        t += STEP_SIZE;
+        pos = rayOrigin + rayDir * t;
     }
-
-    // 5. Step along ray
-    pos += rayDir * STEP_SIZE;
-  }
-
-  return final_color;
+    
+    return final_color;
 }
+
+bool intersectBox(vec3 rayOrigin, vec3 rayDir, out float tNear, out float tFar) {
+    // Intersect ray with [0,1]³ volume
+    vec3 invDir = 1.0 / rayDir;
+    vec3 tMin = (vec3(0.0) - rayOrigin) * invDir;
+    vec3 tMax = (vec3(1.0) - rayOrigin) * invDir;
+    
+    vec3 t1 = min(tMin, tMax);
+    vec3 t2 = max(tMin, tMax);
+    
+    tNear = max(max(t1.x, t1.y), t1.z);
+    tFar = min(min(t2.x, t2.y), t2.z);
+    
+    return tFar >= tNear && tFar >= 0.0;
+}
+
 
 vec4 rayMarchNoise(vec3 rayOrigin, vec3 rayDir) {
 	float t = 0.00;
