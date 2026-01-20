@@ -1330,13 +1330,19 @@ void VulkanExampleBase::handleMessages(HWND hWnd,
             camera_.keys_.forward = true;
             break;
           case KEY_S:
-            camera_.keys_.down = true;
+            camera_.keys_.backward = true;
             break;
           case KEY_A:
             camera_.keys_.left = true;
             break;
           case KEY_D:
             camera_.keys_.right = true;
+            break;
+          case KEY_SPACE:
+            camera_.keys_.up = true;
+            break;
+          case KEY_SHIFT:
+            camera_.keys_.down = true;
             break;
         }
       }
@@ -1350,13 +1356,19 @@ void VulkanExampleBase::handleMessages(HWND hWnd,
             camera_.keys_.forward = false;
             break;
           case KEY_S:
-            camera_.keys_.down = false;
+            camera_.keys_.backward = false;
             break;
           case KEY_A:
             camera_.keys_.left = false;
             break;
           case KEY_D:
             camera_.keys_.right = false;
+            break;
+          case KEY_SPACE:
+            camera_.keys_.up = false;
+            break;
+          case KEY_SHIFT:
+            camera_.keys_.down = false;
             break;
         }
       }

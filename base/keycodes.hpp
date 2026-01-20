@@ -1,15 +1,16 @@
 /*
-* Key codes for multiple platforms
-*
-* Copyright (C) 2016 by Sascha Willems - www.saschawillems.de
-*
-* This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
-*/
+ * Key codes for multiple platforms
+ *
+ * Copyright (C) 2016 by Sascha Willems - www.saschawillems.de
+ *
+ * This code is licensed under the MIT license (MIT)
+ * (http://opensource.org/licenses/MIT)
+ */
 
 #pragma once
 
 #if defined(_WIN32)
-#define KEY_ESCAPE VK_ESCAPE 
+#define KEY_ESCAPE VK_ESCAPE
 #define KEY_F1 VK_F1
 #define KEY_F2 VK_F2
 #define KEY_F3 VK_F3
@@ -29,6 +30,7 @@
 #define KEY_N 0x4E
 #define KEY_O 0x4F
 #define KEY_T 0x54
+#define KEY_SHIFT 0x10
 
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
 #define GAMEPAD_BUTTON_A 0x1000
@@ -41,19 +43,22 @@
 #define TOUCH_DOUBLE_TAP 0x1100
 
 // for textoverlay example
-#define KEY_SPACE 0x3E		// AKEYCODE_SPACE
-#define KEY_KPADD 0x9D		// AKEYCODE_NUMPAD_ADD
+#define KEY_SPACE 0x3E  // AKEYCODE_SPACE
+#define KEY_KPADD 0x9D  // AKEYCODE_NUMPAD_ADD
 
-#elif (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(VK_USE_PLATFORM_METAL_EXT))
+#elif (defined(VK_USE_PLATFORM_IOS_MVK) ||   \
+       defined(VK_USE_PLATFORM_MACOS_MVK) || \
+       defined(VK_USE_PLATFORM_METAL_EXT))
 #if !defined(VK_EXAMPLE_XCODE_GENERATED)
-// For iOS and macOS pre-configured Xcode example project: Use character keycodes
+// For iOS and macOS pre-configured Xcode example project: Use character
+// keycodes
 // - Use numeric keys as optional alternative to function keys
 #define KEY_DELETE 0x7F
 #define KEY_ESCAPE 0x1B
-#define KEY_F1 0xF704		// NSF1FunctionKey
-#define KEY_F2 0xF705		// NSF2FunctionKey
-#define KEY_F3 0xF706		// NSF3FunctionKey
-#define KEY_F4 0xF707		// NSF4FunctionKey
+#define KEY_F1 0xF704  // NSF1FunctionKey
+#define KEY_F2 0xF705  // NSF2FunctionKey
+#define KEY_F3 0xF706  // NSF3FunctionKey
+#define KEY_F4 0xF707  // NSF4FunctionKey
 #define KEY_1 '1'
 #define KEY_2 '2'
 #define KEY_3 '3'
@@ -75,7 +80,7 @@
 #define KEY_T 't'
 #define KEY_Z 'z'
 
-#else // defined(VK_EXAMPLE_XCODE_GENERATED)
+#else  // defined(VK_EXAMPLE_XCODE_GENERATED)
 // For cross-platform cmake-generated Xcode project: Use ANSI keyboard keycodes
 // - Use numeric keys as optional alternative to function keys
 // - Use main keyboard plus/minus instead of keypad plus/minus
@@ -162,23 +167,23 @@
 #include <sys/keycodes.h>
 
 #define KEY_ESCAPE KEYCODE_ESCAPE
-#define KEY_F1     KEYCODE_F1
-#define KEY_F2     KEYCODE_F2
-#define KEY_F3     KEYCODE_F3
-#define KEY_F4     KEYCODE_F4
-#define KEY_W      KEYCODE_W
-#define KEY_A      KEYCODE_A
-#define KEY_S      KEYCODE_S
-#define KEY_D      KEYCODE_D
-#define KEY_P      KEYCODE_P
-#define KEY_SPACE  KEYCODE_SPACE
-#define KEY_KPADD  KEYCODE_KP_PLUS
-#define KEY_KPSUB  KEYCODE_KP_MINUS
-#define KEY_B      KEYCODE_B
-#define KEY_F      KEYCODE_F
-#define KEY_L      KEYCODE_L
-#define KEY_N      KEYCODE_N
-#define KEY_O      KEYCODE_O
-#define KEY_T      KEYCODE_T
+#define KEY_F1 KEYCODE_F1
+#define KEY_F2 KEYCODE_F2
+#define KEY_F3 KEYCODE_F3
+#define KEY_F4 KEYCODE_F4
+#define KEY_W KEYCODE_W
+#define KEY_A KEYCODE_A
+#define KEY_S KEYCODE_S
+#define KEY_D KEYCODE_D
+#define KEY_P KEYCODE_P
+#define KEY_SPACE KEYCODE_SPACE
+#define KEY_KPADD KEYCODE_KP_PLUS
+#define KEY_KPSUB KEYCODE_KP_MINUS
+#define KEY_B KEYCODE_B
+#define KEY_F KEYCODE_F
+#define KEY_L KEYCODE_L
+#define KEY_N KEYCODE_N
+#define KEY_O KEYCODE_O
+#define KEY_T KEYCODE_T
 
 #endif
