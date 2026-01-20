@@ -37,14 +37,18 @@ void main() {
   // Ray direction from camera to this point on the cube
   vec3 worldPos = inPos;
   vec3 rayDir = worldPos - ubo.cameraPos;
+  // Transform ray to texture space [0, 1]
   vec3 rayDirTexSpace = normalize(mat3(ubo.invModel) * rayDir);
+  // Flip the texture since it is upside down
+  vec3 uvw = inUVW;
+  uvw.y = 1 - inUVW.y;
 
   vec4 color;
   // March rays starting from front face of cube
   if (ubo.toggleView == 0) {
-    color = rayMarch(inUVW, rayDirTexSpace);
+    color = rayMarch(uvw, rayDirTexSpace);
   } else {
-    color = rayMarchNoise(inUVW, rayDirTexSpace);
+    color = rayMarchNoise(uvw, rayDirTexSpace);
   }
   outFragColor = vec4(color);
 }
