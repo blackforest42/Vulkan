@@ -96,7 +96,7 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 2.0f,
                                          5.0f,  // Near floor
                                          COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
-      alignas(4) float sourceRadius{15.f};
+      alignas(4) float sourceRadius{30.f};
       alignas(4) float emissionRate{200.f};  // Density added per second
       alignas(4) float emissionTemp{150.f};  // Temperature of emitted smoke
       alignas(4) float ambientTemp{0.f};
@@ -1595,14 +1595,15 @@ class VulkanExample : public VulkanExampleBase {
 
   void updateUniformBuffers() {
     auto& model = graphics_.ubos_.march.model;
-    model = glm::scale(model, glm::vec3(2));
-    model = glm::translate(model, glm::vec3(1, -1, 3));
-    float time =
-        std::chrono::duration<float>(
-            std::chrono::high_resolution_clock::now().time_since_epoch())
-            .count();
-    model = glm::rotate(glm::mat4(1.0), glm::radians(time * 10.f),
-                        glm::vec3(0.f, 1.f, 0.f));
+    model = glm::scale(glm::mat4(1.f), glm::vec3(20));
+    model = glm::translate(model, glm::vec3(0, 0, -3));
+    // add passive rotation
+    float time = 0;
+    // std::chrono::duration<float>(
+    //     std::chrono::high_resolution_clock::now().time_since_epoch())
+    //     .count();
+    model =
+        glm::rotate(model, glm::radians(time * 20.f), glm::vec3(0.f, 1.f, 0.f));
     graphics_.ubos_.march.invModel = glm::inverse(model);
     graphics_.ubos_.march.cameraView = camera_.matrices_.view;
     graphics_.ubos_.march.screenRes = glm::vec2(width_, height_);
@@ -1882,10 +1883,9 @@ class VulkanExample : public VulkanExampleBase {
 
   VulkanExample() : VulkanExampleBase() {
     title_ = "Smoke Simulation";
-    camera_.type_ = Camera::CameraType::lookat;
+    camera_.type_ = Camera::CameraType::firstperson;
     camera_.setMovementSpeed(25.f);
-    camera_.setPosition(glm::vec3(0.0f, 0.0f, -3.f));
-    camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
+    camera_.setPosition(glm::vec3(0.0f, 0.0f, 3.f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 
     apiVersion_ = VK_API_VERSION_1_3;
