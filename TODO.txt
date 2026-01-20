@@ -1,12 +1,6 @@
 Jan 19
 TODO: 
-	- smoke emission is at the top instead of bottom due to using texture coords
-	- begin debugging by removing all other pipelines except Emission, render only that pipeline, and add expose parameters in UI for faster debugging
-	- ray marcher only shows 2D circle instead of 3D
-
-TODO2:
-	- Minimize the number of descriptor and pipeline layouts. Lots of overlap.
-
+	- ray marcher is bugged, does not render interior, only exterior of smoke while reading 3D R32 texture
 
 glslc -g raymarch.vert -o raymarch.vert.spv
 glslc -g raymarch.frag -o raymarch.frag.spv

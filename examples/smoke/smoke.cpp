@@ -1605,13 +1605,12 @@ class VulkanExample : public VulkanExampleBase {
 
   void updateUniformBuffers() {
     auto& model = graphics_.ubos_.march.model;
-    // add passive rotation
     float time =
         std::chrono::duration<float>(
             std::chrono::high_resolution_clock::now().time_since_epoch())
             .count();
     model = graphics_.ui_features.toggleRotation
-                ? glm::rotate(model, glm::radians(time * 1.f / 100000),
+                ? glm::rotate(model, glm::radians(time * 1.f / 200000),
                               glm::vec3(0.f, 1.f, 0.f))
                 : model;
     graphics_.ubos_.march.invModel = glm::inverse(model);
@@ -1646,22 +1645,20 @@ class VulkanExample : public VulkanExampleBase {
     if (!prepared_) {
       return;
     }
-    if (graphics_.ubos_.march.toggleView == 0) {
-      // Use a fence to ensure that compute command buffer has finished
-      // executing before using it again
-      vkWaitForFences(device_, 1, &compute_.fences[currentBuffer_], VK_TRUE,
-                      UINT64_MAX);
-      vkResetFences(device_, 1, &compute_.fences[currentBuffer_]);
+    // Use a fence to ensure that compute command buffer has finished
+    // executing before using it again
+    vkWaitForFences(device_, 1, &compute_.fences[currentBuffer_], VK_TRUE,
+                    UINT64_MAX);
+    vkResetFences(device_, 1, &compute_.fences[currentBuffer_]);
 
-      buildComputeCommandBuffer();
+    buildComputeCommandBuffer();
 
-      VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
-      computeSubmitInfo.commandBufferCount = 1;
-      computeSubmitInfo.pCommandBuffers =
-          &compute_.commandBuffers[currentBuffer_];
-      VK_CHECK_RESULT(vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo,
-                                    compute_.fences[currentBuffer_]));
-    }
+    VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
+    computeSubmitInfo.commandBufferCount = 1;
+    computeSubmitInfo.pCommandBuffers =
+        &compute_.commandBuffers[currentBuffer_];
+    VK_CHECK_RESULT(vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo,
+                                  compute_.fences[currentBuffer_]));
 
     VulkanExampleBase::prepareFrame();
     updateUniformBuffers();
@@ -1746,7 +1743,7 @@ class VulkanExample : public VulkanExampleBase {
                             0, nullptr);
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       graphics_.pipelines_.rayMarch);
-    vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_FRONT_BIT));
+    vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_BACK_BIT));
     vkCmdSetFrontFace(cmdBuffer, VK_FRONT_FACE_COUNTER_CLOCKWISE);
 
     VkDeviceSize offsets[1] = {0};
