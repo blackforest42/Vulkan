@@ -243,6 +243,10 @@ class VulkanExample : public VulkanExampleBase {
     vks::Buffer cubeIndicesBuffer;
     uint32_t indexCount{0};
 
+    struct UiFeatures {
+      bool toggleRotation{0};
+    } ui_features;
+
     struct RayMarchUBO {
       alignas(16) glm::mat4 model;
       alignas(16) glm::mat4 invModel;
@@ -251,7 +255,7 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
       alignas(4) float time{0};
-      alignas(4) int toggleView{0};
+      alignas(4) int toggleView{0};  // 0 == 3D texture, 1 == noise
     };
 
     struct UBO {
@@ -1590,29 +1594,32 @@ class VulkanExample : public VulkanExampleBase {
           &buffer.march, sizeof(Graphics::RayMarchUBO),
           &graphics_.ubos_.march));
       VK_CHECK_RESULT(buffer.march.map());
+
+      // Init cube state
+      auto& model = graphics_.ubos_.march.model;
+      model = glm::mat4(1.0f);
+      model = glm::scale(model, glm::vec3(20));
+      model = glm::translate(model, glm::vec3(0, 0, -3));
     }
   }
 
   void updateUniformBuffers() {
     auto& model = graphics_.ubos_.march.model;
-    model = glm::scale(glm::mat4(1.f), glm::vec3(20));
-    model = glm::translate(model, glm::vec3(0, 0, -3));
     // add passive rotation
-    float time = 0;
-    // std::chrono::duration<float>(
-    //     std::chrono::high_resolution_clock::now().time_since_epoch())
-    //     .count();
-    model =
-        glm::rotate(model, glm::radians(time * 20.f), glm::vec3(0.f, 1.f, 0.f));
+    float time =
+        std::chrono::duration<float>(
+            std::chrono::high_resolution_clock::now().time_since_epoch())
+            .count();
+    model = graphics_.ui_features.toggleRotation
+                ? glm::rotate(model, glm::radians(time * 1.f / 100000),
+                              glm::vec3(0.f, 1.f, 0.f))
+                : model;
     graphics_.ubos_.march.invModel = glm::inverse(model);
     graphics_.ubos_.march.cameraView = camera_.matrices_.view;
     graphics_.ubos_.march.screenRes = glm::vec2(width_, height_);
     graphics_.ubos_.march.perspective = camera_.matrices_.perspective;
     graphics_.ubos_.march.cameraPos = camera_.position_;
-    graphics_.ubos_.march.time =
-        std::chrono::duration<float>(
-            std::chrono::high_resolution_clock::now().time_since_epoch())
-            .count();
+    graphics_.ubos_.march.time = time;
     memcpy(graphics_.uniformBuffers_[currentBuffer_].march.mapped,
            &graphics_.ubos_.march, sizeof(Graphics::RayMarchUBO));
   }
@@ -1639,20 +1646,22 @@ class VulkanExample : public VulkanExampleBase {
     if (!prepared_) {
       return;
     }
-    // Use a fence to ensure that compute command buffer has finished
-    // executing before using it again
-    vkWaitForFences(device_, 1, &compute_.fences[currentBuffer_], VK_TRUE,
-                    UINT64_MAX);
-    vkResetFences(device_, 1, &compute_.fences[currentBuffer_]);
+    if (graphics_.ubos_.march.toggleView == 0) {
+      // Use a fence to ensure that compute command buffer has finished
+      // executing before using it again
+      vkWaitForFences(device_, 1, &compute_.fences[currentBuffer_], VK_TRUE,
+                      UINT64_MAX);
+      vkResetFences(device_, 1, &compute_.fences[currentBuffer_]);
 
-    buildComputeCommandBuffer();
+      buildComputeCommandBuffer();
 
-    VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
-    computeSubmitInfo.commandBufferCount = 1;
-    computeSubmitInfo.pCommandBuffers =
-        &compute_.commandBuffers[currentBuffer_];
-    VK_CHECK_RESULT(vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo,
-                                  compute_.fences[currentBuffer_]));
+      VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
+      computeSubmitInfo.commandBufferCount = 1;
+      computeSubmitInfo.pCommandBuffers =
+          &compute_.commandBuffers[currentBuffer_];
+      VK_CHECK_RESULT(vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo,
+                                    compute_.fences[currentBuffer_]));
+    }
 
     VulkanExampleBase::prepareFrame();
     updateUniformBuffers();
@@ -1845,6 +1854,8 @@ class VulkanExample : public VulkanExampleBase {
       overlay->sliderInt("Toggle View", &graphics_.ubos_.march.toggleView,
                          /*min*/ 0,
                          /*max*/ 1);
+      overlay->checkBox("Toggle Rotation",
+                        &graphics_.ui_features.toggleRotation);
     }
   }
 
@@ -1885,7 +1896,7 @@ class VulkanExample : public VulkanExampleBase {
     title_ = "Smoke Simulation";
     camera_.type_ = Camera::CameraType::firstperson;
     camera_.setMovementSpeed(25.f);
-    camera_.setPosition(glm::vec3(0.0f, 0.0f, 3.f));
+    camera_.setPosition(glm::vec3(0.0f, 0.0f, 2.f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 
     apiVersion_ = VK_API_VERSION_1_3;
