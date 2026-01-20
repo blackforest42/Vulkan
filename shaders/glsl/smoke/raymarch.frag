@@ -22,7 +22,7 @@ layout(binding = 1) uniform sampler3D volumeTexture;
 
 const float STEP_SIZE = 0.01;
 const float MAX_STEPS = 200;
-const float SMOKE_DENSITY = 3.f;
+const float SMOKE_DENSITY = 1.0f;
 const float CLOUD_SIZE = 1.0f;
 const vec3 SMOKE_COLOR = vec3(1.0);
 const float DENSITY_SCALE = 10.0f;
@@ -105,38 +105,38 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {
 }
 
 vec4 rayMarchNoise(vec3 rayOrigin, vec3 rayDir) {
-  float depth = 0.0;
-  vec3 pos = rayOrigin;
-  float density = 0.f;
-  vec3 final_color = vec3(0);
-  // Animated position for smoke movement
-  vec3 windOffset = vec3(ubo.time * 0.1, ubo.time * 0.15, ubo.time * 0.08);
+	float t = 0.00;
+	vec3 pos = rayOrigin + rayDir * t;
+	float density = 0.f;
+	float totalDensity = 0.0;
+	// Animated position for smoke movement
+	vec3 windOffset = vec3(ubo.time * 0.1, ubo.time * 0.15, ubo.time * 0.08);
 
-  for (int i = 0; i < MAX_STEPS; i++) {
-    // Sample 3D noise texture with animation
-    vec3 samplePos = pos * 1.5 + windOffset;
-    float noise = fbm(samplePos);
+	for (int i = 0; i < MAX_STEPS; i++) {
+		// Sample 3D noise texture with animation
+		vec3 samplePos = pos * 1.5 + windOffset;
+		float noise = fbm(samplePos);
 
-    // Create smoke shape (spherical falloff)
-    float dist = length(pos);
-    float falloff = smoothstep(1.5 * CLOUD_SIZE, 0.5 * CLOUD_SIZE, dist);
+		// Create smoke shape (spherical falloff)
+		float dist = length(pos - vec3(0.5));
+		float falloff = smoothstep(1.5 * CLOUD_SIZE, 0.5 * CLOUD_SIZE, dist);
 
-    // Combine noise with falloff
-    float smokeDensity = max(0.0, noise * 0.5 + 0.5) * falloff * SMOKE_DENSITY;
+		// Combine noise with falloff
+		float smokeDensity = max(0.0, noise * 0.5 + 0.5) * falloff * SMOKE_DENSITY;
 
-    // Accumulate density
-    density += smokeDensity * STEP_SIZE * 3.0;
+		// Accumulate density
+		totalDensity += smokeDensity * STEP_SIZE;
 
-    // Add lighting based on position
-    vec3 lightDir = normalize(vec3(1.0, 1.0, -0.5));
-    float lighting = max(0.3, dot(normalize(pos), lightDir) * 0.5 + 0.5);
+		// Add lighting based on position
+		vec3 lightDir = normalize(vec3(1.0, 1.0, -0.5));
+		float lighting = max(0.3, dot(normalize(pos), lightDir) * 0.5 + 0.5);
 
-    pos += rayDir * float(i) * STEP_SIZE;
+		t += STEP_SIZE;
+		pos = rayOrigin + rayDir * t;
+	}
 
-    final_color += SMOKE_COLOR * smokeDensity * STEP_SIZE * 3.0 * lighting;
-  }
-
-  return vec4(final_color, 1.f);
+	float alpha = clamp(totalDensity, 0.0, 1.0);
+	return vec4(SMOKE_COLOR, alpha);
 }
 
 // Fractal Brownian Motion

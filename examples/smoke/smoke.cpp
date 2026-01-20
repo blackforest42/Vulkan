@@ -94,7 +94,7 @@ class VulkanExample : public VulkanExampleBase {
     struct EmissionUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 2.0f,
-                                         5.0f,  // Near floor
+                                         5.0f,
                                          COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
       alignas(4) float sourceRadius{30.f};
       alignas(4) float emissionRate{200.f};  // Density added per second

@@ -1,6 +1,6 @@
 Jan 19
 TODO: 
-	- ray marcher is bugged, does not render interior, only exterior of smoke while reading 3D R32 texture
+	- ray marcher is bugged, does not render in interior of cube, only the walls
 
 glslc -g raymarch.vert -o raymarch.vert.spv
 glslc -g raymarch.frag -o raymarch.frag.spv
