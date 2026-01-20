@@ -1327,7 +1327,7 @@ void VulkanExampleBase::handleMessages(HWND hWnd,
       if (camera_.type_ == Camera::firstperson) {
         switch (wParam) {
           case KEY_W:
-            camera_.keys_.up = true;
+            camera_.keys_.forward = true;
             break;
           case KEY_S:
             camera_.keys_.down = true;
@@ -1347,7 +1347,7 @@ void VulkanExampleBase::handleMessages(HWND hWnd,
       if (camera_.type_ == Camera::firstperson) {
         switch (wParam) {
           case KEY_W:
-            camera_.keys_.up = false;
+            camera_.keys_.forward = false;
             break;
           case KEY_S:
             camera_.keys_.down = false;

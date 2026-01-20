@@ -72,12 +72,12 @@ class Camera {
   struct {
     bool left = false;
     bool right = false;
-    bool up = false;
+    bool forward = false;
     bool down = false;
   } keys_;
 
   bool moving() const {
-    return keys_.left || keys_.right || keys_.up || keys_.down;
+    return keys_.left || keys_.right || keys_.forward || keys_.down;
   }
 
   float getNearClip() const { return znear_; }
@@ -158,7 +158,7 @@ class Camera {
 
         float moveSpeed = deltaTime * movementSpeed;
 
-        if (keys_.up)
+        if (keys_.forward)
           position_ += camFront * moveSpeed;
         if (keys_.down)
           position_ -= camFront * moveSpeed;
