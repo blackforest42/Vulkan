@@ -25,6 +25,7 @@ const float MAX_STEPS = 200;
 const float SMOKE_DENSITY = 3.f;
 const float CLOUD_SIZE = 1.0f;
 const vec3 SMOKE_COLOR = vec3(1.0);
+const float DENSITY_SCALE = 10.0f;
 
 vec4 permute(vec4 x);
 vec4 taylorInvSqrt(vec4 r);
@@ -66,18 +67,27 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {
       break;
     }
 
-    // Sample volume texture at current marching position
-    vec4 sampleColor = texture(volumeTexture, pos);
+    // 2. Sample R32 Density
+    // R32 textures store data in the .r channel
+    float density = texture(volumeTexture, pos).r;
 
-    // Pre-multiply alpha
-    vec3 srcRGB = sampleColor.rgb * sampleColor.a;
-    float srcA = sampleColor.a;
+    if (density > 0.0) {
+      // 3. Apply Transfer Function/Density Scaling
+      // Adjust opacity by STEP_SIZE so the volume looks consistent if steps change
+      float srcA = clamp(density * DENSITY_SCALE * STEP_SIZE, 0.0, 1.0);
+      
+      // Use a uniform color or map the density to a color gradient
+      vec3 srcRGB = SMOKE_COLOR * srcA; 
 
-    // Accumulate front-to-back
-    final_color.rgb += (1.0 - final_color.a) * srcRGB;
-    final_color.a += (1.0 - final_color.a) * srcA;
+      // 4. Front-to-Back Accumulation
+      // dst.rgb = dst.rgb + (1.0 - dst.a) * src.rgb
+      // dst.a   = dst.a   + (1.0 - dst.a) * src.a
+      float weight = (1.0 - final_color.a);
+      final_color.rgb += weight * srcRGB;
+      final_color.a   += weight * srcA;
+    }
 
-    // Step along ray
+    // 5. Step along ray
     pos += rayDir * STEP_SIZE;
   }
 

@@ -1163,38 +1163,38 @@ class VulkanExample : public VulkanExampleBase {
     emissionCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
 
-    buoyancyCmd(cmdBuffer);
-    boundaryCmd(cmdBuffer, /*Velocity*/ 0);
-    swapTexturesCmd(cmdBuffer);
+    // buoyancyCmd(cmdBuffer);
+    // boundaryCmd(cmdBuffer, /*Velocity*/ 0);
+    // swapTexturesCmd(cmdBuffer);
 
-    vorticityCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
+    // vorticityCmd(cmdBuffer);
+    // swapTexturesCmd(cmdBuffer);
 
-    vortConfinementCmd(cmdBuffer);
-    boundaryCmd(cmdBuffer, /*Velocity*/ 0);
-    swapTexturesCmd(cmdBuffer);
+    // vortConfinementCmd(cmdBuffer);
+    // boundaryCmd(cmdBuffer, /*Velocity*/ 0);
+    // swapTexturesCmd(cmdBuffer);
 
-    advectCmd(cmdBuffer);
-    boundaryCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
+    // advectCmd(cmdBuffer);
+    // boundaryCmd(cmdBuffer);
+    // swapTexturesCmd(cmdBuffer);
 
-    divergenceCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
+    // divergenceCmd(cmdBuffer);
+    // swapTexturesCmd(cmdBuffer);
 
-    cmdBeginLabel(cmdBuffer, "Jacobi Iterations Start", {.3f, 0.5f, 0.8f, 1.f});
-    for (int i = 0; i < compute_.JACOBI_ITERATION_COUNT; i++) {
-      std::string text_label = "iteration: " + std::to_string(i);
-      cmdBeginLabel(cmdBuffer, text_label.c_str(), {.3f, 0.5f, 0.8f, 1.f});
-      jacobiCmd(cmdBuffer);
-      swapTexturesCmd(cmdBuffer);
-      cmdEndLabel(cmdBuffer);
-    }
-    cmdEndLabel(cmdBuffer);
-    boundaryCmd(cmdBuffer, /*Pressure*/ 1);
+    // cmdBeginLabel(cmdBuffer, "Jacobi Iterations Start", {.3f, 0.5f,
+    // 0.8f, 1.f}); for (int i = 0; i < compute_.JACOBI_ITERATION_COUNT; i++) {
+    //   std::string text_label = "iteration: " + std::to_string(i);
+    //   cmdBeginLabel(cmdBuffer, text_label.c_str(), {.3f, 0.5f, 0.8f, 1.f});
+    //   jacobiCmd(cmdBuffer);
+    //   swapTexturesCmd(cmdBuffer);
+    //   cmdEndLabel(cmdBuffer);
+    // }
+    // cmdEndLabel(cmdBuffer);
+    // boundaryCmd(cmdBuffer, /*Pressure*/ 1);
 
-    gradientCmd(cmdBuffer);
-    boundaryCmd(cmdBuffer, /*Velocity*/ 0);
-    swapTexturesCmd(cmdBuffer);
+    // gradientCmd(cmdBuffer);
+    // boundaryCmd(cmdBuffer, /*Velocity*/ 0);
+    // swapTexturesCmd(cmdBuffer);
 
     cmdEndLabel(cmdBuffer);
 
