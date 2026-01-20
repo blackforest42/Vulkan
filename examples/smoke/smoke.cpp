@@ -439,6 +439,24 @@ class VulkanExample : public VulkanExampleBase {
     vkGetDeviceQueue(device_, compute_.queueFamilyIndex, 0, &compute_.queue);
 
     createTexturesForDescriptorIndexing();
+
+    // Clear all textures
+    VkCommandBuffer clearCmd = vulkanDevice_->createCommandBuffer(
+        VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+    VkClearColorValue clearColor = {{0.0f, 0.0f, 0.0f, 0.0f}};
+    VkImageSubresourceRange range{};
+    range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    range.baseMipLevel = 0;
+    range.levelCount = 1;
+    range.baseArrayLayer = 0;
+    range.layerCount = 1;
+    for (int i = 0; i < compute_.texture_count; i++) {
+      vkCmdClearColorImage(clearCmd, compute_.read_textures[i].image,
+                           VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
+      vkCmdClearColorImage(clearCmd, compute_.write_textures[i].image,
+                           VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
+    }
+    vulkanDevice_->flushCommandBuffer(clearCmd, queue_, true);
   }
 
   void prepareComputeUniformBuffers() {
