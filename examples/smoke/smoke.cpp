@@ -38,7 +38,7 @@ class VulkanExample : public VulkanExampleBase {
     static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 128;
     static constexpr int WORKGROUP_SIZE = 8;
     static constexpr float TIME_DELTA = 1.f / 60;
-    static constexpr int JACOBI_ITERATION_COUNT = 1;
+    static constexpr int JACOBI_ITERATION_COUNT = 0;
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
@@ -253,7 +253,7 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
       alignas(4) float time{0};
-      alignas(4) int toggleView{0};  // 0 == 3D texture, 1 == noise
+      alignas(4) int toggleView{1};  // 0 == 3D texture, 1 == noise
     };
 
     struct UBO {
@@ -1188,37 +1188,37 @@ class VulkanExample : public VulkanExampleBase {
     // boundaryCmd(cmdBuffer, /*Velocity*/ 0);
     // swapTexturesCmd(cmdBuffer);
 
-    vorticityCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
-
-    vortConfinementCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
-    // boundaryCmd(cmdBuffer, /*Velocity*/ 0);
+    // vorticityCmd(cmdBuffer);
     // swapTexturesCmd(cmdBuffer);
 
-    advectCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
-    //  boundaryCmd(cmdBuffer);
-    //  swapTexturesCmd(cmdBuffer);
-
-    divergenceCmd(cmdBuffer);
-
-    cmdBeginLabel(cmdBuffer, "Jacobi Iterations Start", {.3f, 0.5f, 0.8f, 1.f});
-    for (int i = 0; i < compute_.JACOBI_ITERATION_COUNT; i++) {
-      std::string text_label = "iteration: " + std::to_string(i);
-      cmdBeginLabel(cmdBuffer, text_label.c_str(), {.3f, 0.5f, 0.8f, 1.f});
-      jacobiCmd(cmdBuffer);
-      swapTexturesCmd(cmdBuffer);
-      cmdEndLabel(cmdBuffer);
-    }
-    cmdEndLabel(cmdBuffer);
-    boundaryCmd(cmdBuffer, /*Pressure*/ 1);
-    swapTexturesCmd(cmdBuffer);
-
-    gradientCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
+    // vortConfinementCmd(cmdBuffer);
+    // swapTexturesCmd(cmdBuffer);
     //  boundaryCmd(cmdBuffer, /*Velocity*/ 0);
     //  swapTexturesCmd(cmdBuffer);
+
+    // advectCmd(cmdBuffer);
+    // swapTexturesCmd(cmdBuffer);
+    //   boundaryCmd(cmdBuffer);
+    //   swapTexturesCmd(cmdBuffer);
+
+    // divergenceCmd(cmdBuffer);
+
+    // cmdBeginLabel(cmdBuffer, "Jacobi Iterations Start", {.3f, 0.5f,
+    // 0.8f, 1.f}); for (int i = 0; i < compute_.JACOBI_ITERATION_COUNT; i++) {
+    //   std::string text_label = "iteration: " + std::to_string(i);
+    //   cmdBeginLabel(cmdBuffer, text_label.c_str(), {.3f, 0.5f, 0.8f, 1.f});
+    //   jacobiCmd(cmdBuffer);
+    //   swapTexturesCmd(cmdBuffer);
+    //   cmdEndLabel(cmdBuffer);
+    // }
+    // cmdEndLabel(cmdBuffer);
+    // boundaryCmd(cmdBuffer, /*Pressure*/ 1);
+    // swapTexturesCmd(cmdBuffer);
+
+    // gradientCmd(cmdBuffer);
+    // swapTexturesCmd(cmdBuffer);
+    //   boundaryCmd(cmdBuffer, /*Velocity*/ 0);
+    //   swapTexturesCmd(cmdBuffer);
 
     cmdEndLabel(cmdBuffer);
 

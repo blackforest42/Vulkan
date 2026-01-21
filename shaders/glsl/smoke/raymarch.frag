@@ -116,7 +116,6 @@ bool intersectBox(vec3 rayOrigin, vec3 rayDir, out float tNear, out float tFar) 
     return tFar >= tNear && tFar >= 0.0;
 }
 
-
 vec4 rayMarchNoise(vec3 rayOrigin, vec3 rayDir) {
 	float t = 0.00;
 	vec3 pos = rayOrigin + rayDir * t;
