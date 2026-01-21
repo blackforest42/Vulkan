@@ -35,9 +35,9 @@ class VulkanExample : public VulkanExampleBase {
 
   // Handles all compute pipelines
   struct Compute {
-    static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 128;
+    static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 256;
     static constexpr int WORKGROUP_SIZE = 8;
-    static constexpr float TIME_DELTA = 1.f / 60;
+    static constexpr float TIME_DELTA = 1.f / 360;
     static constexpr int JACOBI_ITERATION_COUNT = 1;
 
     // Used to check if compute and graphics queue
@@ -96,8 +96,8 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 2.0f, 5.f,
                                          COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
       alignas(4) float sourceRadius{COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
-      alignas(4) float emissionRate{100.0f};  // Density added per second
-      alignas(4) float emissionTemp{1.f};     // Temperature of emitted smoke
+      alignas(4) float emissionRate{1000.0f};  // Density added per second
+      alignas(4) float emissionTemp{1.f};      // Temperature of emitted smoke
       alignas(4) float ambientTemp{0.f};
       alignas(4) float deltaTime{TIME_DELTA};
     };
@@ -105,7 +105,7 @@ class VulkanExample : public VulkanExampleBase {
     struct AdvectionUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(4) float deltaTime{TIME_DELTA};
-      alignas(4) float dissipation{0.001f};
+      alignas(4) float dissipation{0.00f};
     };
 
     struct BuoyancyUBO {
@@ -1768,8 +1768,8 @@ class VulkanExample : public VulkanExampleBase {
                             0, nullptr);
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       graphics_.pipelines_.rayMarch);
-    vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_BACK_BIT));
-    vkCmdSetFrontFace(cmdBuffer, VK_FRONT_FACE_COUNTER_CLOCKWISE);
+    vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_FRONT_BIT));
+    vkCmdSetFrontFace(cmdBuffer, VK_FRONT_FACE_CLOCKWISE);
 
     VkDeviceSize offsets[1] = {0};
     vkCmdBindVertexBuffers(cmdBuffer, 0, 1,
