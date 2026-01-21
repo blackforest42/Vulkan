@@ -21,11 +21,10 @@ layout(binding = 2) uniform EmissionParams {
     float emissionTemp;      // Temperature of emitted smoke
     float ambientTemp;
     float deltaTime;
-} ubo;
+} params;
 
 bool isSolid(ivec3 coord) {
-    if (any(lessThan(coord, ivec3(0))) || 
-        any(greaterThanEqual(coord, ubo.gridSize))) {
+    if (any(equal(coord, params.gridSize - 1)) || any(equal(coord, ivec3(0)))) {
         return true;
     }
     return false;
@@ -33,27 +32,27 @@ bool isSolid(ivec3 coord) {
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (any(equal(coord, ubo.gridSize - 1)) || any(equal(coord, ivec3(0)))) return;
+    if (any(equal(coord, params.gridSize - 1)) || any(equal(coord, ivec3(0)))) return;
     
     if (isSolid(coord)) return;
     
     vec3 pos = vec3(coord) + 0.5;
-    float dist = length(pos - ubo.sourceCenter);
+    float dist = length(pos - params.sourceCenter);
     
-    if (dist < ubo.sourceRadius) {
+    if (dist < params.sourceRadius) {
         // Smooth falloff
-        float t = 1.0 - (dist / ubo.sourceRadius);
+        float t = 1.0 - (dist / params.sourceRadius);
         float falloff = t * t;
         
         // Add density (accumulate, don't replace)
         float currentDensity = texelFetch(readOnlyTexs[4], coord, 0).r;
-        float addedDensity = ubo.emissionRate * ubo.deltaTime * falloff;
+        float addedDensity = params.emissionRate * params.deltaTime * falloff;
         float newDensity = min(currentDensity + addedDensity, 2.0);  // Cap at 2.0
         imageStore(writeOnlyTexs[4], coord, vec4(newDensity));
         
         // Set temperature (take maximum of current and emission temp)
         float currentTemp = texelFetch(readOnlyTexs[5], coord, 0).r;
-        float emissionTemp = ubo.ambientTemp + ubo.emissionTemp * falloff;
+        float emissionTemp = params.ambientTemp + params.emissionTemp * falloff;
         float newTemp = max(currentTemp, emissionTemp);
         imageStore(writeOnlyTexs[5], coord, vec4(newTemp));
     }

@@ -38,7 +38,7 @@ class VulkanExample : public VulkanExampleBase {
     static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 128;
     static constexpr int WORKGROUP_SIZE = 8;
     static constexpr float TIME_DELTA = 1.f / 60;
-    static constexpr int JACOBI_ITERATION_COUNT = 0;
+    static constexpr int JACOBI_ITERATION_COUNT = 1;
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers

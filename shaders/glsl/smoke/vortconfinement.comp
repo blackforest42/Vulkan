@@ -21,7 +21,7 @@ layout(binding = 2) uniform SimParams {
 // 5 temperature
 
 bool isSolid(ivec3 coord) {
-    if (any(lessThan(coord, ivec3(0))) || any(greaterThanEqual(coord, params.gridSize))) {
+    if (any(equal(coord, params.gridSize - 1)) || any(equal(coord, ivec3(0)))) {
         return true;
     }
     return false;
