@@ -38,7 +38,7 @@ class VulkanExample : public VulkanExampleBase {
     static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 128;
     static constexpr int WORKGROUP_SIZE = 8;
     static constexpr float TIME_DELTA = 1.f / 60;
-    static constexpr int JACOBI_ITERATION_COUNT = 0;
+    static constexpr int JACOBI_ITERATION_COUNT = 1;
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
@@ -96,8 +96,8 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 2.0f, 5.f,
                                          COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
       alignas(4) float sourceRadius{COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
-      alignas(4) float emissionRate{10.2f};  // Density added per second
-      alignas(4) float emissionTemp{10.f};   // Temperature of emitted smoke
+      alignas(4) float emissionRate{100.0f};  // Density added per second
+      alignas(4) float emissionTemp{1.f};     // Temperature of emitted smoke
       alignas(4) float ambientTemp{0.f};
       alignas(4) float deltaTime{TIME_DELTA};
     };
@@ -105,12 +105,12 @@ class VulkanExample : public VulkanExampleBase {
     struct AdvectionUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(4) float deltaTime{TIME_DELTA};
-      alignas(4) float dissipation{0.0f};
+      alignas(4) float dissipation{0.001f};
     };
 
     struct BuoyancyUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(16) glm::vec3 gravity{0.f, -0.05f, 0.f};
+      alignas(16) glm::vec3 gravity{0.f, -0.5f, 0.f};
       alignas(4) float deltaTime{TIME_DELTA};
       alignas(4) float buoyancyBeta{1.5f};
       alignas(4) float ambientTemp{0.f};
@@ -124,7 +124,7 @@ class VulkanExample : public VulkanExampleBase {
     struct VortConfinementUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(4) float deltaTime{TIME_DELTA};
-      alignas(4) float epsilon{1.f};  // Vorticity strength
+      alignas(4) float vorticityStrength{1.f};  // Vorticity strength
       alignas(4) float cellSize{1.f / COMPUTE_TEXTURE_DIMENSIONS};
     };
 
@@ -145,7 +145,7 @@ class VulkanExample : public VulkanExampleBase {
     struct BoundaryUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       // {-X, +X, -Y, +Y,-Z, +Z}  0 = solid, 1 = open
-      alignas(16) uint32_t boundaryTypes[6] = {0, 0, 0, 0, 0, 0};
+      alignas(16) uint32_t boundaryTypes[6] = {0, 0, 0, 1, 0, 0};
       alignas(16) uint32_t useNoSlip{0};  // 0=free-slip, 1=no-slip
     };
 
@@ -255,7 +255,7 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
       alignas(4) float time{0};
-      alignas(4) int toggleView{1};  // 0 == 3D texture, 1 == noise
+      alignas(4) int toggleView{0};  // 0 == 3D texture, 1 == noise
     };
 
     struct UBO {
@@ -434,12 +434,7 @@ class VulkanExample : public VulkanExampleBase {
     }
   }
 
-  void prepareComputeTextures() {
-    // Create a compute capable device queue
-    vkGetDeviceQueue(device_, compute_.queueFamilyIndex, 0, &compute_.queue);
-
-    createTexturesForDescriptorIndexing();
-
+  void clearAllComputeTextures() {
     // Clear all textures
     VkCommandBuffer clearCmd = vulkanDevice_->createCommandBuffer(
         VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
@@ -457,6 +452,14 @@ class VulkanExample : public VulkanExampleBase {
                            VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
     }
     vulkanDevice_->flushCommandBuffer(clearCmd, queue_, true);
+  }
+
+  void prepareComputeTextures() {
+    // Create a compute capable device queue
+    vkGetDeviceQueue(device_, compute_.queueFamilyIndex, 0, &compute_.queue);
+
+    createTexturesForDescriptorIndexing();
+    clearAllComputeTextures();
   }
 
   void prepareComputeUniformBuffers() {
@@ -1187,40 +1190,40 @@ class VulkanExample : public VulkanExampleBase {
 
     buoyancyCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
-    // boundaryCmd(cmdBuffer, /*Velocity*/ 0);
-    // swapTexturesCmd(cmdBuffer);
+    boundaryCmd(cmdBuffer, /*Velocity*/ 0);
+    swapTexturesCmd(cmdBuffer);
 
-    // vorticityCmd(cmdBuffer);
-    // swapTexturesCmd(cmdBuffer);
+    vorticityCmd(cmdBuffer);
+    swapTexturesCmd(cmdBuffer);
 
-    // vortConfinementCmd(cmdBuffer);
-    // swapTexturesCmd(cmdBuffer);
-    //  boundaryCmd(cmdBuffer, /*Velocity*/ 0);
-    //  swapTexturesCmd(cmdBuffer);
+    vortConfinementCmd(cmdBuffer);
+    swapTexturesCmd(cmdBuffer);
+    boundaryCmd(cmdBuffer, /*Velocity*/ 0);
+    swapTexturesCmd(cmdBuffer);
 
-    // advectCmd(cmdBuffer);
-    // swapTexturesCmd(cmdBuffer);
-    //   boundaryCmd(cmdBuffer);
-    //   swapTexturesCmd(cmdBuffer);
+    advectCmd(cmdBuffer);
+    swapTexturesCmd(cmdBuffer);
+    boundaryCmd(cmdBuffer);
+    swapTexturesCmd(cmdBuffer);
 
-    // divergenceCmd(cmdBuffer);
+    divergenceCmd(cmdBuffer);
 
-    // cmdBeginLabel(cmdBuffer, "Jacobi Iterations Start", {.3f, 0.5f,
-    // 0.8f, 1.f}); for (int i = 0; i < compute_.JACOBI_ITERATION_COUNT; i++) {
-    //   std::string text_label = "iteration: " + std::to_string(i);
-    //   cmdBeginLabel(cmdBuffer, text_label.c_str(), {.3f, 0.5f, 0.8f, 1.f});
-    //   jacobiCmd(cmdBuffer);
-    //   swapTexturesCmd(cmdBuffer);
-    //   cmdEndLabel(cmdBuffer);
-    // }
-    // cmdEndLabel(cmdBuffer);
-    // boundaryCmd(cmdBuffer, /*Pressure*/ 1);
-    // swapTexturesCmd(cmdBuffer);
+    cmdBeginLabel(cmdBuffer, "Jacobi Iterations Start", {.3f, 0.5f, 0.8f, 1.f});
+    for (int i = 0; i < compute_.JACOBI_ITERATION_COUNT; i++) {
+      std::string text_label = "iteration: " + std::to_string(i);
+      cmdBeginLabel(cmdBuffer, text_label.c_str(), {.3f, 0.5f, 0.8f, 1.f});
+      jacobiCmd(cmdBuffer);
+      swapTexturesCmd(cmdBuffer);
+      cmdEndLabel(cmdBuffer);
+    }
+    cmdEndLabel(cmdBuffer);
+    boundaryCmd(cmdBuffer, /*Pressure*/ 1);
+    swapTexturesCmd(cmdBuffer);
 
-    // gradientCmd(cmdBuffer);
-    // swapTexturesCmd(cmdBuffer);
-    //   boundaryCmd(cmdBuffer, /*Velocity*/ 0);
-    //   swapTexturesCmd(cmdBuffer);
+    gradientCmd(cmdBuffer);
+    swapTexturesCmd(cmdBuffer);
+    boundaryCmd(cmdBuffer, /*Velocity*/ 0);
+    swapTexturesCmd(cmdBuffer);
 
     cmdEndLabel(cmdBuffer);
 
@@ -1877,6 +1880,9 @@ class VulkanExample : public VulkanExampleBase {
       }
       overlay->checkBox("Toggle Rotation",
                         &graphics_.ui_features.toggleRotation);
+      if (overlay->button("Reset")) {
+        clearAllComputeTextures();
+      }
     }
   }
 

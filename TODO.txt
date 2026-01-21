@@ -1,6 +1,19 @@
-Jan 19
+Jan 20
 TODO: 
-	- ray marcher is bugged, does not render in interior of cube, only the walls
+	- add UI
+		- texture view switcher
+		- time delta
+		- jacobi iterations
+		- smoke density emission rate
+		- smoke emission temp
+		- ambient temp
+		- advection dissipation
+		- gravity
+		- buoyancy beta
+		- vorticity strength
+		- slip/no slip
+		- boundary types [+/-x, y, z]
+	- advection dissipates density field too quickly
 
 glslc -g raymarch.vert -o raymarch.vert.spv
 glslc -g raymarch.frag -o raymarch.frag.spv
