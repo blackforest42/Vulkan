@@ -245,6 +245,8 @@ class VulkanExample : public VulkanExampleBase {
       bool toggleRotation{0};
     } ui_features;
 
+    std::vector<std::string> viewNames{"Smoke", "Noise", "Cube"};
+
     struct RayMarchUBO {
       alignas(16) glm::mat4 model;
       alignas(16) glm::mat4 invModel;
@@ -1630,7 +1632,7 @@ class VulkanExample : public VulkanExampleBase {
             std::chrono::high_resolution_clock::now().time_since_epoch())
             .count();
     model = graphics_.ui_features.toggleRotation
-                ? glm::rotate(model, glm::radians(time * 1.f / 10000),
+                ? glm::rotate(model, glm::radians(time * 1.f / 100000),
                               glm::vec3(0.f, 1.f, 0.f))
                 : model;
     graphics_.ubos_.march.invModel = glm::inverse(model);
@@ -1870,7 +1872,9 @@ class VulkanExample : public VulkanExampleBase {
     if (overlay->header("Settings")) {
       glm::vec3 pos = camera_.position_;
       overlay->text("Camera Position: %f, %f, %f", pos.x, pos.y, pos.z);
-      overlay->checkBox("Toggle View", &graphics_.ubos_.march.toggleView);
+      if (overlay->comboBox("Select View", &graphics_.ubos_.march.toggleView,
+                            graphics_.viewNames)) {
+      }
       overlay->checkBox("Toggle Rotation",
                         &graphics_.ui_features.toggleRotation);
     }

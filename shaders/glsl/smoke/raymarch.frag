@@ -33,6 +33,7 @@ float snoise(vec3 pos);
 float fbm(vec3 pos);
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection);
 vec4 rayMarchNoise(vec3 rayOrigin, vec3 rayDir);
+vec4 rayMarchSDF(vec3 rayOrigin, vec3 rayDir);
 bool intersectBox(vec3 rayOrigin, vec3 rayDir, out float tNear, out float tFar);
 
 void main() {
@@ -45,23 +46,18 @@ void main() {
 	vec3 uvw = inUVW;
 	uvw.y = 1 - inUVW.y;
 
-	// DEBUG: Color faces by starting position
-	// Front faces will be darker (z near 0), back faces lighter (z near 1)
-	//outFragColor = vec4(uvw, 1.0);
-	//return;
-
-	// DEBUG: Show ray direction
-	// Red/Green/Blue indicates positive X/Y/Z direction
-	//outFragColor = vec4(rayDirTexSpace * 0.5 + 0.5, 1.0);
-	//return;
-
 	vec4 color;
 	// March rays starting from front face of cube
 	if (ubo.toggleView == 0) {
 	    color = rayMarch(uvw, rayDirTexSpace);
-	} else {
-	    color = rayMarchNoise(uvw, rayDirTexSpace);
+	} else if (ubo.toggleView == 1) {
+	    // color = rayMarchNoise(uvw, rayDirTexSpace);
+	    color = rayMarchSDF(uvw, rayDirTexSpace);
 	}
+    else if (ubo.toggleView == 2) {
+		outFragColor = vec4(rayDirTexSpace * 0.5 + 0.5, 1.0);
+		return;
+    }
 	outFragColor = vec4(color);
 }
 
@@ -114,6 +110,39 @@ bool intersectBox(vec3 rayOrigin, vec3 rayDir, out float tNear, out float tFar) 
     tFar = min(min(t2.x, t2.y), t2.z);
     
     return tFar >= tNear && tFar >= 0.0;
+}
+
+
+float sdSphere(vec3 p, float radius) {
+    return length(p) - radius;
+}
+
+float scene(vec3 p) {
+  float distance = sdSphere(p, .5);
+  return -distance;
+}
+
+vec4 rayMarchSDF(vec3 rayOrigin, vec3 rayDir) {
+  float depth = 0.0;
+  vec3 p = rayOrigin + depth * rayDir;
+  
+  vec4 res = vec4(0.0);
+
+  for (int i = 0; i < MAX_STEPS; i++) {
+    float density = scene(p);
+
+    // We only draw the density if it's greater than 0
+    if (density > 0.0) {
+      vec4 color = vec4(mix(vec3(1.0,1.0,1.0), vec3(0.0, 0.0, 0.0), density), density );
+      color.rgb *= color.a;
+      res += color*(1.0-res.a);
+    }
+
+    depth += STEP_SIZE;
+    p = rayOrigin + depth * rayDir;
+  }
+
+  return res;
 }
 
 vec4 rayMarchNoise(vec3 rayOrigin, vec3 rayDir) {
