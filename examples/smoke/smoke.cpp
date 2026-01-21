@@ -37,8 +37,8 @@ class VulkanExample : public VulkanExampleBase {
   struct Compute {
     static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 128;
     static constexpr int WORKGROUP_SIZE = 8;
-    static constexpr float TIME_DELTA = 0.016f;
-    static constexpr int JACOBI_ITERATION_COUNT = 60;
+    static constexpr float TIME_DELTA = 1.f / 60;
+    static constexpr int JACOBI_ITERATION_COUNT = 0;
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
@@ -93,12 +93,11 @@ class VulkanExample : public VulkanExampleBase {
 
     struct EmissionUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 2.0f,
-                                         COMPUTE_TEXTURE_DIMENSIONS / 2.0f,
+      alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 2.0f, 5.f,
                                          COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
-      alignas(4) float sourceRadius{60.f};
-      alignas(4) float emissionRate{5.f};    // Density added per second
-      alignas(4) float emissionTemp{150.f};  // Temperature of emitted smoke
+      alignas(4) float sourceRadius{COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
+      alignas(4) float emissionRate{10.2f};  // Density added per second
+      alignas(4) float emissionTemp{10.f};   // Temperature of emitted smoke
       alignas(4) float ambientTemp{0.f};
       alignas(4) float deltaTime{TIME_DELTA};
     };
@@ -106,15 +105,14 @@ class VulkanExample : public VulkanExampleBase {
     struct AdvectionUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(4) float deltaTime{TIME_DELTA};
-      alignas(4) float dissipation{0.003f};
+      alignas(4) float dissipation{0.0f};
     };
 
     struct BuoyancyUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(16) glm::vec3 gravity{0.f, -0.5f, 0.f};
+      alignas(16) glm::vec3 gravity{0.f, -0.05f, 0.f};
       alignas(4) float deltaTime{TIME_DELTA};
-      alignas(4) float buoyancyAlpha{0.0f};
-      alignas(4) float buoyancyBeta{0.5f};
+      alignas(4) float buoyancyBeta{1.5f};
       alignas(4) float ambientTemp{0.f};
     };
 
@@ -126,7 +124,7 @@ class VulkanExample : public VulkanExampleBase {
     struct VortConfinementUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(4) float deltaTime{TIME_DELTA};
-      alignas(4) float epsilon{.1f};  // Vorticity strength
+      alignas(4) float epsilon{1.f};  // Vorticity strength
       alignas(4) float cellSize{1.f / COMPUTE_TEXTURE_DIMENSIONS};
     };
 
@@ -1185,38 +1183,42 @@ class VulkanExample : public VulkanExampleBase {
     emissionCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
 
-    // buoyancyCmd(cmdBuffer);
+    buoyancyCmd(cmdBuffer);
+    swapTexturesCmd(cmdBuffer);
     // boundaryCmd(cmdBuffer, /*Velocity*/ 0);
     // swapTexturesCmd(cmdBuffer);
 
-    // vorticityCmd(cmdBuffer);
-    // swapTexturesCmd(cmdBuffer);
+    vorticityCmd(cmdBuffer);
+    swapTexturesCmd(cmdBuffer);
 
-    // vortConfinementCmd(cmdBuffer);
+    vortConfinementCmd(cmdBuffer);
+    swapTexturesCmd(cmdBuffer);
     // boundaryCmd(cmdBuffer, /*Velocity*/ 0);
     // swapTexturesCmd(cmdBuffer);
 
-    // advectCmd(cmdBuffer);
-    // boundaryCmd(cmdBuffer);
-    // swapTexturesCmd(cmdBuffer);
+    advectCmd(cmdBuffer);
+    swapTexturesCmd(cmdBuffer);
+    //  boundaryCmd(cmdBuffer);
+    //  swapTexturesCmd(cmdBuffer);
 
-    // divergenceCmd(cmdBuffer);
-    // swapTexturesCmd(cmdBuffer);
+    divergenceCmd(cmdBuffer);
 
-    // cmdBeginLabel(cmdBuffer, "Jacobi Iterations Start", {.3f, 0.5f,
-    // 0.8f, 1.f}); for (int i = 0; i < compute_.JACOBI_ITERATION_COUNT; i++) {
-    //   std::string text_label = "iteration: " + std::to_string(i);
-    //   cmdBeginLabel(cmdBuffer, text_label.c_str(), {.3f, 0.5f, 0.8f, 1.f});
-    //   jacobiCmd(cmdBuffer);
-    //   swapTexturesCmd(cmdBuffer);
-    //   cmdEndLabel(cmdBuffer);
-    // }
-    // cmdEndLabel(cmdBuffer);
-    // boundaryCmd(cmdBuffer, /*Pressure*/ 1);
+    cmdBeginLabel(cmdBuffer, "Jacobi Iterations Start", {.3f, 0.5f, 0.8f, 1.f});
+    for (int i = 0; i < compute_.JACOBI_ITERATION_COUNT; i++) {
+      std::string text_label = "iteration: " + std::to_string(i);
+      cmdBeginLabel(cmdBuffer, text_label.c_str(), {.3f, 0.5f, 0.8f, 1.f});
+      jacobiCmd(cmdBuffer);
+      swapTexturesCmd(cmdBuffer);
+      cmdEndLabel(cmdBuffer);
+    }
+    cmdEndLabel(cmdBuffer);
+    boundaryCmd(cmdBuffer, /*Pressure*/ 1);
+    swapTexturesCmd(cmdBuffer);
 
-    // gradientCmd(cmdBuffer);
-    // boundaryCmd(cmdBuffer, /*Velocity*/ 0);
-    // swapTexturesCmd(cmdBuffer);
+    gradientCmd(cmdBuffer);
+    swapTexturesCmd(cmdBuffer);
+    //  boundaryCmd(cmdBuffer, /*Velocity*/ 0);
+    //  swapTexturesCmd(cmdBuffer);
 
     cmdEndLabel(cmdBuffer);
 
@@ -1617,7 +1619,7 @@ class VulkanExample : public VulkanExampleBase {
       auto& model = graphics_.ubos_.march.model;
       model = glm::mat4(1.0f);
       model = glm::scale(model, glm::vec3(20));
-      model = glm::translate(model, glm::vec3(0, 0, -3));
+      model = glm::translate(model, glm::vec3(0, 0, 0));
     }
   }
 
@@ -1866,6 +1868,8 @@ class VulkanExample : public VulkanExampleBase {
 
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {
     if (overlay->header("Settings")) {
+      glm::vec3 pos = camera_.position_;
+      overlay->text("Camera Position: %f, %f, %f", pos.x, pos.y, pos.z);
       overlay->checkBox("Toggle View", &graphics_.ubos_.march.toggleView);
       overlay->checkBox("Toggle Rotation",
                         &graphics_.ui_features.toggleRotation);
@@ -1909,7 +1913,7 @@ class VulkanExample : public VulkanExampleBase {
     title_ = "Smoke Simulation";
     camera_.type_ = Camera::CameraType::firstperson;
     camera_.setMovementSpeed(25.f);
-    camera_.setPosition(glm::vec3(0.0f, 0.0f, 2.f));
+    camera_.setPosition(glm::vec3(0.0f, 0.0f, -30.f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
 
     apiVersion_ = VK_API_VERSION_1_3;

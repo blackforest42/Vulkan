@@ -9,7 +9,6 @@ layout(binding = 2) uniform SimParams {
     ivec3 gridSize;
     vec3 gravity;
     float deltaTime;
-    float buoyancyAlpha;
     float buoyancyBeta;
     float ambientTemp;
 } params;
@@ -31,7 +30,7 @@ bool isSolid(ivec3 coord) {
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (any(greaterThanEqual(coord, params.gridSize))) return;
+    if (any(equal(coord, params.gridSize - 1)) || any(equal(coord, ivec3(0)))) return;
     
     // Skip solid cells
     if (isSolid(coord)) {

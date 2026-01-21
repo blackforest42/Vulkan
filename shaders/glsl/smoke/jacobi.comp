@@ -32,7 +32,7 @@ float getPressure(ivec3 coord) {
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (any(greaterThanEqual(coord, params.gridSize))) return;
+    if (any(equal(coord, params.gridSize - 1)) || any(equal(coord, ivec3(0)))) return;
     
     // Solid cells have zero pressure
     if (isSolid(coord)) {

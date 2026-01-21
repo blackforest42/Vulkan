@@ -56,6 +56,7 @@ void advectFieldByIndex(const int idx) {
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
+    if (any(equal(coord, ubo.gridSize - 1)) || any(equal(coord, ivec3(0)))) return;
     // for debugging
     // imageStore(writeOnlyTexs[0], coord, vec4(coord / 128.f, .5f));
 
