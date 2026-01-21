@@ -23,7 +23,7 @@ layout(binding = 1) uniform sampler3D volumeTexture;
 const float STEP_SIZE = 0.01;
 const float MAX_STEPS = 200;
 const float SMOKE_DENSITY = 1.0f;
-const float CLOUD_SIZE = 1.0f;
+const float CLOUD_SIZE = .5f;
 const vec3 SMOKE_COLOR = vec3(1.0);
 const float DENSITY_SCALE = 1.0f;
 
@@ -112,24 +112,31 @@ bool intersectBox(vec3 rayOrigin, vec3 rayDir, out float tNear, out float tFar) 
     return tFar >= tNear && tFar >= 0.0;
 }
 
-
-float sdSphere(vec3 p, float radius) {
-    return length(p) - radius;
+float sdSphere(vec3 pos, vec3 center, float radius) {
+    return length(pos - center) - radius;
 }
 
-float scene(vec3 p) {
-  float distance = sdSphere(p, .5);
-  return -distance;
+float scene(vec3 pos) {
+    float distance = sdSphere(pos, vec3(0.5, 0.5, 0.5), CLOUD_SIZE);
+
+    float f = fbm(pos);
+    
+    // Negate to make interior positive (density)
+    return -distance + f;
 }
 
 vec4 rayMarchSDF(vec3 rayOrigin, vec3 rayDir) {
-  float depth = 0.0;
-  vec3 p = rayOrigin + depth * rayDir;
-  
+    float tNear, tFar;
+    if (!intersectBox(rayOrigin, rayDir, tNear, tFar)) {
+        return vec4(0.0);  // Ray misses volume
+    }
+    
+    float t = max(0.0, tNear);
+    vec3 pos = rayOrigin + rayDir * t;
   vec4 res = vec4(0.0);
 
   for (int i = 0; i < MAX_STEPS; i++) {
-    float density = scene(p);
+    float density = scene(pos);
 
     // We only draw the density if it's greater than 0
     if (density > 0.0) {
@@ -138,8 +145,8 @@ vec4 rayMarchSDF(vec3 rayOrigin, vec3 rayDir) {
       res += color*(1.0-res.a);
     }
 
-    depth += STEP_SIZE;
-    p = rayOrigin + depth * rayDir;
+    t += STEP_SIZE;
+    pos = rayOrigin + t * rayDir;
   }
 
   return res;
