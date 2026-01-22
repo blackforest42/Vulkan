@@ -76,7 +76,7 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {
 
     // March from entry to exit
     for (int i = 0; i < MAX_STEPS && t < tFar; i++) {
-        float density = texture(volumeTexture, pos).r;
+        float density = texture(volumeTexture, vec3(pos.x, 1 - pos.y, pos.z)).r;
 
         if (density > 0.001) { // Small threshold to skip empty space
             float srcA = clamp(density * DENSITY_SCALE * STEP_SIZE, 0.0, 1.0);

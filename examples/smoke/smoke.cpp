@@ -1897,25 +1897,28 @@ class VulkanExample : public VulkanExampleBase {
     if (!prepared_) {
       return;
     }
-    // Use a fence to ensure that compute command buffer has finished
-    // executing before using it again
-    vkWaitForFences(device_, 1, &compute_.fences[currentBuffer_], VK_TRUE,
-                    UINT64_MAX);
-    vkResetFences(device_, 1, &compute_.fences[currentBuffer_]);
+    {
+      // Use a fence to ensure that compute command buffer has finished
+      // executing before using it again
+      vkWaitForFences(device_, 1, &compute_.fences[currentBuffer_], VK_TRUE,
+                      UINT64_MAX);
+      vkResetFences(device_, 1, &compute_.fences[currentBuffer_]);
 
-    buildComputeCommandBuffer();
+      buildComputeCommandBuffer();
 
-    VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
-    computeSubmitInfo.commandBufferCount = 1;
-    computeSubmitInfo.pCommandBuffers =
-        &compute_.commandBuffers[currentBuffer_];
-    VK_CHECK_RESULT(vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo,
-                                  compute_.fences[currentBuffer_]));
-
-    VulkanExampleBase::prepareFrame();
-    updateUniformBuffers();
-    buildGraphicsCommandBuffer();
-    VulkanExampleBase::submitFrame();
+      VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
+      computeSubmitInfo.commandBufferCount = 1;
+      computeSubmitInfo.pCommandBuffers =
+          &compute_.commandBuffers[currentBuffer_];
+      VK_CHECK_RESULT(vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo,
+                                    compute_.fences[currentBuffer_]));
+    }
+    {
+      VulkanExampleBase::prepareFrame();
+      updateUniformBuffers();
+      buildGraphicsCommandBuffer();
+      VulkanExampleBase::submitFrame();
+    }
   }
 
   void buildGraphicsCommandBuffer() {
@@ -2330,6 +2333,8 @@ class VulkanExample : public VulkanExampleBase {
     camera_.setMovementSpeed(25.f);
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -30.f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
+    width_ *= 1.5;
+    height_ *= 1.5;
 
     apiVersion_ = VK_API_VERSION_1_3;
 
