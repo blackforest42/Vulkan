@@ -2,7 +2,10 @@
 
 layout(location = 0) in vec3 inPosition;
 
-layout(set = 0, binding = 0) uniform UniformBufferObject {
+layout(location = 0) out vec3 outTexCoords;
+layout(location = 1) out float outDepth;
+
+layout(binding = 0) uniform UniformBufferObject {
     mat4 worldViewProjection;
     mat4 invWorldViewProjection;
     vec3 eyePosition;
@@ -15,9 +18,6 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     float gridScaleFactor;
     int renderBackFaces;  // 1 = back faces, 0 = front faces
 } ubo;
-
-layout(location = 0) out vec3 outTexCoords;
-layout(location = 1) out float outDepth;
 
 void main() {
     // Transform vertex to world space (scale from [0,1] to volume bounds)

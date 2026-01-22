@@ -247,6 +247,20 @@ class VulkanExample : public VulkanExampleBase {
 
     std::vector<std::string> viewNames{"Smoke", "Noise", "Cube"};
 
+    struct PreMarchUBO {
+      alignas(16) glm::mat4 worldViewProjection;
+      alignas(16) glm::mat4 invWorldViewProjection;
+      alignas(16) glm::vec3 eyePosition;
+      alignas(16) glm::vec3 volumeMax;
+      alignas(16) glm::vec3 volumeMin;
+      alignas(8) glm::vec2 screenRes;
+      alignas(4) float nearPlane;
+      alignas(4) float farPlane;
+      alignas(4) float opacityModulator;
+      alignas(4) float gridScaleFactor;
+      alignas(4) int renderBackFaces;  // 1 = back faces, 0 = front faces
+    };
+
     struct RayMarchUBO {
       alignas(16) glm::mat4 model;
       alignas(16) glm::mat4 invModel;
