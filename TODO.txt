@@ -1,6 +1,12 @@
 Jan 20
 TODO: 
-	- add UI
+	- redo rendering pipeline :(
+		- do front/back cube render passes to produce entry/exit rays
+		- render to screen quad/triangle
+
+Long Term:
+	- fix advection: it dissipates density field too quickly
+	- add to ImGUI
 		- texture view switcher
 		- time delta
 		- jacobi iterations
@@ -13,10 +19,13 @@ TODO:
 		- vorticity strength
 		- slip/no slip
 		- boundary types [+/-x, y, z]
-	- advection dissipates density field too quickly
+	- refactor DescriptorLayouts and PipelineLayouts to reuse (same layouts across most shaders)
+
 
 glslc -g raymarch.vert -o raymarch.vert.spv
 glslc -g raymarch.frag -o raymarch.frag.spv
+glslc -g premarch.vert -o premarch.vert.spv
+glslc -g premarch.frag -o premarch.frag.spv
 glslc -g advect.comp -o advect.comp.spv
 glslc -g buoy.comp -o buoy.comp.spv
 glslc -g vort.comp -o vort.comp.spv
