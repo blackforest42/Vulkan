@@ -261,11 +261,6 @@ class VulkanExample : public VulkanExampleBase {
                                                   CUBE_SCALE,
                                                   CUBE_SCALE);
       alignas(16) glm::vec3 volumeMin = glm::vec3(0.f, 0.f, 0.f);
-      alignas(8) glm::vec2 screenRes;
-      alignas(4) float nearPlane;
-      alignas(4) float farPlane;
-      alignas(4) float opacityModulator;
-      alignas(4) float gridScaleFactor;
     };
 
     struct RayMarchUBO {
