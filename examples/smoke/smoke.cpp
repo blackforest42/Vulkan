@@ -388,7 +388,7 @@ class VulkanExample : public VulkanExampleBase {
     vkCreateImageView(device_, &viewInfo, nullptr, &buffer.imageView);
 
     // descriptor
-    buffer.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    buffer.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     buffer.descriptor.imageView = buffer.imageView;
     buffer.descriptor.sampler = graphics_.preMarchPass_.sampler;
   }
@@ -1545,7 +1545,7 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             /*total texture count (across all pipelines) */ (
-                /*graphics: volume texture*/ 1 +
+                /*graphics: 2 premarch texures + volume texture*/ 3 +
                 /*compute textures*/
                 (uint32_t)compute_.read_textures.size()) *
                 MAX_CONCURRENT_FRAMES),
@@ -1587,6 +1587,16 @@ class VulkanExample : public VulkanExampleBase {
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_FRAGMENT_BIT,
             /*binding_id*/ 1),
+        // Binding 2 : Premarch Front
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding_id*/ 2),
+        // Binding 3 : Premarch Back
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding_id*/ 3),
     };
 
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
@@ -1629,6 +1639,16 @@ class VulkanExample : public VulkanExampleBase {
               graphics_.descriptorSets_[i].rayMarch,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
               /*binding id*/ 1, &compute_.read_textures[4].descriptor),
+          // Binding 2 : Premarch Front
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptorSets_[i].rayMarch,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              /*binding id*/ 2, &graphics_.preMarchPass_.incoming.descriptor),
+          // Binding 3 : Premarch Front
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptorSets_[i].rayMarch,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              /*binding id*/ 3, &graphics_.preMarchPass_.outgoing.descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -1999,7 +2019,7 @@ class VulkanExample : public VulkanExampleBase {
     // take care of proper layout transitions by using barriers This set of
     // barriers prepares the color and depth images for output
     vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, graphics_.preMarchPass_.incoming.image, 0,
+        cmdBuffer, graphics_.preMarchPass_.outgoing.image, 0,
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -2021,7 +2041,7 @@ class VulkanExample : public VulkanExampleBase {
     // rendering
     VkRenderingAttachmentInfoKHR colorAttachment{};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    colorAttachment.imageView = graphics_.preMarchPass_.incoming.imageView;
+    colorAttachment.imageView = graphics_.preMarchPass_.outgoing.imageView;
     colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -2092,6 +2112,23 @@ class VulkanExample : public VulkanExampleBase {
         VkImageSubresourceRange{
             VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0,
             1});
+
+    // Need to change the format of the velocity textures before reading
+    // -_-
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, graphics_.preMarchPass_.incoming.image, 0,
+        VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, graphics_.preMarchPass_.outgoing.image, 0,
+        VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
     // New structures are used to define the attachments used in dynamic
     // rendering

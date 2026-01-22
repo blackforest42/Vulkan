@@ -1,8 +1,7 @@
 #version 450
 
 // in
-layout(location = 0) in vec3 inPos;
-layout(location = 1) in vec3 inUVW;
+layout(location = 0) in vec2 inUV;
 
 // out
 layout(location = 0) out vec4 outFragColor;
@@ -19,6 +18,8 @@ layout(binding = 0) uniform RayMarchUBO {
 }
 ubo;
 layout(binding = 1) uniform sampler3D volumeTexture;
+layout(binding = 2) uniform sampler2D preMarchFrontTex;
+layout(binding = 3) uniform sampler2D preMarchBackTex;
 
 const float STEP_SIZE = 0.01;
 const float MAX_STEPS = 200;
@@ -37,6 +38,14 @@ vec4 rayMarchSDF(vec3 rayOrigin, vec3 rayDir);
 bool intersectBox(vec3 rayOrigin, vec3 rayDir, out float tNear, out float tFar);
 
 void main() {
+    vec4 entry = texture(preMarchBackTex, inUV);
+    // Check if ray is occluded (see PS_RAYDATA_FRONT)
+    if (entry.w == 0.0f) {
+        discard;
+    }
+    outFragColor = vec4(1.f);
+
+/*
 	// Ray direction from camera to this point on the cube
 	vec3 worldPos = inPos;
 	vec3 rayDir = worldPos - ubo.cameraPos;
@@ -59,6 +68,7 @@ void main() {
 		return;
     }
 	outFragColor = vec4(color);
+*/
 }
 
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {
