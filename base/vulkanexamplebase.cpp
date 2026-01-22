@@ -344,17 +344,20 @@ void VulkanExampleBase::renderLoop() {
   if (benchmark.active) {
 #if defined(VK_USE_PLATFORM_WAYLAND_KHR)
     while (!configured) {
-      if (wl_display_dispatch(display) == -1)
+      if (wl_display_dispatch(display) == -1) {
         break;
+      }
     }
     while (wl_display_prepare_read(display) != 0) {
-      if (wl_display_dispatch_pending(display) == -1)
+      if (wl_display_dispatch_pending(display) == -1) {
         break;
+      }
     }
     wl_display_flush(display);
     wl_display_read_events(display);
-    if (wl_display_dispatch_pending(display) == -1)
+    if (wl_display_dispatch_pending(display) == -1) {
       return;
+    }
 #endif
     benchmark.run([=, this] { render(); }, vulkanDevice_->properties);
     vkDeviceWaitIdle(device_);
@@ -533,17 +536,20 @@ void VulkanExampleBase::renderLoop() {
     auto tStart = std::chrono::high_resolution_clock::now();
 
     while (!configured) {
-      if (wl_display_dispatch(display) == -1)
+      if (wl_display_dispatch(display) == -1) {
         break;
+      }
     }
     while (wl_display_prepare_read(display) != 0) {
-      if (wl_display_dispatch_pending(display) == -1)
+      if (wl_display_dispatch_pending(display) == -1) {
         break;
+      }
     }
     wl_display_flush(display);
     wl_display_read_events(display);
-    if (wl_display_dispatch_pending(display) == -1)
+    if (wl_display_dispatch_pending(display) == -1) {
       break;
+    }
 
     render();
     frameCounter_++;
@@ -657,8 +663,9 @@ void VulkanExampleBase::renderLoop() {
 }
 
 void VulkanExampleBase::updateOverlay() {
-  if (!settings_.overlay)
+  if (!settings_.overlay) {
     return;
+  }
 
   ImGuiIO& io = ImGui::GetIO();
   io.DisplaySize = ImVec2((float)width_, (float)height_);
@@ -983,26 +990,34 @@ VulkanExampleBase::~VulkanExampleBase() {
 #if defined(_DIRECT2DISPLAY)
 
 #elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
-  if (event_buffer)
+  if (event_buffer) {
     event_buffer->Release(event_buffer);
-  if (surface)
+  }
+  if (surface) {
     surface->Release(surface);
-  if (window)
+  }
+  if (window) {
     window->Release(window);
-  if (layer)
+  }
+  if (layer) {
     layer->Release(layer);
-  if (dfb)
+  }
+  if (dfb) {
     dfb->Release(dfb);
+  }
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
   xdg_toplevel_destroy(xdg_toplevel);
   xdg_surface_destroy(xdg_surface);
   wl_surface_destroy(surface);
-  if (keyboard)
+  if (keyboard) {
     wl_keyboard_destroy(keyboard);
-  if (pointer)
+  }
+  if (pointer) {
     wl_pointer_destroy(pointer);
-  if (seat)
+  }
+  if (seat) {
     wl_seat_destroy(seat);
+  }
   xdg_wm_base_destroy(shell);
   wl_compositor_destroy(compositor);
   wl_registry_destroy(registry);
@@ -1542,8 +1557,9 @@ int32_t VulkanExampleBase::handleAppInput(struct android_app* app,
     int32_t keyCode = AKeyEvent_getKeyCode((const AInputEvent*)event);
     int32_t action = AKeyEvent_getAction((const AInputEvent*)event);
 
-    if (action == AKEY_EVENT_ACTION_UP)
+    if (action == AKEY_EVENT_ACTION_UP) {
       return 0;
+    }
 
     switch (keyCode) {
       case AKEYCODE_BUTTON_A:
@@ -1690,7 +1706,7 @@ const std::string getAssetPath() {
   return VK_EXAMPLE_ASSETS_DIR;
 #else
   return [NSBundle.mainBundle.resourcePath
-             stringByAppendingString:@"/../../assets/"]
+             stringByAppendingString:@ "/../../assets/"]
       .UTF8String;
 #endif
 }
@@ -1700,7 +1716,7 @@ const std::string getShaderBasePath() {
   return VK_EXAMPLE_SHADERS_DIR;
 #else
   return [NSBundle.mainBundle.resourcePath
-             stringByAppendingString:@"/../../shaders/"]
+             stringByAppendingString:@ "/../../shaders/"]
       .UTF8String;
 #endif
 }
@@ -1946,8 +1962,9 @@ void VulkanExampleBase::displayLinkOutputCb() {
   }
 #endif
 
-  if (prepared_)
+  if (prepared_) {
     nextFrame();
+  }
 }
 
 void VulkanExampleBase::mouseDragged(float x, float y) {
@@ -2005,10 +2022,12 @@ IDirectFBSurface* VulkanExampleBase::setupWindow() {
     width_ = layer_config.width_;
     height_ = layer_config.height_;
   } else {
-    if (layer_config.width_ > width_)
+    if (layer_config.width_ > width_) {
       posx = (layer_config.width_ - width_) / 2;
-    if (layer_config.height_ > height_)
+    }
+    if (layer_config.height_ > height_) {
       posy = (layer_config.height_ - height_) / 2;
+    }
   }
 
   DFBWindowDescription desc;
@@ -2286,8 +2305,9 @@ void VulkanExampleBase::keyboardKey(struct wl_keyboard* keyboard,
       camera_.keys_.right = !!state;
       break;
     case KEY_P:
-      if (state)
+      if (state) {
         paused = !paused;
+      }
       break;
     case KEY_F1:
       if (state) {
@@ -2299,8 +2319,9 @@ void VulkanExampleBase::keyboardKey(struct wl_keyboard* keyboard,
       break;
   }
 
-  if (state)
+  if (state) {
     keyPressed(key);
+  }
 }
 
 /*static*/ void VulkanExampleBase::keyboardModifiersCb(
@@ -2406,8 +2427,9 @@ void VulkanExampleBase::initWaylandConnection() {
 }
 
 void VulkanExampleBase::setSize(int width_, int height_) {
-  if (width_ <= 0 || height_ <= 0)
+  if (width_ <= 0 || height_ <= 0) {
     return;
+  }
 
   destWidth = width_;
   destHeight = height_;
@@ -2513,7 +2535,7 @@ xcb_window_t VulkanExampleBase::setupWindow() {
 
   std::string windowTitle = getWindowTitle();
   xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window,
-                      XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, title.size(),
+                      XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, title_.size(),
                       windowTitle.c_str());
 
   free(reply);
@@ -2524,9 +2546,9 @@ xcb_window_t VulkanExampleBase::setupWindow() {
    * on GNOME and other desktop environments
    */
   std::string wm_class;
-  wm_class = wm_class.insert(0, name);
-  wm_class = wm_class.insert(name.size(), 1, '\0');
-  wm_class = wm_class.insert(name.size() + 1, title);
+  wm_class = wm_class.insert(0, name_);
+  wm_class = wm_class.insert(name_.size(), 1, '\0');
+  wm_class = wm_class.insert(name_.size() + 1, title_);
   wm_class = wm_class.insert(wm_class.size(), 1, '\0');
   xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window,
                       XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8,
@@ -2569,8 +2591,9 @@ void VulkanExampleBase::initxcbConnection() {
 
   setup = xcb_get_setup(connection);
   iter = xcb_setup_roots_iterator(setup);
-  while (scr-- > 0)
+  while (scr-- > 0) {
     xcb_screen_next(&iter);
+  }
   screen = iter.data;
 }
 
@@ -2589,21 +2612,27 @@ void VulkanExampleBase::handleEvent(const xcb_generic_event_t* event) {
     } break;
     case XCB_BUTTON_PRESS: {
       xcb_button_press_event_t* press = (xcb_button_press_event_t*)event;
-      if (press->detail == XCB_BUTTON_INDEX_1)
+      if (press->detail == XCB_BUTTON_INDEX_1) {
         mouseState.buttons.left = true;
-      if (press->detail == XCB_BUTTON_INDEX_2)
+      }
+      if (press->detail == XCB_BUTTON_INDEX_2) {
         mouseState.buttons.middle = true;
-      if (press->detail == XCB_BUTTON_INDEX_3)
+      }
+      if (press->detail == XCB_BUTTON_INDEX_3) {
         mouseState.buttons.right = true;
+      }
     } break;
     case XCB_BUTTON_RELEASE: {
       xcb_button_press_event_t* press = (xcb_button_press_event_t*)event;
-      if (press->detail == XCB_BUTTON_INDEX_1)
+      if (press->detail == XCB_BUTTON_INDEX_1) {
         mouseState.buttons.left = false;
-      if (press->detail == XCB_BUTTON_INDEX_2)
+      }
+      if (press->detail == XCB_BUTTON_INDEX_2) {
         mouseState.buttons.middle = false;
-      if (press->detail == XCB_BUTTON_INDEX_3)
+      }
+      if (press->detail == XCB_BUTTON_INDEX_3) {
         mouseState.buttons.right = false;
+      }
     } break;
     case XCB_KEY_PRESS: {
       const xcb_key_release_event_t* keyEvent =
@@ -2877,7 +2906,7 @@ void VulkanExampleBase::handleEvent() {
 }
 
 void VulkanExampleBase::setupWindow() {
-  const char* idstr = name.c_str();
+  const char* idstr = name_.c_str();
   int size[2];
   int usage = SCREEN_USAGE_VULKAN;
   int rc;
