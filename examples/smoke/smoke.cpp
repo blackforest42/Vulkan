@@ -246,7 +246,8 @@ class VulkanExample : public VulkanExampleBase {
       bool toggleRotation{0};
     } ui_features;
 
-    std::vector<std::string> viewNames{"Smoke", "Noise", "Cube"};
+    std::vector<std::string> viewNames{"Smoke", "Noise", "Entry Rays",
+                                       "Exit Rays"};
 
     struct PreMarchPushConstants {
       // 1 = back faces, 0 = front faces
@@ -271,7 +272,8 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
       alignas(4) float time{0};
-      alignas(4) int toggleView{0};  // 0 == 3D texture, 1 == noise
+      alignas(4) int toggleView{0};  // 0 == 3D texture, 1 == noise, 2 =
+                                     // entry Ray, 3 = exit ray
     };
 
     struct UBO {

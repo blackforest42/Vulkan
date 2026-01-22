@@ -38,37 +38,29 @@ vec4 rayMarchSDF(vec3 rayOrigin, vec3 rayDir);
 bool intersectBox(vec3 rayOrigin, vec3 rayDir, out float tNear, out float tFar);
 
 void main() {
-    vec4 entry = texture(preMarchBackTex, inUV);
-    // Check if ray is occluded (see PS_RAYDATA_FRONT)
-    if (entry.w == 0.0f) {
+    vec4 entry = texture(preMarchFrontTex, inUV);
+    // Ignore if ray is occluded
+    if (entry == vec4(0)) {
         discard;
     }
-    outFragColor = vec4(1.f);
-
-/*
-	// Ray direction from camera to this point on the cube
-	vec3 worldPos = inPos;
-	vec3 rayDir = worldPos - ubo.cameraPos;
-	// Transform ray to texture space [0, 1]
-	vec3 rayDirTexSpace = normalize(mat3(ubo.invModel) * rayDir);
-	// Flip the texture since it is upside down
-	vec3 uvw = inUVW;
-	uvw.y = 1 - inUVW.y;
+    vec4 exit = texture(preMarchBackTex, inUV);
+    vec3 rayDir = normalize(vec3(exit - entry));
 
 	vec4 color;
-	// March rays starting from front face of cube
 	if (ubo.toggleView == 0) {
-	    color = rayMarch(uvw, rayDirTexSpace);
+        // March Smoke volume
+	    color = rayMarch(entry.xyz, rayDir);
 	} else if (ubo.toggleView == 1) {
-	    // color = rayMarchNoise(uvw, rayDirTexSpace);
-	    color = rayMarchSDF(uvw, rayDirTexSpace);
+        // March Noise
+	    color = rayMarchSDF(entry.xyz, rayDir);
 	}
     else if (ubo.toggleView == 2) {
-		outFragColor = vec4(rayDirTexSpace * 0.5 + 0.5, 1.0);
-		return;
+        color = entry;
+    }
+    else if (ubo.toggleView == 3) {
+	    color = exit;
     }
 	outFragColor = vec4(color);
-*/
 }
 
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {

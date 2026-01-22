@@ -1,8 +1,6 @@
 Jan 20
 TODO: 
-	- redo rendering pipeline :(
-		- do front/back cube render passes to produce entry/exit rays
-		- render to screen quad/triangle
+	- Remove layout transition from raymarchCmd() and somewhere in texture creation
 
 Long Term:
 	- fix advection: it dissipates density field too quickly
