@@ -448,7 +448,7 @@ void VulkanExampleBase::renderLoop() {
         touchTimer += frameTimer;
       }
       if (touchTimer >= 1.0) {
-        camera.keys.up = true;
+        camera.keys.forward = true;
       }
 
       // Check gamepad state
@@ -1351,10 +1351,10 @@ void VulkanExampleBase::handleMessages(HWND hWnd,
       if (camera.type == Camera::firstperson) {
         switch (wParam) {
           case KEY_W:
-            camera.keys.up = true;
+            camera.keys.forward = true;
             break;
           case KEY_S:
-            camera_.keys_.backward = true;
+            camera.keys.backward = true;
             break;
           case KEY_A:
             camera.keys.left = true;
@@ -1363,10 +1363,10 @@ void VulkanExampleBase::handleMessages(HWND hWnd,
             camera.keys.right = true;
             break;
           case KEY_SPACE:
-            camera_.keys_.up = true;
+            camera.keys.up = true;
             break;
           case KEY_SHIFT:
-            camera_.keys_.down = true;
+            camera.keys.down = true;
             break;
         }
       }
@@ -1377,10 +1377,10 @@ void VulkanExampleBase::handleMessages(HWND hWnd,
       if (camera.type == Camera::firstperson) {
         switch (wParam) {
           case KEY_W:
-            camera.keys.up = false;
+            camera.keys.forward = false;
             break;
           case KEY_S:
-            camera_.keys_.backward = false;
+            camera.keys.backward = false;
             break;
           case KEY_A:
             camera.keys.left = false;
@@ -1389,10 +1389,10 @@ void VulkanExampleBase::handleMessages(HWND hWnd,
             camera.keys.right = false;
             break;
           case KEY_SPACE:
-            camera_.keys_.up = false;
+            camera.keys.up = false;
             break;
           case KEY_SHIFT:
-            camera_.keys_.down = false;
+            camera.keys.down = false;
             break;
         }
       }
@@ -1488,7 +1488,7 @@ int32_t VulkanExampleBase::handleAppInput(struct android_app* app,
             vulkanExample->touchPos.y = AMotionEvent_getY(event, 0);
             vulkanExample->touchTimer = 0.0;
             vulkanExample->touchDown = false;
-            vulkanExample->camera.keys.up = false;
+            vulkanExample->camera.keys.forward = false;
 
             // Detect single tap
             int64_t eventTime = AMotionEvent_getEventTime(event);
@@ -1796,7 +1796,7 @@ static CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink,
       [NSApp terminate:nil];
       break;
     case KEY_W:
-      vulkanExample->camera.keys.up = true;
+      vulkanExample->camera.keys.forward = true;
       break;
     case KEY_S:
       vulkanExample->camera.keys.down = true;
@@ -1817,7 +1817,7 @@ static CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink,
 - (void)keyUp:(NSEvent*)event {
   switch (event.keyCode) {
     case KEY_W:
-      vulkanExample->camera.keys.up = false;
+      vulkanExample->camera.keys.forward = false;
       break;
     case KEY_S:
       vulkanExample->camera.keys.down = false;
@@ -2118,7 +2118,7 @@ void VulkanExampleBase::handleEvent(const DFBWindowEvent* event) {
     case DWET_KEYDOWN:
       switch (event->key_symbol) {
         case KEY_W:
-          camera.keys.up = true;
+          camera.keys.forward = true;
           break;
         case KEY_S:
           camera.keys.down = true;
@@ -2141,7 +2141,7 @@ void VulkanExampleBase::handleEvent(const DFBWindowEvent* event) {
     case DWET_KEYUP:
       switch (event->key_symbol) {
         case KEY_W:
-          camera.keys.up = false;
+          camera.keys.forward = false;
           break;
         case KEY_S:
           camera.keys.down = false;
@@ -2302,7 +2302,7 @@ void VulkanExampleBase::keyboardKey(struct wl_keyboard* keyboard,
                                     uint32_t state) {
   switch (key) {
     case KEY_W:
-      camera.keys.up = !!state;
+      camera.keys.forward = !!state;
       break;
     case KEY_S:
       camera.keys.down = !!state;
@@ -2648,16 +2648,22 @@ void VulkanExampleBase::handleEvent(const xcb_generic_event_t* event) {
           (const xcb_key_release_event_t*)event;
       switch (keyEvent->detail) {
         case KEY_W:
-          camera.keys.up = true;
+          camera.keys.forward = true;
           break;
         case KEY_S:
-          camera.keys.down = true;
+          camera.keys.backward = true;
           break;
         case KEY_A:
           camera.keys.left = true;
           break;
         case KEY_D:
           camera.keys.right = true;
+          break;
+        case KEY_SPACE:
+          camera.keys.up = true;
+          break;
+        case KEY_SHIFT:
+          camera.keys.down = true;
           break;
         case KEY_P:
           paused = !paused;
@@ -2672,16 +2678,22 @@ void VulkanExampleBase::handleEvent(const xcb_generic_event_t* event) {
           (const xcb_key_release_event_t*)event;
       switch (keyEvent->detail) {
         case KEY_W:
-          camera.keys.up = false;
+          camera.keys.forward = false;
           break;
         case KEY_S:
-          camera.keys.down = false;
+          camera.keys.backward = false;
           break;
         case KEY_A:
           camera.keys.left = false;
           break;
         case KEY_D:
           camera.keys.right = false;
+          break;
+        case KEY_SPACE:
+          camera.keys.up = false;
+          break;
+        case KEY_SHIFT:
+          camera.keys.down = false;
           break;
         case KEY_ESCAPE:
           quit = true;
@@ -2757,9 +2769,9 @@ void VulkanExampleBase::handleEvent() {
               break;
             case KEYCODE_W:
               if (keyflags & KEY_DOWN) {
-                camera.keys.up = true;
+                camera.keys.forward = true;
               } else {
-                camera.keys.up = false;
+                camera.keys.forward = false;
               }
               break;
             case KEYCODE_S:
