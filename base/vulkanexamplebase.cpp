@@ -2639,16 +2639,22 @@ void VulkanExampleBase::handleEvent(const xcb_generic_event_t* event) {
           (const xcb_key_release_event_t*)event;
       switch (keyEvent->detail) {
         case KEY_W:
-          camera_.keys_.up = true;
+          camera_.keys_.forward = true;
           break;
         case KEY_S:
-          camera_.keys_.down = true;
+          camera_.keys_.backward = true;
           break;
         case KEY_A:
           camera_.keys_.left = true;
           break;
         case KEY_D:
           camera_.keys_.right = true;
+          break;
+        case KEY_SPACE:
+          camera_.keys_.up = true;
+          break;
+        case KEY_SHIFT:
+          camera_.keys_.down = true;
           break;
         case KEY_P:
           paused = !paused;
@@ -2663,16 +2669,22 @@ void VulkanExampleBase::handleEvent(const xcb_generic_event_t* event) {
           (const xcb_key_release_event_t*)event;
       switch (keyEvent->detail) {
         case KEY_W:
-          camera_.keys_.up = false;
+          camera_.keys_.forward = false;
           break;
         case KEY_S:
-          camera_.keys_.down = false;
+          camera_.keys_.backward = false;
           break;
         case KEY_A:
           camera_.keys_.left = false;
           break;
         case KEY_D:
           camera_.keys_.right = false;
+          break;
+        case KEY_SPACE:
+          camera_.keys_.up = false;
+          break;
+        case KEY_SHIFT:
+          camera_.keys_.down = false;
           break;
         case KEY_ESCAPE:
           quit = true;

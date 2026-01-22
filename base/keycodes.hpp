@@ -154,6 +154,7 @@
 #define KEY_D 0x28
 #define KEY_P 0x21
 #define KEY_SPACE 0x41
+#define KEY_SHIFT 0x32
 #define KEY_KPADD 0x56
 #define KEY_KPSUB 0x52
 #define KEY_B 0x38
