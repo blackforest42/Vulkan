@@ -7,6 +7,7 @@
  */
 
 #include <chrono>
+
 #include "VulkanglTFModel.h"
 #include "vulkanexamplebase.h"
 
@@ -255,18 +256,13 @@ class VulkanExample : public VulkanExampleBase {
     } preMarchPC;
 
     struct PreMarchUBO {
+      alignas(16) glm::mat4 model;
       alignas(16) glm::mat4 worldViewProjection;
       alignas(16) glm::mat4 invWorldViewProjection;
       alignas(16) glm::vec3 cameraPos;
-      alignas(16) glm::vec3 volumeMax = glm::vec3(CUBE_SCALE,
-                                                  CUBE_SCALE,
-                                                  CUBE_SCALE);
-      alignas(16) glm::vec3 volumeMin = glm::vec3(0.f, 0.f, 0.f);
     };
 
     struct RayMarchUBO {
-      alignas(16) glm::mat4 model;
-      alignas(16) glm::mat4 invModel;
       alignas(16) glm::mat4 cameraView;
       alignas(16) glm::mat4 perspective;
       alignas(16) glm::vec3 cameraPos;
@@ -1841,7 +1837,7 @@ class VulkanExample : public VulkanExampleBase {
       VK_CHECK_RESULT(buffer.preMarch.map());
 
       // Init cube state
-      auto& model = graphics_.ubos_.march.model;
+      auto& model = graphics_.ubos_.preMarch.model;
       model = glm::mat4(1.0f);
       model = glm::scale(model, glm::vec3(graphics_.CUBE_SCALE));
       model = glm::translate(model, glm::vec3(0, 0, 0));
@@ -1849,28 +1845,26 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    // Premarch Uniform
-    graphics_.ubos_.preMarch.cameraPos = camera_.position_;
-    graphics_.ubos_.preMarch.worldViewProjection =
-        camera_.matrices_.perspective * camera_.matrices_.view;
-    graphics_.ubos_.preMarch.invWorldViewProjection =
-        glm::inverse(graphics_.ubos_.preMarch.worldViewProjection);
-    graphics_.ubos_.preMarch.volumeMin = glm::vec3(0, 0, 0);
-    graphics_.ubos_.preMarch.volumeMin = glm::vec3(1, 1, 1);
-    memcpy(graphics_.uniformBuffers_[currentBuffer_].preMarch.mapped,
-           &graphics_.ubos_.preMarch, sizeof(Graphics::PreMarchUBO));
-
-    // Ray March Uniform
-    auto& model = graphics_.ubos_.march.model;
     float time =
         std::chrono::duration<float>(
             std::chrono::high_resolution_clock::now().time_since_epoch())
             .count();
+
+    // Premarch Uniform
+    graphics_.ubos_.preMarch.cameraPos = camera_.position_;
+    auto& model = graphics_.ubos_.preMarch.model;
     model = graphics_.ui_features.toggleRotation
-                ? glm::rotate(model, glm::radians(time * 1.f / 100000),
+                ? glm::rotate(model, glm::radians(time * 1.f / 10000000),
                               glm::vec3(0.f, 1.f, 0.f))
                 : model;
-    graphics_.ubos_.march.invModel = glm::inverse(model);
+    graphics_.ubos_.preMarch.worldViewProjection =
+        camera_.matrices_.perspective * camera_.matrices_.view * model;
+    graphics_.ubos_.preMarch.invWorldViewProjection =
+        glm::inverse(graphics_.ubos_.preMarch.worldViewProjection);
+    memcpy(graphics_.uniformBuffers_[currentBuffer_].preMarch.mapped,
+           &graphics_.ubos_.preMarch, sizeof(Graphics::PreMarchUBO));
+
+    // Ray March Uniform
     graphics_.ubos_.march.cameraView = camera_.matrices_.view;
     graphics_.ubos_.march.screenRes = glm::vec2(width_, height_);
     graphics_.ubos_.march.perspective = camera_.matrices_.perspective;
@@ -2418,24 +2412,32 @@ class VulkanExample : public VulkanExampleBase {
 
       // Compute Textures
       for (auto& texture : compute_.read_textures) {
-        if (texture.view != VK_NULL_HANDLE)
+        if (texture.view != VK_NULL_HANDLE) {
           vkDestroyImageView(device_, texture.view, nullptr);
-        if (texture.image != VK_NULL_HANDLE)
+        }
+        if (texture.image != VK_NULL_HANDLE) {
           vkDestroyImage(device_, texture.image, nullptr);
-        if (texture.sampler != VK_NULL_HANDLE)
+        }
+        if (texture.sampler != VK_NULL_HANDLE) {
           vkDestroySampler(device_, texture.sampler, nullptr);
-        if (texture.deviceMemory != VK_NULL_HANDLE)
+        }
+        if (texture.deviceMemory != VK_NULL_HANDLE) {
           vkFreeMemory(device_, texture.deviceMemory, nullptr);
+        }
       }
       for (auto& texture : compute_.write_textures) {
-        if (texture.view != VK_NULL_HANDLE)
+        if (texture.view != VK_NULL_HANDLE) {
           vkDestroyImageView(device_, texture.view, nullptr);
-        if (texture.image != VK_NULL_HANDLE)
+        }
+        if (texture.image != VK_NULL_HANDLE) {
           vkDestroyImage(device_, texture.image, nullptr);
-        if (texture.sampler != VK_NULL_HANDLE)
+        }
+        if (texture.sampler != VK_NULL_HANDLE) {
           vkDestroySampler(device_, texture.sampler, nullptr);
-        if (texture.deviceMemory != VK_NULL_HANDLE)
+        }
+        if (texture.deviceMemory != VK_NULL_HANDLE) {
           vkFreeMemory(device_, texture.deviceMemory, nullptr);
+        }
       }
 
       // Compute Buffers
