@@ -234,6 +234,7 @@ class VulkanExample : public VulkanExampleBase {
 
   // Handles rendering the compute outputs
   struct Graphics {
+    static constexpr float CUBE_SCALE = 20.f;
     // families differ and require additional barriers
     uint32_t queueFamilyIndex{0};
 
@@ -247,18 +248,24 @@ class VulkanExample : public VulkanExampleBase {
 
     std::vector<std::string> viewNames{"Smoke", "Noise", "Cube"};
 
+    struct PreMarchPushConstants {
+      // 1 = back faces, 0 = front faces
+      alignas(4) uint32_t renderBackFaces{0};
+    } preMarchPC;
+
     struct PreMarchUBO {
       alignas(16) glm::mat4 worldViewProjection;
       alignas(16) glm::mat4 invWorldViewProjection;
-      alignas(16) glm::vec3 eyePosition;
-      alignas(16) glm::vec3 volumeMax;
-      alignas(16) glm::vec3 volumeMin;
+      alignas(16) glm::vec3 cameraPos;
+      alignas(16) glm::vec3 volumeMax = glm::vec3(CUBE_SCALE,
+                                                  CUBE_SCALE,
+                                                  CUBE_SCALE);
+      alignas(16) glm::vec3 volumeMin = glm::vec3(0.f, 0.f, 0.f);
       alignas(8) glm::vec2 screenRes;
       alignas(4) float nearPlane;
       alignas(4) float farPlane;
       alignas(4) float opacityModulator;
       alignas(4) float gridScaleFactor;
-      alignas(4) int renderBackFaces;  // 1 = back faces, 0 = front faces
     };
 
     struct RayMarchUBO {
@@ -1660,6 +1667,20 @@ class VulkanExample : public VulkanExampleBase {
         vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
                                &graphics_.pipelineLayouts_.rayMarch));
 
+    // Layout: Premarch
+    pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
+        &graphics_.descriptorSetLayouts_.preMarch, 1);
+    // push constants
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(Graphics::PreMarchPushConstants);
+    pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+    pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
+    VK_CHECK_RESULT(
+        vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
+                               &graphics_.pipelineLayouts_.preMarch));
+
     // Pipeline
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
         vks::initializers::pipelineInputAssemblyStateCreateInfo(
@@ -1749,6 +1770,19 @@ class VulkanExample : public VulkanExampleBase {
     // Chain into the pipeline create info
     pipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
 
+    // Pipeline: Pre march
+    pipelineCreateInfo.layout = graphics_.pipelineLayouts_.preMarch;
+    shaderStages[0] = loadShader(getShadersPath() + "smoke/premarch.vert.spv",
+                                 VK_SHADER_STAGE_VERTEX_BIT);
+    shaderStages[1] = loadShader(getShadersPath() + "smoke/premarch.frag.spv",
+                                 VK_SHADER_STAGE_FRAGMENT_BIT);
+    pipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &graphics_.preMarchPass_.incoming.format;
+
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
+                                              &pipelineCreateInfo, nullptr,
+                                              &graphics_.pipelines_.preMarch));
+
     // Pipeline: Ray march
     pipelineCreateInfo.layout = graphics_.pipelineLayouts_.rayMarch;
     shaderStages[0] = loadShader(getShadersPath() + "smoke/raymarch.vert.spv",
@@ -1792,12 +1826,24 @@ class VulkanExample : public VulkanExampleBase {
       // Init cube state
       auto& model = graphics_.ubos_.march.model;
       model = glm::mat4(1.0f);
-      model = glm::scale(model, glm::vec3(20));
+      model = glm::scale(model, glm::vec3(graphics_.CUBE_SCALE));
       model = glm::translate(model, glm::vec3(0, 0, 0));
     }
   }
 
   void updateUniformBuffers() {
+    // Premarch Uniform
+    graphics_.ubos_.preMarch.cameraPos = camera_.position_;
+    graphics_.ubos_.preMarch.worldViewProjection =
+        camera_.matrices_.perspective * camera_.matrices_.view;
+    graphics_.ubos_.preMarch.invWorldViewProjection =
+        glm::inverse(graphics_.ubos_.preMarch.worldViewProjection);
+    graphics_.ubos_.preMarch.volumeMin = glm::vec3(0, 0, 0);
+    graphics_.ubos_.preMarch.volumeMin = glm::vec3(1, 1, 1);
+    memcpy(graphics_.uniformBuffers_[currentBuffer_].preMarch.mapped,
+           &graphics_.ubos_.preMarch, sizeof(Graphics::PreMarchUBO));
+
+    // Ray March Uniform
     auto& model = graphics_.ubos_.march.model;
     float time =
         std::chrono::duration<float>(
@@ -1867,8 +1913,169 @@ class VulkanExample : public VulkanExampleBase {
     VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
+    frontPreMarchCmd(cmdBuffer);
+    backPreMarchCmd(cmdBuffer);
     rayMarchCmd(cmdBuffer);
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
+  }
+
+  void frontPreMarchCmd(VkCommandBuffer& cmdBuffer) {
+    // With dynamic rendering there are no subpass dependencies, so we need to
+    // take care of proper layout transitions by using barriers This set of
+    // barriers prepares the color and depth images for output
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, graphics_.preMarchPass_.incoming.image, 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, depthStencil_.image, 0,
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        VkImageSubresourceRange{
+            VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0,
+            1});
+
+    // New structures are used to define the attachments used in dynamic
+    // rendering
+    VkRenderingAttachmentInfoKHR colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    colorAttachment.imageView = graphics_.preMarchPass_.incoming.imageView;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    VkRenderingInfoKHR renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderingInfo.renderArea = {0, 0, width_, height_};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
+    renderingInfo.pDepthAttachment = nullptr;
+    renderingInfo.pStencilAttachment = nullptr;
+
+    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
+
+    // Set viewport and scissor
+    VkViewport viewport{0.0f, 0.0f, (float)width_, (float)height_, 0.0f, 1.0f};
+    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      graphics_.pipelines_.preMarch);
+    vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_BACK_BIT));
+    vkCmdSetFrontFace(cmdBuffer, VK_FRONT_FACE_CLOCKWISE);
+
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            graphics_.pipelineLayouts_.preMarch, 0, 1,
+                            &graphics_.descriptorSets_[currentBuffer_].preMarch,
+                            0, nullptr);
+
+    VkDeviceSize offsets[1] = {0};
+    vkCmdBindVertexBuffers(cmdBuffer, 0, 1,
+                           &graphics_.cubeVerticesBuffer.buffer, offsets);
+    vkCmdBindIndexBuffer(cmdBuffer, graphics_.cubeIndicesBuffer.buffer, 0,
+                         VK_INDEX_TYPE_UINT32);
+
+    cmdBeginLabel(cmdBuffer, "Front Pre Marching", {0.1f, 0.6f, 0.6f, 1.f});
+    graphics_.preMarchPC.renderBackFaces = 0;
+    vkCmdPushConstants(cmdBuffer, graphics_.pipelineLayouts_.preMarch,
+                       VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                       sizeof(Graphics::PreMarchPushConstants),
+                       &graphics_.preMarchPC);
+
+    vkCmdDrawIndexed(cmdBuffer, graphics_.indexCount, 1, 0, 0, 0);
+    cmdEndLabel(cmdBuffer);
+
+    vkCmdEndRendering(cmdBuffer);
+  }
+
+  void backPreMarchCmd(VkCommandBuffer& cmdBuffer) {
+    // With dynamic rendering there are no subpass dependencies, so we need to
+    // take care of proper layout transitions by using barriers This set of
+    // barriers prepares the color and depth images for output
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, graphics_.preMarchPass_.incoming.image, 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, depthStencil_.image, 0,
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        VkImageSubresourceRange{
+            VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0,
+            1});
+
+    // New structures are used to define the attachments used in dynamic
+    // rendering
+    VkRenderingAttachmentInfoKHR colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    colorAttachment.imageView = graphics_.preMarchPass_.incoming.imageView;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    VkRenderingInfoKHR renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderingInfo.renderArea = {0, 0, width_, height_};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
+    renderingInfo.pDepthAttachment = nullptr;
+    renderingInfo.pStencilAttachment = nullptr;
+
+    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
+
+    // Set viewport and scissor
+    VkViewport viewport{0.0f, 0.0f, (float)width_, (float)height_, 0.0f, 1.0f};
+    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      graphics_.pipelines_.preMarch);
+    vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_FRONT_BIT));
+    vkCmdSetFrontFace(cmdBuffer, VK_FRONT_FACE_CLOCKWISE);
+
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            graphics_.pipelineLayouts_.preMarch, 0, 1,
+                            &graphics_.descriptorSets_[currentBuffer_].preMarch,
+                            0, nullptr);
+
+    VkDeviceSize offsets[1] = {0};
+    vkCmdBindVertexBuffers(cmdBuffer, 0, 1,
+                           &graphics_.cubeVerticesBuffer.buffer, offsets);
+    vkCmdBindIndexBuffer(cmdBuffer, graphics_.cubeIndicesBuffer.buffer, 0,
+                         VK_INDEX_TYPE_UINT32);
+
+    cmdBeginLabel(cmdBuffer, "Back Pre Marching", {0.3f, 0.6f, .1f, 1.f});
+    graphics_.preMarchPC.renderBackFaces = 1;
+    vkCmdPushConstants(cmdBuffer, graphics_.pipelineLayouts_.preMarch,
+                       VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                       sizeof(Graphics::PreMarchPushConstants),
+                       &graphics_.preMarchPC);
+    vkCmdDrawIndexed(cmdBuffer, graphics_.indexCount, 1, 0, 0, 0);
+    cmdEndLabel(cmdBuffer);
+
+    vkCmdEndRendering(cmdBuffer);
   }
 
   void rayMarchCmd(VkCommandBuffer& cmdBuffer) {
