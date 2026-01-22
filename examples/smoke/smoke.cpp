@@ -273,33 +273,147 @@ class VulkanExample : public VulkanExampleBase {
     };
 
     struct UBO {
+      PreMarchUBO preMarch;
       RayMarchUBO march;
     } ubos_;
 
     // vk Buffers
     struct UniformBuffers {
+      vks::Buffer preMarch;
       vks::Buffer march;
     };
     std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
 
     // Pipelines
     struct {
+      VkPipeline preMarch{VK_NULL_HANDLE};
       VkPipeline rayMarch{VK_NULL_HANDLE};
     } pipelines_{};
     struct {
+      VkPipelineLayout preMarch{VK_NULL_HANDLE};
       VkPipelineLayout rayMarch{VK_NULL_HANDLE};
     } pipelineLayouts_;
 
     // Descriptors
     struct {
+      VkDescriptorSetLayout preMarch{VK_NULL_HANDLE};
       VkDescriptorSetLayout rayMarch{VK_NULL_HANDLE};
     } descriptorSetLayouts_;
     struct DescriptorSets {
+      VkDescriptorSet preMarch{VK_NULL_HANDLE};
       VkDescriptorSet rayMarch{VK_NULL_HANDLE};
     };
     std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
 
+    // Structure to hold offscreen velocity buffer
+    struct VelocityFieldBuffer {
+      VkImage image;
+      VkDeviceMemory memory;
+      VkImageView imageView;
+      VkDescriptorImageInfo descriptor;
+      VkFormat format;
+      VkExtent2D extent;
+    };
+    struct PreMarchPass {
+      VelocityFieldBuffer incoming;
+      VelocityFieldBuffer outgoing;
+      VkSampler sampler;
+    } preMarchPass_{};
+
   } graphics_;
+
+  // Create a 4 channel 16-bit float velocity buffer
+  void createVelocityFieldBuffer(Graphics::VelocityFieldBuffer& buffer) {
+    // Note: VK_FORMAT_R16G16B16_SFLOAT has limited support, so we use RGBA16
+    // The alpha channel will just be unused
+    buffer.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+    buffer.extent = {width_, height_};
+
+    // Create image
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.format = buffer.format;
+    imageInfo.extent = {width_, height_, 1};
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                      VK_IMAGE_USAGE_SAMPLED_BIT |  // For reading as texture
+                      VK_IMAGE_USAGE_TRANSFER_SRC_BIT;  // For copying/readback
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    vkCreateImage(device_, &imageInfo, nullptr, &buffer.image);
+
+    // Allocate device_-local memory
+    VkMemoryRequirements memReqs;
+    vkGetImageMemoryRequirements(device_, buffer.image, &memReqs);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memReqs.size;
+
+    // Find device_-local memory type
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(physicalDevice_, &memProps);
+
+    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+      if ((memReqs.memoryTypeBits & (1 << i)) &&
+          (memProps.memoryTypes[i].propertyFlags &
+           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) {
+        allocInfo.memoryTypeIndex = i;
+        break;
+      }
+    }
+
+    vkAllocateMemory(device_, &allocInfo, nullptr, &buffer.memory);
+    vkBindImageMemory(device_, buffer.image, buffer.memory, 0);
+
+    // Create image view
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = buffer.image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = buffer.format;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = 1;
+
+    vkCreateImageView(device_, &viewInfo, nullptr, &buffer.imageView);
+
+    // descriptor
+    buffer.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    buffer.descriptor.imageView = buffer.imageView;
+    buffer.descriptor.sampler = graphics_.preMarchPass_.sampler;
+  }
+
+  void preparePreMarchPass() {
+    // Create sampler to sample from the textures
+    VkSamplerCreateInfo samplerCI = vks::initializers::samplerCreateInfo();
+    samplerCI.magFilter = VK_FILTER_LINEAR;
+    samplerCI.minFilter = VK_FILTER_LINEAR;
+    samplerCI.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerCI.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerCI.addressModeV = samplerCI.addressModeU;
+    samplerCI.addressModeW = samplerCI.addressModeU;
+    samplerCI.mipLodBias = 0.0f;
+    samplerCI.maxAnisotropy = 1.0f;
+    samplerCI.minLod = 0.0f;
+    samplerCI.maxLod = 1.0f;
+    samplerCI.unnormalizedCoordinates = VK_FALSE;
+    samplerCI.compareEnable = VK_FALSE;
+    samplerCI.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerCI.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+    VK_CHECK_RESULT(vkCreateSampler(device_, &samplerCI, nullptr,
+                                    &graphics_.preMarchPass_.sampler));
+
+    createVelocityFieldBuffer(graphics_.preMarchPass_.incoming);
+    createVelocityFieldBuffer(graphics_.preMarchPass_.outgoing);
+  }
 
   void prepareComputeTexture(Compute::Texture3D& texture,
                              bool readOnly,
@@ -1424,7 +1538,7 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            /*total ubo count */ (/*graphics*/ 1 + /*compute*/ 8) *
+            /*total ubo count */ (/*graphics*/ 2 + /*compute*/ 8) *
                 MAX_CONCURRENT_FRAMES),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -1441,7 +1555,7 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
             poolSizes,
-            /*total descriptor count*/ (/*graphics*/ 1 + /*compute*/ 9) *
+            /*total descriptor count*/ (/*graphics*/ 2 + /*compute*/ 9) *
                 MAX_CONCURRENT_FRAMES);
     // Needed if using VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT in
     // descriptor bindings
@@ -1479,6 +1593,20 @@ class VulkanExample : public VulkanExampleBase {
         vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr,
                                     &graphics_.descriptorSetLayouts_.rayMarch));
 
+    // Layout: Pre march
+    setLayoutBindings = {
+        // Binding 0 : uniform buffer object
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding id*/ 0)};
+
+    descriptorLayout =
+        vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr,
+                                    &graphics_.descriptorSetLayouts_.preMarch));
+
     // Sets per frame, just like the buffers themselves
     // Images do not need to be duplicated per frame, we reuse the same one
     // for each frame
@@ -1499,6 +1627,23 @@ class VulkanExample : public VulkanExampleBase {
               graphics_.descriptorSets_[i].rayMarch,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
               /*binding id*/ 1, &compute_.read_textures[4].descriptor),
+      };
+      vkUpdateDescriptorSets(device_,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
+
+      // Premarch
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool_, &graphics_.descriptorSetLayouts_.preMarch, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device_, &allocInfo, &graphics_.descriptorSets_[i].preMarch));
+      writeDescriptorSets = {
+          // Binding 0 : uniform
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptorSets_[i].preMarch,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+              /*binding id*/ 0,
+              &graphics_.uniformBuffers_[i].preMarch.descriptor),
       };
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -1626,6 +1771,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void prepareUniformBuffers() {
     for (auto& buffer : graphics_.uniformBuffers_) {
+      // ray march
       VK_CHECK_RESULT(vulkanDevice_->createBuffer(
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
@@ -1633,6 +1779,15 @@ class VulkanExample : public VulkanExampleBase {
           &buffer.march, sizeof(Graphics::RayMarchUBO),
           &graphics_.ubos_.march));
       VK_CHECK_RESULT(buffer.march.map());
+
+      // pre march
+      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.preMarch, sizeof(Graphics::PreMarchUBO),
+          &graphics_.ubos_.preMarch));
+      VK_CHECK_RESULT(buffer.preMarch.map());
 
       // Init cube state
       auto& model = graphics_.ubos_.march.model;
@@ -1664,6 +1819,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void prepareGraphics() {
     generateCube();
+    preparePreMarchPass();
     prepareUniformBuffers();
     setupDescriptors();
     preparePipelines();
@@ -1958,16 +2114,36 @@ class VulkanExample : public VulkanExampleBase {
     if (device_) {
       // Graphics
       vkDestroyPipeline(device_, graphics_.pipelines_.rayMarch, nullptr);
+      vkDestroyPipeline(device_, graphics_.pipelines_.preMarch, nullptr);
+
+      vkDestroyPipelineLayout(device_, graphics_.pipelineLayouts_.preMarch,
+                              nullptr);
       vkDestroyPipelineLayout(device_, graphics_.pipelineLayouts_.rayMarch,
                               nullptr);
+
+      vkDestroyDescriptorSetLayout(
+          device_, graphics_.descriptorSetLayouts_.preMarch, nullptr);
       vkDestroyDescriptorSetLayout(
           device_, graphics_.descriptorSetLayouts_.rayMarch, nullptr);
 
       for (auto& buffer : graphics_.uniformBuffers_) {
+        buffer.preMarch.destroy();
         buffer.march.destroy();
       }
       graphics_.cubeVerticesBuffer.destroy();
       graphics_.cubeIndicesBuffer.destroy();
+
+      // Pre march pass images
+      vkDestroyImageView(device_, graphics_.preMarchPass_.incoming.imageView,
+                         nullptr);
+      vkDestroyImage(device_, graphics_.preMarchPass_.incoming.image, nullptr);
+      vkFreeMemory(device_, graphics_.preMarchPass_.incoming.memory, nullptr);
+
+      vkDestroyImageView(device_, graphics_.preMarchPass_.outgoing.imageView,
+                         nullptr);
+      vkDestroyImage(device_, graphics_.preMarchPass_.outgoing.image, nullptr);
+      vkFreeMemory(device_, graphics_.preMarchPass_.outgoing.memory, nullptr);
+      vkDestroySampler(device_, graphics_.preMarchPass_.sampler, nullptr);
 
       // Compute
       vkDestroyPipeline(device_, compute_.pipelines_.emission, nullptr);
