@@ -1,11 +1,11 @@
-Jan 20
-TODO: 
-	- Remove layout transition from raymarchCmd() and somewhere in texture creation
-
-Long Term:
+Jan 22
+TODO:
+    - Look at gpugems source for initialzing:
+        - ApplyExternalForces() makes writes to velocity field
 	- fix advection: it dissipates density field too quickly
 	- add to ImGUI
 		- texture view switcher
+		    - use descriptor indexing in raymarch pipeline, send all textures at once
 		- time delta
 		- jacobi iterations
 		- smoke density emission rate
@@ -17,7 +17,8 @@ Long Term:
 		- vorticity strength
 		- slip/no slip
 		- boundary types [+/-x, y, z]
-	- refactor DescriptorLayouts and PipelineLayouts to reuse (same layouts across most shaders)
+	- Remove layout transition from raymarchCmd() and call it only once after texture creation
+	- Refactor DescriptorLayouts and PipelineLayouts to reuse (same layouts across most shaders)
 
 
 glslc -g raymarch.vert -o raymarch.vert.spv

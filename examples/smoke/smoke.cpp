@@ -244,7 +244,7 @@ class VulkanExample : public VulkanExampleBase {
     uint32_t indexCount{0};
 
     struct UiFeatures {
-      bool toggleRotation{0};
+      bool toggleRotation{false};
     } ui_features;
 
     std::vector<std::string> viewNames{"Smoke", "Noise", "Entry Rays",
