@@ -268,7 +268,7 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
       alignas(4) float time{0};
-      alignas(4) int toggleView{1};  // 0 == 3D texture, 1 == noise, 2 =
+      alignas(4) int toggleView{0};  // 0 == 3D texture, 1 == noise, 2 =
                                      // entry Ray, 3 = exit ray
     };
 
