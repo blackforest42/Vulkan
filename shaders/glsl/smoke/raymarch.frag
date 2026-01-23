@@ -31,7 +31,6 @@ vec4 taylorInvSqrt(vec4 r);
 float snoise(vec3 pos);
 float fbm(vec3 pos);
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection);
-vec4 rayMarchNoise(vec3 rayOrigin, vec3 rayDir);
 vec4 rayMarchSDF(vec3 rayOrigin, vec3 rayDir);
 bool intersectBox(vec3 rayOrigin, vec3 rayDir, out float tNear, out float tFar);
 
@@ -152,41 +151,6 @@ vec4 rayMarchSDF(vec3 rayOrigin, vec3 rayDir) {
     return res;
 }
 
-vec4 rayMarchNoise(vec3 rayOrigin, vec3 rayDir) {
-    float t = 0.00;
-    vec3 pos = rayOrigin + rayDir * t;
-    float density = 0.f;
-    float totalDensity = 0.0;
-    // Animated position for smoke movement
-    vec3 windOffset = vec3(ubo.time * 0.1, ubo.time * 0.15, ubo.time * 0.08);
-
-    for (int i = 0; i < MAX_STEPS; i++) {
-        // Sample 3D noise texture with animation
-        vec3 samplePos = pos * 1.5 + windOffset;
-        float noise = fbm(samplePos);
-
-        // Create smoke shape (spherical falloff)
-        float dist = length(pos - vec3(0.5));
-        float falloff = smoothstep(1.5 * CLOUD_SIZE, 0.5 * CLOUD_SIZE, dist);
-
-        // Combine noise with falloff
-        float smokeDensity = max(0.0, noise * 0.5 + 0.5) * falloff * SMOKE_DENSITY;
-
-        // Accumulate density
-        totalDensity += smokeDensity * STEP_SIZE;
-
-        // Add lighting based on position
-        vec3 lightDir = normalize(vec3(1.0, 1.0, -0.5));
-        float lighting = max(0.3, dot(normalize(pos), lightDir) * 0.5 + 0.5);
-
-        t += STEP_SIZE;
-        pos = rayOrigin + rayDir * t;
-    }
-
-    float alpha = clamp(totalDensity, 0.0, 1.0);
-    return vec4(SMOKE_COLOR, alpha);
-}
-
 // Fractal Brownian Motion
 float fbm(vec3 pos) {
     vec3 q = pos + ubo.time * 0.5 * vec3(1.0, -0.2, -1.0);
@@ -195,11 +159,13 @@ float fbm(vec3 pos) {
     float frequency = 1.0;
 
     for (int i = 0; i < 5; i++) {
-        value += amplitude * snoise(q * frequency);
+        float noiseRes = snoise(q);
+        value += amplitude * noiseRes;
         frequency *= 2.0;
+        q *= 2;
         amplitude *= 0.5;
     }
-    return value;
+    return float(value);
 }
 
 ///----

@@ -268,7 +268,7 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
       alignas(4) float time{0};
-      alignas(4) int toggleView{0};  // 0 == 3D texture, 1 == noise, 2 =
+      alignas(4) int toggleView{1};  // 0 == 3D texture, 1 == noise, 2 =
                                      // entry Ray, 3 = exit ray
     };
 
@@ -1845,16 +1845,15 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    float time =
-        std::chrono::duration<float>(
-            std::chrono::high_resolution_clock::now().time_since_epoch())
-            .count();
+    const float time = std::chrono::duration<float>(
+                           std::chrono::system_clock::now().time_since_epoch())
+                           .count();
 
     // Premarch Uniform
     graphics_.ubos_.preMarch.cameraPos = camera_.position_;
     auto& model = graphics_.ubos_.preMarch.model;
     model = graphics_.ui_features.toggleRotation
-                ? glm::rotate(model, glm::radians(time * 1.f / 10000000),
+                ? glm::rotate(model, glm::radians(time / 10000000),
                               glm::vec3(0.f, 1.f, 0.f))
                 : model;
     graphics_.ubos_.preMarch.worldViewProjection =
