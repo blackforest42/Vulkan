@@ -153,7 +153,8 @@ vec4 rayMarchSDF(vec3 rayOrigin, vec3 rayDir) {
 
 // Fractal Brownian Motion
 float fbm(vec3 pos) {
-    vec3 q = pos + ubo.time * 0.5 * vec3(1.0, -0.2, -1.0);
+    float scale = 0.0000001;// helps avoid overflow
+    vec3 q = pos + scale * ubo.time * 0.5 * vec3(1.0, -0.2, -1.0);
     float value = 0.0;
     float amplitude = 0.5;
     float frequency = 1.0;

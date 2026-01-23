@@ -1845,15 +1845,15 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    const float time = std::chrono::duration<float>(
-                           std::chrono::system_clock::now().time_since_epoch())
-                           .count();
+    float time = std::chrono::duration_cast<std::chrono::seconds>(
+                     std::chrono::system_clock::now().time_since_epoch())
+                     .count();
 
     // Premarch Uniform
     graphics_.ubos_.preMarch.cameraPos = camera_.position_;
     auto& model = graphics_.ubos_.preMarch.model;
     model = graphics_.ui_features.toggleRotation
-                ? glm::rotate(model, glm::radians(time / 10000000),
+                ? glm::rotate(model, glm::radians(float(time) / 10000000),
                               glm::vec3(0.f, 1.f, 0.f))
                 : model;
     graphics_.ubos_.preMarch.worldViewProjection =
