@@ -45,6 +45,7 @@ float snoise(vec3 pos);
 float fbm(vec3 pos);
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection);
 vec4 rayMarchSDF(vec3 rayOrigin, vec3 rayDir);
+vec4 rayMarchVelocity(vec3 rayOrigin, vec3 rayDir);
 bool intersectBox(vec3 rayOrigin, vec3 rayDir, out float tNear, out float tFar);
 
 void main() {
@@ -59,7 +60,12 @@ void main() {
     vec4 color;
     if (ubo.toggleView == 0) {
         // March a texture
-        color = rayMarch(entry.xyz, rayDir);
+        if (pushConsts.texId == 0) {
+            color = rayMarchVelocity(entry.xyz, rayDir);
+        }
+        else {
+            color = rayMarch(entry.xyz, rayDir);
+        }
     } else if (ubo.toggleView == 1) {
         // March Noise
         color = rayMarchSDF(entry.xyz, rayDir);
@@ -71,6 +77,51 @@ void main() {
         color = exit;
     }
     outFragColor = vec4(color);
+}
+
+vec4 rayMarchVelocity(vec3 rayOrigin, vec3 rayDir) {
+    vec4 final_color = vec4(0.0);
+
+    float tNear, tFar;
+    if (!intersectBox(rayOrigin, rayDir, tNear, tFar)) {
+        return vec4(0.0);
+    }
+
+    float t = max(0.0, tNear);
+    vec3 pos = rayOrigin + rayDir * t;
+
+    for (int i = 0; i < MAX_STEPS && t < tFar; i++) {
+        // Sample the full vec3 velocity vector
+        vec3 velocity = texture(readOnlyTexs[pushConsts.texId], vec3(pos.x, 1.0 - pos.y, pos.z)).rgb;
+
+        // Calculate magnitude to use as density/opacity
+        float magnitude = length(velocity);
+
+        if (magnitude > 0.001) {
+            // 1. Calculate opacity based on velocity magnitude
+            float srcA = clamp(magnitude * DENSITY_SCALE * STEP_SIZE, 0.0, 1.0);
+
+            // 2. Map velocity direction to color
+            // Option A: Use the absolute direction for RGB (X=R, Y=G, Z=B)
+            // We use abs() or (v*0.5+0.5) to ensure values are in [0,1] range
+            vec3 dirColor = normalize(velocity) * 0.5 + 0.5;
+
+            // Apply the chosen color to the source
+            vec3 srcRGB = dirColor * srcA;
+
+            // Standard front-to-back alpha blending
+            float weight = 1.0 - final_color.a;
+            final_color.rgb += weight * srcRGB;
+            final_color.a += weight * srcA;
+
+            if (final_color.a >= 0.95) break;
+        }
+
+        t += STEP_SIZE;
+        pos = rayOrigin + rayDir * t;
+    }
+
+    return final_color;
 }
 
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {

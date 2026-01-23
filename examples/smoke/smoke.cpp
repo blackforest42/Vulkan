@@ -249,16 +249,13 @@ class VulkanExample : public VulkanExampleBase {
 
     std::vector<std::string> viewNames{"Smoke", "Noise", "Entry Rays",
                                        "Exit Rays"};
-
     struct RayMarchPushConstants {
       // Texture index mappings
       // 0 velocity
       // 1 pressure
-      // 2 divergence
-      // 3 vorticity
       // 4 density
       // 5 temperature
-      alignas(4) uint32_t texID{0};
+      alignas(4) int texID{0};
     } rayMarchPC;
 
     struct PreMarchPushConstants {
@@ -1962,7 +1959,7 @@ class VulkanExample : public VulkanExampleBase {
     prepared_ = true;
   }
 
-  virtual void render() override {
+  void render() override {
     if (!prepared_) {
       return;
     }
@@ -2255,6 +2252,10 @@ class VulkanExample : public VulkanExampleBase {
                          VK_INDEX_TYPE_UINT32);
 
     cmdBeginLabel(cmdBuffer, "Cube Marching");
+    vkCmdPushConstants(cmdBuffer, graphics_.pipelineLayouts_.rayMarch,
+                       VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                       sizeof(Graphics::RayMarchPushConstants),
+                       &graphics_.rayMarchPC);
     vkCmdDrawIndexed(cmdBuffer, graphics_.indexCount, 1, 0, 0, 0);
     cmdEndLabel(cmdBuffer);
 
@@ -2354,6 +2355,20 @@ class VulkanExample : public VulkanExampleBase {
       overlay->text("Camera Position: %f, %f, %f", pos.x, pos.y, pos.z);
       if (overlay->comboBox("Select View", &graphics_.ubos_.march.toggleView,
                             graphics_.viewNames)) {
+      }
+
+      static int textureID = graphics_.rayMarchPC.texID;
+      if (overlay->radioButton("Velocity Texture", &textureID, 0)) {
+        graphics_.rayMarchPC.texID = 0;
+      }
+      if (overlay->radioButton("Pressure Texture", &textureID, 1)) {
+        graphics_.rayMarchPC.texID = 1;
+      }
+      if (overlay->radioButton("Smoke Texture", &textureID, 4)) {
+        graphics_.rayMarchPC.texID = 4;
+      }
+      if (overlay->radioButton("Temperature Texture", &textureID, 5)) {
+        graphics_.rayMarchPC.texID = 5;
       }
       overlay->checkBox("Toggle Rotation",
                         &graphics_.ui_features.toggleRotation);
