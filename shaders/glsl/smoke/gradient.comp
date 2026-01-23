@@ -33,13 +33,7 @@ float getPressure(ivec3 coord) {
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
     if (any(equal(coord, params.gridSize - 1)) || any(equal(coord, ivec3(0)))) return;
-    
-    // Don't modify velocity in solid cells
-    if (isSolid(coord)) {
-        imageStore(writeOnlyTexs[0], coord, vec4(0.0));
-        return;
-    }
-    
+
     // Compute pressure gradient
     float pL = getPressure(coord - ivec3(1, 0, 0));
     float pR = getPressure(coord + ivec3(1, 0, 0));
@@ -47,9 +41,9 @@ void main() {
     float pU = getPressure(coord + ivec3(0, 1, 0));
     float pB = getPressure(coord - ivec3(0, 0, 1));
     float pF = getPressure(coord + ivec3(0, 0, 1));
-    
+
     vec3 gradP = vec3(pR - pL, pU - pD, pF - pB) * 0.5 / params.cellSize;
-    
+
     // Subtract gradient
     vec4 vel = texelFetch(readOnlyTexs[0], coord, 0);
     vel.xyz -= gradP;
