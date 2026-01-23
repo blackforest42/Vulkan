@@ -2,7 +2,7 @@ Jan 22
 TODO:
     - Look at gpugems source for initialzing:
         - ApplyExternalForces() makes writes to velocity field
-	- fix advection: it dissipates density field too quickly
+	- advection: it dissipates density field too quickly
 	- add to ImGUI
 		- texture view switcher
 		    - use descriptor indexing in raymarch pipeline, send all textures at once

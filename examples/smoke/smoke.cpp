@@ -79,9 +79,9 @@ class VulkanExample : public VulkanExampleBase {
       uint32_t mipLevels{0};
     };
 
-    // 3D textures neeeded to store vector/scalar states
+    // 3D textures needed to store vector/scalar states
     // Split into read/write respectively
-    static const int texture_count = 6;
+    static constexpr int texture_count = 6;
     // Texture index mappings
     // 0 velocity
     // 1 pressure
@@ -323,7 +323,7 @@ class VulkanExample : public VulkanExampleBase {
   } graphics_;
 
   // Create a 4 channel 16-bit float velocity buffer
-  void createVelocityFieldBuffer(Graphics::VelocityFieldBuffer& buffer) {
+  void createVelocityFieldBuffer(Graphics::VelocityFieldBuffer& buffer) const {
     // Note: VK_FORMAT_R16G16B16_SFLOAT has limited support, so we use RGBA16
     // The alpha channel will just be unused
     buffer.format = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -417,7 +417,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void prepareComputeTexture(Compute::Texture3D& texture,
                              bool readOnly,
-                             VkFormat texture_format) {
+                             VkFormat texture_format) const {
     // A 3D texture is described as width x height x depth
     texture.width = compute_.COMPUTE_TEXTURE_DIMENSIONS;
     texture.height = compute_.COMPUTE_TEXTURE_DIMENSIONS;
@@ -562,7 +562,7 @@ class VulkanExample : public VulkanExampleBase {
     }
   }
 
-  void clearAllComputeTextures() {
+  void clearAllComputeTextures() const {
     // Clear all textures
     VkCommandBuffer clearCmd = vulkanDevice_->createCommandBuffer(
         VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
@@ -672,11 +672,12 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
-            (uint32_t)compute_.read_textures.size()),
+            static_cast<uint32_t>(compute_.read_textures.size())),
         // Binding 1 : Array of OUTPUT textures to write result
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
-            /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
+            /*binding id*/ 1,
+            static_cast<uint32_t>(compute_.write_textures.size())),
         // Binding 2 : Uniform Buffer
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -710,11 +711,12 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
-            (uint32_t)compute_.read_textures.size()),
+            static_cast<uint32_t>(compute_.read_textures.size())),
         // Binding 1 : Array of write-only textures to write result
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
-            /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
+            /*binding id*/ 1,
+            static_cast<uint32_t>(compute_.write_textures.size())),
         // Binding 2 : Uniform Buffer
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -731,11 +733,12 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
-            (uint32_t)compute_.read_textures.size()),
+            static_cast<uint32_t>(compute_.read_textures.size())),
         // Binding 1 : Array of write-only textures to write result
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
-            /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
+            /*binding id*/ 1,
+            static_cast<uint32_t>(compute_.write_textures.size())),
         // Binding 2 : Uniform Buffer
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -752,11 +755,12 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
-            (uint32_t)compute_.read_textures.size()),
+            static_cast<uint32_t>(compute_.read_textures.size())),
         // Binding 1 : Array of write-only textures to write result
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
-            /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
+            /*binding id*/ 1,
+            static_cast<uint32_t>(compute_.write_textures.size())),
         // Binding 2 : Single velocity field texture
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -773,11 +777,12 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
-            (uint32_t)compute_.read_textures.size()),
+            static_cast<uint32_t>(compute_.read_textures.size())),
         // Binding 1 : Array of write-only textures to write result
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
-            /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
+            /*binding id*/ 1,
+            static_cast<uint32_t>(compute_.write_textures.size())),
         // Binding 2 : Uniform Buffer
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -794,11 +799,12 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
-            (uint32_t)compute_.read_textures.size()),
+            static_cast<uint32_t>(compute_.read_textures.size())),
         // Binding 1 : Array of write-only textures to write result
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
-            /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
+            /*binding id*/ 1,
+            static_cast<uint32_t>(compute_.write_textures.size())),
         // Binding 2 : Uniform Buffer
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -815,11 +821,12 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
-            (uint32_t)compute_.read_textures.size()),
+            static_cast<uint32_t>(compute_.read_textures.size())),
         // Binding 1 : Array of write-only textures to write result
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
-            /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
+            /*binding id*/ 1,
+            static_cast<uint32_t>(compute_.write_textures.size())),
         // Binding 2 : Uniform Buffer
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -836,11 +843,12 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
-            (uint32_t)compute_.read_textures.size()),
+            static_cast<uint32_t>(compute_.read_textures.size())),
         // Binding 1 : Array of write-only textures to write result
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
-            /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
+            /*binding id*/ 1,
+            static_cast<uint32_t>(compute_.write_textures.size())),
         // Binding 2 : Uniform Buffer
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -857,11 +865,12 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
-            (uint32_t)compute_.read_textures.size()),
+            static_cast<uint32_t>(compute_.read_textures.size())),
         // Binding 1 : Array of write-only textures to write result
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
-            /*binding id*/ 1, (uint32_t)compute_.write_textures.size()),
+            /*binding id*/ 1,
+            static_cast<uint32_t>(compute_.write_textures.size())),
         // Binding 2 : Uniform Buffer
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -1202,9 +1211,10 @@ class VulkanExample : public VulkanExampleBase {
     // as available, so we calculate it based on the device limits and pass it
     // to the shader via specialization constants
     uint32_t sharedDataSize = std::min(
-        (uint32_t)1024,
-        (uint32_t)(vulkanDevice_->properties.limits.maxComputeSharedMemorySize /
-                   sizeof(glm::vec4)));
+        static_cast<uint32_t>(1024),
+        static_cast<uint32_t>(
+            (vulkanDevice_->properties.limits.maxComputeSharedMemorySize /
+             sizeof(glm::vec4))));
     VkSpecializationMapEntry specializationMapEntry =
         vks::initializers::specializationMapEntry(0, 0, sizeof(uint32_t));
     VkSpecializationInfo specializationInfo =
@@ -1358,7 +1368,7 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
 
-  void emissionCmd(VkCommandBuffer& cmdBuffer) {
+  void emissionCmd(const VkCommandBuffer& cmdBuffer) const {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.emission);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -1373,7 +1383,7 @@ class VulkanExample : public VulkanExampleBase {
     cmdEndLabel(cmdBuffer);
   }
 
-  void buoyancyCmd(VkCommandBuffer& cmdBuffer) {
+  void buoyancyCmd(const VkCommandBuffer& cmdBuffer) const {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.buoyancy);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -1388,7 +1398,7 @@ class VulkanExample : public VulkanExampleBase {
     cmdEndLabel(cmdBuffer);
   }
 
-  void advectCmd(VkCommandBuffer& cmdBuffer) {
+  void advectCmd(const VkCommandBuffer& cmdBuffer) const {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.advection);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -1403,7 +1413,7 @@ class VulkanExample : public VulkanExampleBase {
     cmdEndLabel(cmdBuffer);
   }
 
-  void vorticityCmd(VkCommandBuffer& cmdBuffer) {
+  void vorticityCmd(const VkCommandBuffer& cmdBuffer) const {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.vorticity);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -1418,7 +1428,7 @@ class VulkanExample : public VulkanExampleBase {
     cmdEndLabel(cmdBuffer);
   }
 
-  void vortConfinementCmd(VkCommandBuffer& cmdBuffer) {
+  void vortConfinementCmd(const VkCommandBuffer& cmdBuffer) const {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.vortConfinement);
     vkCmdBindDescriptorSets(
@@ -1433,7 +1443,7 @@ class VulkanExample : public VulkanExampleBase {
     cmdEndLabel(cmdBuffer);
   }
 
-  void divergenceCmd(VkCommandBuffer& cmdBuffer) {
+  void divergenceCmd(const VkCommandBuffer& cmdBuffer) const {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.divergence);
     vkCmdBindDescriptorSets(
@@ -1448,7 +1458,7 @@ class VulkanExample : public VulkanExampleBase {
     cmdEndLabel(cmdBuffer);
   }
 
-  void jacobiCmd(VkCommandBuffer& cmdBuffer) {
+  void jacobiCmd(const VkCommandBuffer& cmdBuffer) const {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.jacobi);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -1461,7 +1471,7 @@ class VulkanExample : public VulkanExampleBase {
                   compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
   }
 
-  void gradientCmd(VkCommandBuffer& cmdBuffer) {
+  void gradientCmd(const VkCommandBuffer& cmdBuffer) const {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.gradient);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -1476,9 +1486,11 @@ class VulkanExample : public VulkanExampleBase {
     cmdEndLabel(cmdBuffer);
   }
 
-  void boundaryCmd(VkCommandBuffer& cmdBuffer) { boundaryCmd(cmdBuffer, 0, 1); }
+  void boundaryCmd(const VkCommandBuffer& cmdBuffer) {
+    boundaryCmd(cmdBuffer, 0, 1);
+  }
 
-  void boundaryCmd(VkCommandBuffer& cmdBuffer,
+  void boundaryCmd(const VkCommandBuffer& cmdBuffer,
                    uint32_t textureId,
                    int allTextures = 0) {
     compute_.boundaryPC.texture_id = textureId;
@@ -1502,7 +1514,7 @@ class VulkanExample : public VulkanExampleBase {
     cmdEndLabel(cmdBuffer);
   }
 
-  void swapTexturesCmd(VkCommandBuffer& cmdBuffer) {
+  void swapTexturesCmd(const VkCommandBuffer& cmdBuffer) {
     cmdBeginLabel(cmdBuffer, "Swap read/write textures", swapColor_);
 
     for (int i = 0; i < compute_.texture_count; i++) {
@@ -1545,12 +1557,13 @@ class VulkanExample : public VulkanExampleBase {
             /*total texture count (across all pipelines) */ (
                 /*graphics: 2 premarch texures + volume texture*/ 3 +
                 /*compute textures*/
-                (uint32_t)compute_.read_textures.size()) *
+                static_cast<uint32_t>(compute_.read_textures.size())) *
                 MAX_CONCURRENT_FRAMES),
         // textures for writing
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            (uint32_t)compute_.write_textures.size() * MAX_CONCURRENT_FRAMES)};
+            static_cast<uint32_t>(compute_.write_textures.size() *
+                                  MAX_CONCURRENT_FRAMES))};
 
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
@@ -1881,7 +1894,7 @@ class VulkanExample : public VulkanExampleBase {
     preparePipelines();
   }
 
-  void prepare() {
+  void prepare() override {
     VulkanExampleBase::prepare();
     graphics_.queueFamilyIndex = vulkanDevice_->queueFamilyIndices.graphics;
     compute_.queueFamilyIndex = vulkanDevice_->queueFamilyIndices.compute;
@@ -1892,7 +1905,7 @@ class VulkanExample : public VulkanExampleBase {
     prepared_ = true;
   }
 
-  virtual void render() {
+  virtual void render() override {
     if (!prepared_) {
       return;
     }
@@ -1932,7 +1945,7 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
 
-  void frontPreMarchCmd(VkCommandBuffer& cmdBuffer) {
+  void frontPreMarchCmd(const VkCommandBuffer& cmdBuffer) {
     // With dynamic rendering there are no subpass dependencies, so we need to
     // take care of proper layout transitions by using barriers This set of
     // barriers prepares the color and depth images for output
@@ -2012,7 +2025,7 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdEndRendering(cmdBuffer);
   }
 
-  void backPreMarchCmd(VkCommandBuffer& cmdBuffer) {
+  void backPreMarchCmd(const VkCommandBuffer& cmdBuffer) {
     // With dynamic rendering there are no subpass dependencies, so we need to
     // take care of proper layout transitions by using barriers This set of
     // barriers prepares the color and depth images for output
@@ -2091,7 +2104,7 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdEndRendering(cmdBuffer);
   }
 
-  void rayMarchCmd(VkCommandBuffer& cmdBuffer) {
+  void rayMarchCmd(const VkCommandBuffer& cmdBuffer) {
     vks::tools::insertImageMemoryBarrier(
         cmdBuffer, swapChain_.images_[currentImageIndex_], 0,
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
@@ -2278,7 +2291,7 @@ class VulkanExample : public VulkanExampleBase {
         vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo, VK_NULL_HANDLE));
   }
 
-  virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {
+  virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) override {
     if (overlay->header("Settings")) {
       glm::vec3 pos = camera_.position_;
       overlay->text("Camera Position: %f, %f, %f", pos.x, pos.y, pos.z);
@@ -2302,16 +2315,16 @@ class VulkanExample : public VulkanExampleBase {
             vkGetInstanceProcAddr(instance_, "vkCmdEndDebugUtilsLabelEXT"));
   }
 
-  void cmdBeginLabel(VkCommandBuffer command_buffer,
+  void cmdBeginLabel(const VkCommandBuffer& command_buffer,
                      const char* label_name,
-                     std::array<float, 4> color = debugColor_) {
+                     std::array<float, 4> color = debugColor_) const {
     VkDebugUtilsLabelEXT label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT};
     label.pLabelName = label_name;
     memcpy(label.color, color.data(), sizeof(float) * 4);
     vkCmdBeginDebugUtilsLabelEXT(command_buffer, &label);
   }
 
-  void cmdEndLabel(VkCommandBuffer command_buffer) {
+  void cmdEndLabel(const VkCommandBuffer& command_buffer) const {
     vkCmdEndDebugUtilsLabelEXT(command_buffer);
   }
 
@@ -2349,7 +2362,7 @@ class VulkanExample : public VulkanExampleBase {
     deviceCreatepNextChain_ = &enabledFeatures13_;
   }
 
-  ~VulkanExample() {
+  ~VulkanExample() override {
     if (device_) {
       // Graphics
       vkDestroyPipeline(device_, graphics_.pipelines_.rayMarch, nullptr);
