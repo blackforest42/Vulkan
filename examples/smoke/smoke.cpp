@@ -250,7 +250,7 @@ class VulkanExample : public VulkanExampleBase {
       // 1 pressure
       // 4 density
       // 5 temperature
-      uint32_t textureRadioId{4};
+      uint32_t textureRadioId{0};
     } ui_features;
 
     std::vector<std::string> viewNames{"Smoke", "Noise", "Entry Rays",

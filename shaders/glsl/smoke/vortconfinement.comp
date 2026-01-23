@@ -5,12 +5,12 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 layout (binding = 0) uniform sampler3D readOnlyTexs[];
 layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 
-layout(binding = 2) uniform SimParams {
+layout(binding = 2) uniform SimUBO {
     ivec3 gridSize;
     float deltaTime;
-    float epsilon;  // Vorticity strength
+    float epsilon;// Vorticity strength
     float cellSize;
-} params;
+} ubo;
 
 // Texture index mappings
 // 0 velocity
@@ -20,28 +20,23 @@ layout(binding = 2) uniform SimParams {
 // 4 density
 // 5 temperature
 
-bool isSolid(ivec3 coord) {
-    if (any(equal(coord, params.gridSize - 1)) || any(equal(coord, ivec3(0)))) {
+bool isBoundary(ivec3 coord) {
+    if (any(greaterThanEqual(coord, ubo.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0)))) {
         return true;
     }
     return false;
 }
 
 float getVorticityMagnitude(ivec3 coord) {
-    if (isSolid(coord)) return 0.0;
     return texelFetch(readOnlyTexs[3], coord, 0).w;
 }
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (any(equal(coord, params.gridSize - 1)) || any(equal(coord, ivec3(0)))) return;
-    
-    // Skip solid cells
-    if (isSolid(coord)) {
-        imageStore(writeOnlyTexs[3], coord, vec4(0.0));
+    if (isBoundary(coord)) {
         return;
     }
-    
+
     // Compute gradient of vorticity magnitude
     float wL = getVorticityMagnitude(coord - ivec3(1, 0, 0));
     float wR = getVorticityMagnitude(coord + ivec3(1, 0, 0));
@@ -49,19 +44,19 @@ void main() {
     float wU = getVorticityMagnitude(coord + ivec3(0, 1, 0));
     float wB = getVorticityMagnitude(coord - ivec3(0, 0, 1));
     float wF = getVorticityMagnitude(coord + ivec3(0, 0, 1));
-    
+
     vec3 gradMag = vec3(wR - wL, wU - wD, wF - wB) * 0.5;
-    
+
     float len = length(gradMag);
     if (len > 0.0001) {
-        vec3 N = gradMag / len;  // Normalized gradient
+        vec3 N = gradMag / len;// Normalized gradient
         vec3 omega = texelFetch(readOnlyTexs[3], coord, 0).xyz;
-        
+
         // Confinement force: f = e * h * (N x w)
-        vec3 force = params.epsilon * params.cellSize * cross(N, omega);
-        
+        vec3 force = ubo.epsilon * ubo.cellSize * cross(N, omega);
+
         vec4 vel = texelFetch(readOnlyTexs[0], coord, 0);
-        vel.xyz += force * params.deltaTime;
+        vel.xyz += force * ubo.deltaTime;
         imageStore(writeOnlyTexs[0], coord, vel);
     }
 }

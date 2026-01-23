@@ -1,9 +1,7 @@
 Jan 22
 TODO:
-	- advection: it dissipates density field too quickly
+    - bug: velocity appears at the very top of the cube on frame 0
 	- add to ImGUI
-		- texture view switcher
-		    - use descriptor indexing in raymarch pipeline, send all textures at once
 		- time delta
 		- jacobi iterations
 		- smoke density emission rate

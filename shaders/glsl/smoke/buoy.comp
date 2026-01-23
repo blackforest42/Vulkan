@@ -11,7 +11,7 @@ layout(binding = 2) uniform SimParams {
     float deltaTime;
     float buoyancyBeta;
     float ambientTemp;
-} params;
+} ubo;
 
 // Texture index mappings
 // 0 velocity
@@ -21,8 +21,8 @@ layout(binding = 2) uniform SimParams {
 // 4 density
 // 5 temperature
 
-bool isSolid(ivec3 coord) {
-    if (any(equal(coord, params.gridSize - 1)) || any(equal(coord, ivec3(0)))) {
+bool isBoundary(ivec3 coord) {
+    if (any(greaterThanEqual(coord, ubo.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0)))) {
         return true;
     }
     return false;
@@ -30,24 +30,20 @@ bool isSolid(ivec3 coord) {
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (any(equal(coord, params.gridSize - 1)) || any(equal(coord, ivec3(0)))) return;
-    
-    // Skip solid cells
-    if (isSolid(coord)) {
-        imageStore(writeOnlyTexs[0], coord, vec4(0.0));
+    if (isBoundary(coord)) {
         return;
     }
-    
+
     vec4 vel = texelFetch(readOnlyTexs[0], coord, 0);
     float temp = texelFetch(readOnlyTexs[5], coord, 0).r;
-    
+
     // Buoyancy force: F = beta * (T - T_ambient)
-    float buoyancy = params.buoyancyBeta * (temp - params.ambientTemp);
-    
+    float buoyancy = ubo.buoyancyBeta * (temp - ubo.ambientTemp);
+
     // Apply forces
-    vec3 force = params.gravity * params.deltaTime;
-    force.y += buoyancy * params.deltaTime;
-    
+    vec3 force = ubo.gravity * ubo.deltaTime;
+    force.y += buoyancy * ubo.deltaTime;
+
     vel.xyz += force;
     imageStore(writeOnlyTexs[0], coord, vel);
 }

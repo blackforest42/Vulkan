@@ -5,10 +5,10 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 layout (binding = 0) uniform sampler3D readOnlyTexs[];
 layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 
-layout(binding = 3) uniform SimParams {
+layout(binding = 3) uniform SimUBO {
     ivec3 gridSize;
     float cellSize;
-} params;
+} ubo;
 
 // Texture index mappings
 // 0 velocity
@@ -18,28 +18,23 @@ layout(binding = 3) uniform SimParams {
 // 4 density
 // 5 temperature
 
-bool isSolid(ivec3 coord) {
-    if (any(equal(coord, params.gridSize - 1)) || any(equal(coord, ivec3(0)))) {
+bool isBoundary(ivec3 coord) {
+    if (any(greaterThanEqual(coord, ubo.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0)))) {
         return true;
     }
     return false;
 }
 
 vec3 getVelocity(ivec3 coord) {
-    if (isSolid(coord)) return vec3(0.0);
     return texelFetch(readOnlyTexs[0], coord, 0).xyz;
 }
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (any(greaterThanEqual(coord, params.gridSize))) return;
-    
-    // Skip solid cells
-    if (isSolid(coord)) {
-        imageStore(writeOnlyTexs[3], coord, vec4(0.0));
+    if (isBoundary(coord)) {
         return;
     }
-    
+
     // Compute curl of velocity field: ω = grad x u
     vec3 vL = getVelocity(coord - ivec3(1, 0, 0));
     vec3 vR = getVelocity(coord + ivec3(1, 0, 0));
@@ -47,13 +42,13 @@ void main() {
     vec3 vU = getVelocity(coord + ivec3(0, 1, 0));
     vec3 vB = getVelocity(coord - ivec3(0, 0, 1));
     vec3 vF = getVelocity(coord + ivec3(0, 0, 1));
-    
-    float invCellSize = 1.0 / params.cellSize;
+
+    float invCellSize = 1.0 / ubo.cellSize;
     vec3 curl;
     curl.x = (vU.z - vD.z - vF.y + vB.y) * 0.5 * invCellSize;
     curl.y = (vF.x - vB.x - vR.z + vL.z) * 0.5 * invCellSize;
     curl.z = (vR.y - vL.y - vU.x + vD.x) * 0.5 * invCellSize;
-    
+
     float magnitude = length(curl);
     imageStore(writeOnlyTexs[3], coord, vec4(curl, magnitude));
 }

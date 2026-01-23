@@ -40,9 +40,17 @@ void advectFieldByIndex(const int idx) {
     imageStore(writeOnlyTexs[idx], coord, vec4(value));
 }
 
+bool isBoundary(ivec3 coord) {
+    if (any(greaterThanEqual(coord, ubo.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0)))) {
+        return true;
+    }
+    return false;
+}
+
+
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (any(equal(coord, ubo.gridSize - 1)) || any(equal(coord, ivec3(0)))) {
+    if (isBoundary(coord)) {
         return;
     }
 

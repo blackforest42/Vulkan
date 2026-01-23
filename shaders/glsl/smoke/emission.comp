@@ -24,9 +24,16 @@ layout(binding = 2) uniform EmissionParams {
 // 4 density
 // 5 temperature
 
+bool isBoundary(ivec3 coord) {
+    if (any(greaterThanEqual(coord, params.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0)))) {
+        return true;
+    }
+    return false;
+}
+
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (any(equal(coord, ivec3(0))) || any(equal(coord, params.gridSize - 1))) {
+    if (isBoundary(coord)) {
         return;
     }
 
