@@ -111,9 +111,8 @@ class VulkanExample : public VulkanExampleBase {
 
     struct BuoyancyUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(16) glm::vec3 gravity{0.f, -0.5f, 0.f};
       alignas(4) float deltaTime{TIME_DELTA};
-      alignas(4) float buoyancyBeta{1.5f};
+      alignas(4) float buoyancyBeta{.5f};
       alignas(4) float ambientTemp{0.f};
     };
 
@@ -146,7 +145,7 @@ class VulkanExample : public VulkanExampleBase {
     struct BoundaryUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       // {-X, +X, -Y, +Y,-Z, +Z}  0 = solid, 1 = open
-      alignas(16) uint32_t boundaryTypes[6] = {0, 0, 0, 1, 0, 0};
+      alignas(16) uint32_t boundaryTypes[6] = {0, 0, 0, 0, 0, 0};
       alignas(16) uint32_t useNoSlip{0};  // 0=free-slip, 1=no-slip
     };
 

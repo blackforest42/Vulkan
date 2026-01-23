@@ -7,7 +7,6 @@ layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 
 layout(binding = 2) uniform SimParams {
     ivec3 gridSize;
-    vec3 gravity;
     float deltaTime;
     float buoyancyBeta;
     float ambientTemp;
@@ -40,10 +39,6 @@ void main() {
     // Buoyancy force: F = beta * (T - T_ambient)
     float buoyancy = ubo.buoyancyBeta * (temp - ubo.ambientTemp);
 
-    // Apply forces
-    vec3 force = ubo.gravity * ubo.deltaTime;
-    force.y += buoyancy * ubo.deltaTime;
-
-    vel.xyz += force;
+    vel.xyz += buoyancy;
     imageStore(writeOnlyTexs[0], coord, vel);
 }

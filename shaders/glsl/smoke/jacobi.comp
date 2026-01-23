@@ -26,7 +26,6 @@ bool isBoundary(ivec3 coord) {
 }
 
 float getPressure(ivec3 coord) {
-    //if (isBoundary(coord)) return 0.0;
     return texelFetch(readOnlyTexs[1], coord, 0).r;
 }
 
