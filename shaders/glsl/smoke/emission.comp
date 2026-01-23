@@ -3,13 +3,6 @@
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
-// Texture index mappings
-// 0 velocity
-// 1 pressure
-// 2 divergence
-// 3 vorticity
-// 4 density
-// 5 temperature
 layout (binding = 0) uniform sampler3D readOnlyTexs[];
 layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 
@@ -17,14 +10,14 @@ layout(binding = 2) uniform EmissionParams {
     ivec3 gridSize;
     vec3 sourceCenter;
     float sourceRadius;
-    float emissionRate;      // Density added per second
-    float emissionTemp;      // Temperature of emitted smoke
+    float emissionRate;// Density added per second
+    float emissionTemp;// Temperature of emitted smoke
     float ambientTemp;
     float deltaTime;
 } params;
 
 bool isSolid(ivec3 coord) {
-    if (any(equal(coord, params.gridSize - 1)) || any(equal(coord, ivec3(0)))) {
+    if (any(lessThan(coord, ivec3(1))) || any(greaterThanEqual(coord, params.gridSize - 1))) {
         return true;
     }
     return false;
@@ -32,28 +25,37 @@ bool isSolid(ivec3 coord) {
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (any(equal(coord, params.gridSize - 1)) || any(equal(coord, ivec3(0)))) return;
-    
-    if (isSolid(coord)) return;
-    
+    if (any(greaterThanEqual(coord, params.gridSize)) || isSolid(coord)) return;
+
     vec3 pos = vec3(coord) + 0.5;
-    float dist = length(pos - params.sourceCenter);
-    
-    if (dist < params.sourceRadius) {
-        // Smooth falloff
-        float t = 1.0 - (dist / params.sourceRadius);
-        float falloff = t * t;
-        
-        // Add density (accumulate, don't replace)
+    float distSq = dot(pos - params.sourceCenter, pos - params.sourceCenter);
+    float radiusSq = params.sourceRadius * params.sourceRadius;
+
+    // We only calculate if within radius to save cycles and prevent infinite tails
+    if (distSq < radiusSq) {
+        // Gaussian Falloff: exp(-dist^2 / (2 * sigma^2))
+        // We define sigma such that at dist = sourceRadius, the value is ~0.01 (3-sigma rule)
+        // sigma = sourceRadius / 3.0 -> 2 * sigma^2 = 2 * (r^2 / 9) = r^2 / 4.5
+        float sigmaSq2 = radiusSq / 4.5;
+        float falloff = exp(-distSq / sigmaSq2);
+
+        // Add density (accumulate)
         float currentDensity = texelFetch(readOnlyTexs[4], coord, 0).r;
         float addedDensity = params.emissionRate * params.deltaTime * falloff;
-        float newDensity = min(currentDensity + addedDensity, 2.0);  // Cap at 2.0
+        float newDensity = min(currentDensity + addedDensity, 2.0);
         imageStore(writeOnlyTexs[4], coord, vec4(newDensity));
-        
-        // Set temperature (take maximum of current and emission temp)
+
+        // Set temperature
         float currentTemp = texelFetch(readOnlyTexs[5], coord, 0).r;
         float emissionTemp = params.ambientTemp + params.emissionTemp * falloff;
         float newTemp = max(currentTemp, emissionTemp);
         imageStore(writeOnlyTexs[5], coord, vec4(newTemp));
+
+        // Add velocity
+        float impulseStrength = 0.8f;
+        float impulseDx = 0.5f * impulseStrength;
+        float impulseDy = 0.5f * impulseStrength;
+        float impulseDz = 0.8f * impulseStrength;
+        imageStore(writeOnlyTexs[0], coord, vec4(impulseDx, impulseDy, impulseDz, 1.));
     }
 }
