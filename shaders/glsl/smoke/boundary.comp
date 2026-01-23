@@ -8,18 +8,18 @@ layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 
 layout(binding = 2) uniform Simparams {
     ivec3 gridSize;
-    uint boundaryTypes[6];  // -X, +X, -Y, +Y, -Z, +Z
-    uint useNoSlip;         // 0=free-slip, 1=no-slip
+    uint boundaryTypes[6];// -X, +X, -Y, +Y, -Z, +Z
+    uint useNoSlip;// 0=free-slip, 1=no-slip
 } params;
 
 layout (push_constant) uniform PushConsts {
-	// Texture index mappings
-	// 0 velocity
-	// 1 pressure
-	// 2 divergence
-	// 3 vorticity
-	// 4 density
-	// 5 temperature
+// Texture index mappings
+// 0 velocity
+// 1 pressure
+// 2 divergence
+// 3 vorticity
+// 4 density
+// 5 temperature
     uint textureIdx;
     int allTextures;
 } pushConsts;
@@ -28,21 +28,20 @@ const uint BOUNDARY_SOLID = 0;
 const uint BOUNDARY_OPEN = 1;
 
 float getFieldSafe(ivec3 coord);
-bool isSolid(ivec3 coord);
+bool isBoundary(ivec3 coord);
 vec3 getVelocitySafe(ivec3 coord);
 void velocityField();
 void scalarField(const uint);
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (!isSolid(coord)) {
+    if (!isBoundary(coord)) {
         return;
     }
 
     uint texId = pushConsts.textureIdx;
     if (pushConsts.allTextures == 1) {
         velocityField();
-        scalarField(0);
         scalarField(4);
         scalarField(5);
         return;
@@ -57,7 +56,7 @@ void main() {
     }
 }
 
-bool isSolid(ivec3 coord) {
+bool isBoundary(ivec3 coord) {
     if (any(equal(coord, params.gridSize - 1)) || any(equal(coord, ivec3(0)))) {
         return true;
     }
@@ -65,35 +64,24 @@ bool isSolid(ivec3 coord) {
 }
 
 vec3 getVelocitySafe(ivec3 coord) {
-    if (any(equal(coord, params.gridSize - 1)) || any(equal(coord, ivec3(0)))) {
+    if (any(greaterThan(coord, params.gridSize - 1)) || any(lessThan(coord, ivec3(0)))) {
         return vec3(0.0);
     }
-    if (isSolid(coord)) return vec3(0.0);
     return texelFetch(readOnlyTexs[0], coord, 0).xyz;
 }
 
 float getFieldSafe(uint texId, ivec3 coord) {
-    if (any(equal(coord, params.gridSize - 1)) || any(equal(coord, ivec3(0)))) {
+    if (any(greaterThan(coord, params.gridSize - 1)) || any(lessThan(coord, ivec3(0)))) {
         return 0.0;
     }
-    if (isSolid(coord)) return 0.0;
     return texelFetch(readOnlyTexs[texId], coord, 0).r;
 }
 
 void velocityField() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (!isSolid(coord)) {
-        return;
-    }
-    
-    // Handle interior obstacle cells
-    if (isSolid(coord)) {
-        imageStore(writeOnlyTexs[0], coord, vec4(0.0));
-        return;
-    }
-    
+
     vec3 vel = texelFetch(readOnlyTexs[0], coord, 0).xyz;
-    
+
     // Check if on domain boundary
     bool atMinX = (coord.x == 0);
     bool atMaxX = (coord.x == params.gridSize.x - 1);
@@ -101,7 +89,7 @@ void velocityField() {
     bool atMaxY = (coord.y == params.gridSize.y - 1);
     bool atMinZ = (coord.z == 0);
     bool atMaxZ = (coord.z == params.gridSize.z - 1);
-    
+
     // Apply boundary conditions for each face
     if (atMinX && params.boundaryTypes[0] == BOUNDARY_SOLID) {
         vel = params.useNoSlip == 1 ? vec3(0.0) : vec3(0.0, vel.y, vel.z);
@@ -121,7 +109,7 @@ void velocityField() {
     if (atMaxZ && params.boundaryTypes[5] == BOUNDARY_SOLID) {
         vel = params.useNoSlip == 1 ? vec3(0.0) : vec3(vel.x, vel.y, 0.0);
     }
-    
+
     // Open boundaries: extrapolate from interior
     if (atMinX && params.boundaryTypes[0] == BOUNDARY_OPEN) {
         vel = getVelocitySafe(coord + ivec3(1, 0, 0));
@@ -141,63 +129,15 @@ void velocityField() {
     if (atMaxZ && params.boundaryTypes[5] == BOUNDARY_OPEN) {
         vel = getVelocitySafe(coord - ivec3(0, 0, 1));
     }
-    
-    // Handle cells adjacent to obstacles
-    bool hasObstacleNeighbor = false;
-    vec3 normal = vec3(0.0);
-    
-    if (isSolid(coord - ivec3(1, 0, 0))) {
-        normal += vec3(1.0, 0.0, 0.0);
-        hasObstacleNeighbor = true;
-    }
-    if (isSolid(coord + ivec3(1, 0, 0))) {
-        normal += vec3(-1.0, 0.0, 0.0);
-        hasObstacleNeighbor = true;
-    }
-    if (isSolid(coord - ivec3(0, 1, 0))) {
-        normal += vec3(0.0, 1.0, 0.0);
-        hasObstacleNeighbor = true;
-    }
-    if (isSolid(coord + ivec3(0, 1, 0))) {
-        normal += vec3(0.0, -1.0, 0.0);
-        hasObstacleNeighbor = true;
-    }
-    if (isSolid(coord - ivec3(0, 0, 1))) {
-        normal += vec3(0.0, 0.0, 1.0);
-        hasObstacleNeighbor = true;
-    }
-    if (isSolid(coord + ivec3(0, 0, 1))) {
-        normal += vec3(0.0, 0.0, -1.0);
-        hasObstacleNeighbor = true;
-    }
-    
-    if (hasObstacleNeighbor) {
-        float len = length(normal);
-        if (len > 0.0) {
-            normal /= len;
-            if (params.useNoSlip == 1) {
-                vel = vec3(0.0);
-            } else {
-                vel = vel - dot(vel, normal) * normal;
-            }
-        }
-    }
-    
+
     imageStore(writeOnlyTexs[0], coord, vec4(vel, 0.0));
 }
 
 void scalarField(const uint texId) {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (any(greaterThanEqual(coord, params.gridSize))) return;
-    
-    // Solid cells have zero scalar value
-    if (isSolid(coord)) {
-        imageStore(writeOnlyTexs[texId], coord, vec4(0.0));
-        return;
-    }
-    
+
     float value = texelFetch(readOnlyTexs[texId], coord, 0).r;
-    
+
     // Neumann boundary conditions (zero gradient) for solid boundaries
     if (coord.x == 0 && params.boundaryTypes[0] == BOUNDARY_SOLID) {
         value = getFieldSafe(texId, coord + ivec3(1, 0, 0));
@@ -217,6 +157,6 @@ void scalarField(const uint texId) {
     if (coord.z == params.gridSize.z - 1 && params.boundaryTypes[5] == BOUNDARY_SOLID) {
         value = getFieldSafe(texId, coord - ivec3(0, 0, 1));
     }
-    
+
     imageStore(writeOnlyTexs[texId], coord, vec4(value));
 }

@@ -16,16 +16,19 @@ layout(binding = 2) uniform EmissionParams {
     float deltaTime;
 } params;
 
-bool isSolid(ivec3 coord) {
-    if (any(lessThan(coord, ivec3(1))) || any(greaterThanEqual(coord, params.gridSize - 1))) {
-        return true;
-    }
-    return false;
-}
+// Texture index mappings
+// 0 velocity
+// 1 pressure
+// 2 divergence
+// 3 vorticity
+// 4 density
+// 5 temperature
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (any(greaterThanEqual(coord, params.gridSize)) || isSolid(coord)) return;
+    if (any(equal(coord, ivec3(0))) || any(equal(coord, params.gridSize - 1))) {
+        return;
+    }
 
     vec3 pos = vec3(coord) + 0.5;
     float distSq = dot(pos - params.sourceCenter, pos - params.sourceCenter);

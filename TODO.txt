@@ -1,7 +1,7 @@
 Jan 22
 TODO:
-    - Look at gpugems source for initialzing:
-        - ApplyExternalForces() makes writes to velocity field
+    - boundary.comp is bugged
+        - doesn't handle interior cases
 	- advection: it dissipates density field too quickly
 	- add to ImGUI
 		- texture view switcher

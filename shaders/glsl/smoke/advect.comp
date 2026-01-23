@@ -6,15 +6,22 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 layout (binding = 0) uniform sampler3D readOnlyTexs[];
 layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 
-layout(binding = 2) uniform Advectionubo {
+layout(binding = 2) uniform AdvectionUBO {
     ivec3 gridSize;
     float deltaTime;
     float dissipation;
 } ubo;
 
+// Texture index mappings
+// 0 velocity
+// 1 pressure
+// 2 divergence
+// 3 vorticity
+// 4 density
+// 5 temperature
+
 void advectFieldByIndex(const int idx) {
     ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
-    if (any(greaterThanEqual(coord, ubo.gridSize))) return;
 
     // Backtrace to find where this particle came from
     vec3 pos = vec3(coord) + 0.5;
