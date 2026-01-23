@@ -250,6 +250,17 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<std::string> viewNames{"Smoke", "Noise", "Entry Rays",
                                        "Exit Rays"};
 
+    struct RayMarchPushConstants {
+      // Texture index mappings
+      // 0 velocity
+      // 1 pressure
+      // 2 divergence
+      // 3 vorticity
+      // 4 density
+      // 5 temperature
+      alignas(4) uint32_t texID{0};
+    } rayMarchPC;
+
     struct PreMarchPushConstants {
       // 1 = back faces, 0 = front faces
       alignas(4) uint32_t renderBackFaces{0};
@@ -665,7 +676,7 @@ class VulkanExample : public VulkanExampleBase {
     }
   }
 
-  void setupComputeDescriptors() {
+  void prepareComputeDescriptors() {
     // Advection
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
         // Binding 0 : Array of INPUT textures to advect
@@ -859,7 +870,7 @@ class VulkanExample : public VulkanExampleBase {
         vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr,
                                     &compute_.descriptorSetLayouts_.gradient));
 
-    // Boudary
+    // Boundary
     setLayoutBindings = {
         // Binding 0 : Array of read-only texs
         vks::initializers::descriptorSetLayoutBinding(
@@ -1555,7 +1566,8 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             /*total texture count (across all pipelines) */ (
-                /*graphics: 2 premarch texures + volume texture*/ 3 +
+                /*graphics: 2 premarch texures + all read textures*/ 2 +
+                static_cast<uint32_t>(compute_.read_textures.size()) +
                 /*compute textures*/
                 static_cast<uint32_t>(compute_.read_textures.size())) *
                 MAX_CONCURRENT_FRAMES),
@@ -1580,12 +1592,12 @@ class VulkanExample : public VulkanExampleBase {
   void prepareCompute() {
     prepareComputeTextures();
     prepareComputeUniformBuffers();
-    setupComputeDescriptors();
+    prepareComputeDescriptors();
     prepareComputePipelines();
     prepareComputeCommandPoolBuffersFencesAndSemaphores();
   }
 
-  void setupDescriptors() {
+  void prepareDescriptors() {
     // Layout: Ray march
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
         // Binding 0 : Vertex shader uniform buffer
@@ -1593,21 +1605,21 @@ class VulkanExample : public VulkanExampleBase {
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
             /*binding_id*/ 0),
-        // Binding 1 : Volume texture to render
+        // Binding 1 : Pre march Front
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_FRAGMENT_BIT,
             /*binding_id*/ 1),
-        // Binding 2 : Pre march Front
+        // Binding 2 : Pre march Back
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_FRAGMENT_BIT,
             /*binding_id*/ 2),
-        // Binding 3 : Pre march Back
+        // Binding 3 : Descriptor indexed array of read only textures
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_FRAGMENT_BIT,
-            /*binding_id*/ 3),
+            /*binding_id*/ 3, sizeof(compute_.read_textures.size())),
     };
 
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
@@ -1626,9 +1638,48 @@ class VulkanExample : public VulkanExampleBase {
 
     descriptorLayout =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
+    // Flags for descriptor arrays - typically want partially bound
+    std::vector<VkDescriptorBindingFlags> bindingFlags = {
+        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+            VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+
+        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+            VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT};
+
+    descriptorLayout.sType =
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptorLayout.pNext = nullptr;
+    descriptorLayout.flags =
+        VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+    descriptorLayout.bindingCount =
+        static_cast<uint32_t>(setLayoutBindings.size());
+    descriptorLayout.pBindings = setLayoutBindings.data();
+
     VK_CHECK_RESULT(
         vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr,
                                     &graphics_.descriptorSetLayouts_.preMarch));
+
+    // Image descriptors for the 3D texture array
+    std::vector<VkDescriptorImageInfo> readOnlyTextureDescriptors(
+        compute_.read_textures.size());
+    for (size_t i = 0; i < compute_.texture_count; i++) {
+      readOnlyTextureDescriptors[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+      readOnlyTextureDescriptors[i].sampler = compute_.read_textures[i].sampler;
+      readOnlyTextureDescriptors[i].imageView = compute_.read_textures[i].view;
+    }
+    // Texture array descriptor
+    VkWriteDescriptorSet readOnlyTextureArrayDescriptor = {};
+    readOnlyTextureArrayDescriptor.sType =
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    /*binding id*/
+    readOnlyTextureArrayDescriptor.dstBinding = 3;
+    readOnlyTextureArrayDescriptor.dstArrayElement = 0;
+    readOnlyTextureArrayDescriptor.descriptorType =
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    readOnlyTextureArrayDescriptor.descriptorCount =
+        static_cast<uint32_t>(compute_.read_textures.size());
+    readOnlyTextureArrayDescriptor.pImageInfo =
+        readOnlyTextureDescriptors.data();
 
     // Sets per frame, just like the buffers themselves
     // Images do not need to be duplicated per frame, we reuse the same one
@@ -1639,28 +1690,28 @@ class VulkanExample : public VulkanExampleBase {
               descriptorPool_, &graphics_.descriptorSetLayouts_.rayMarch, 1);
       VK_CHECK_RESULT(vkAllocateDescriptorSets(
           device_, &allocInfo, &graphics_.descriptorSets_[i].rayMarch));
+
+      readOnlyTextureArrayDescriptor.dstSet =
+          graphics_.descriptorSets_[i].rayMarch;
+
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
           // Binding 0 : Projection/View matrix as uniform buffer
           vks::initializers::writeDescriptorSet(
               graphics_.descriptorSets_[i].rayMarch,
               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
               /*binding id*/ 0, &graphics_.uniformBuffers_[i].march.descriptor),
-          // Binding 1 : Volumetric texture to visualize
+          // Binding 1 : Premarch Front
           vks::initializers::writeDescriptorSet(
               graphics_.descriptorSets_[i].rayMarch,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-              /*binding id*/ 1, &compute_.read_textures[4].descriptor),
+              /*binding id*/ 1, &graphics_.preMarchPass_.incoming.descriptor),
           // Binding 2 : Premarch Front
           vks::initializers::writeDescriptorSet(
               graphics_.descriptorSets_[i].rayMarch,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-              /*binding id*/ 2, &graphics_.preMarchPass_.incoming.descriptor),
-          // Binding 3 : Premarch Front
-          vks::initializers::writeDescriptorSet(
-              graphics_.descriptorSets_[i].rayMarch,
-              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-              /*binding id*/ 3, &graphics_.preMarchPass_.outgoing.descriptor),
-      };
+              /*binding id*/ 2, &graphics_.preMarchPass_.outgoing.descriptor),
+          // Binding 3 : Density texture to visualize
+          readOnlyTextureArrayDescriptor};
       vkUpdateDescriptorSets(device_,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
@@ -1689,6 +1740,12 @@ class VulkanExample : public VulkanExampleBase {
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
         vks::initializers::pipelineLayoutCreateInfo(
             &graphics_.descriptorSetLayouts_.rayMarch, 1);
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(Graphics::RayMarchPushConstants);
+    pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+    pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
     VK_CHECK_RESULT(
         vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
                                &graphics_.pipelineLayouts_.rayMarch));
@@ -1697,7 +1754,7 @@ class VulkanExample : public VulkanExampleBase {
     pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
         &graphics_.descriptorSetLayouts_.preMarch, 1);
     // push constants
-    VkPushConstantRange pushConstantRange{};
+    pushConstantRange = VkPushConstantRange();
     pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0;
     pushConstantRange.size = sizeof(Graphics::PreMarchPushConstants);
@@ -1890,7 +1947,7 @@ class VulkanExample : public VulkanExampleBase {
     generateCube();
     preparePreMarchPass();
     prepareUniformBuffers();
-    setupDescriptors();
+    prepareDescriptors();
     preparePipelines();
   }
 
@@ -2124,7 +2181,7 @@ class VulkanExample : public VulkanExampleBase {
             VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0,
             1});
 
-    // Need to change the format of the velocity textures before reading
+    // Need to change the format of the textures before reading
     // -_-
     vks::tools::insertImageMemoryBarrier(
         cmdBuffer, graphics_.preMarchPass_.incoming.image, 0,

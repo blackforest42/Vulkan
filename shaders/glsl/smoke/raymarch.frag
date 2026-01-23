@@ -1,4 +1,5 @@
 #version 450
+#extension GL_EXT_nonuniform_qualifier : enable
 
 // in
 layout(location = 0) in vec2 inUV;
@@ -15,9 +16,21 @@ layout(binding = 0) uniform RayMarchUBO {
     int toggleView;
 }
 ubo;
-layout(binding = 1) uniform sampler3D volumeTexture;
-layout(binding = 2) uniform sampler2D preMarchFrontTex;
-layout(binding = 3) uniform sampler2D preMarchBackTex;
+
+layout(binding = 1) uniform sampler2D preMarchFrontTex;
+layout(binding = 2) uniform sampler2D preMarchBackTex;
+layout(binding = 3) uniform sampler3D readOnlyTexs[];
+
+layout (push_constant) uniform PushConsts {
+// Texture index mappings
+// 0 velocity
+// 1 pressure
+// 2 divergence
+// 3 vorticity
+// 4 density
+// 5 temperature
+    uint texId;
+} pushConsts;
 
 const float STEP_SIZE = 0.01;
 const float MAX_STEPS = 200;
@@ -45,7 +58,7 @@ void main() {
 
     vec4 color;
     if (ubo.toggleView == 0) {
-        // March Smoke volume
+        // March a texture
         color = rayMarch(entry.xyz, rayDir);
     } else if (ubo.toggleView == 1) {
         // March Noise
@@ -75,7 +88,7 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {
 
     // March from entry to exit
     for (int i = 0; i < MAX_STEPS && t < tFar; i++) {
-        float density = texture(volumeTexture, vec3(pos.x, 1 - pos.y, pos.z)).r;
+        float density = texture(readOnlyTexs[pushConsts.texId], vec3(pos.x, 1 - pos.y, pos.z)).r;
 
         if (density > 0.001) { // Small threshold to skip empty space
             float srcA = clamp(density * DENSITY_SCALE * STEP_SIZE, 0.0, 1.0);
