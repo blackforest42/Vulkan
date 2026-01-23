@@ -14,14 +14,7 @@ layout(binding = 0) uniform RayMarchUBO {
     vec2 screenRes;
     float time;
     int toggleView;
-}
-ubo;
 
-layout(binding = 1) uniform sampler2D preMarchFrontTex;
-layout(binding = 2) uniform sampler2D preMarchBackTex;
-layout(binding = 3) uniform sampler3D readOnlyTexs[];
-
-layout (push_constant) uniform PushConsts {
 // Texture index mappings
 // 0 velocity
 // 1 pressure
@@ -30,7 +23,12 @@ layout (push_constant) uniform PushConsts {
 // 4 density
 // 5 temperature
     uint texId;
-} pushConsts;
+}
+ubo;
+
+layout(binding = 1) uniform sampler2D preMarchFrontTex;
+layout(binding = 2) uniform sampler2D preMarchBackTex;
+layout(binding = 3) uniform sampler3D readOnlyTexs[];
 
 const float STEP_SIZE = 0.01;
 const float MAX_STEPS = 200;
@@ -60,7 +58,7 @@ void main() {
     vec4 color;
     if (ubo.toggleView == 0) {
         // March a texture
-        if (pushConsts.texId == 0) {
+        if (ubo.texId == 0) {
             color = rayMarchVelocity(entry.xyz, rayDir);
         }
         else {
@@ -92,7 +90,7 @@ vec4 rayMarchVelocity(vec3 rayOrigin, vec3 rayDir) {
 
     for (int i = 0; i < MAX_STEPS && t < tFar; i++) {
         // Sample the full vec3 velocity vector
-        vec3 velocity = texture(readOnlyTexs[pushConsts.texId], vec3(pos.x, 1.0 - pos.y, pos.z)).rgb;
+        vec3 velocity = texture(readOnlyTexs[ubo.texId], vec3(pos.x, 1.0 - pos.y, pos.z)).rgb;
 
         // Calculate magnitude to use as density/opacity
         float magnitude = length(velocity);
@@ -139,7 +137,7 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {
 
     // March from entry to exit
     for (int i = 0; i < MAX_STEPS && t < tFar; i++) {
-        float density = texture(readOnlyTexs[pushConsts.texId], vec3(pos.x, 1 - pos.y, pos.z)).r;
+        float density = texture(readOnlyTexs[ubo.texId], vec3(pos.x, 1 - pos.y, pos.z)).r;
 
         if (density > 0.001) { // Small threshold to skip empty space
             float srcA = clamp(density * DENSITY_SCALE * STEP_SIZE, 0.0, 1.0);

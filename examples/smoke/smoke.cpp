@@ -245,19 +245,16 @@ class VulkanExample : public VulkanExampleBase {
 
     struct UiFeatures {
       bool toggleRotation{false};
-    } ui_features;
-
-    std::vector<std::string> viewNames{"Smoke", "Noise", "Entry Rays",
-                                       "Exit Rays"};
-    struct RayMarchPushConstants {
       // Texture index mappings
       // 0 velocity
       // 1 pressure
       // 4 density
       // 5 temperature
-      alignas(4) int texID{0};
-    } rayMarchPC;
+      uint32_t textureRadioId{4};
+    } ui_features;
 
+    std::vector<std::string> viewNames{"Smoke", "Noise", "Entry Rays",
+                                       "Exit Rays"};
     struct PreMarchPushConstants {
       // 1 = back faces, 0 = front faces
       alignas(4) uint32_t renderBackFaces{0};
@@ -278,6 +275,7 @@ class VulkanExample : public VulkanExampleBase {
       alignas(4) float time{0};
       alignas(4) int toggleView{0};  // 0 == 3D texture, 1 == noise, 2 =
                                      // entry Ray, 3 = exit ray
+      alignas(4) uint32_t texId{};
     };
 
     struct UBO {
@@ -1737,12 +1735,6 @@ class VulkanExample : public VulkanExampleBase {
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
         vks::initializers::pipelineLayoutCreateInfo(
             &graphics_.descriptorSetLayouts_.rayMarch, 1);
-    VkPushConstantRange pushConstantRange{};
-    pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(Graphics::RayMarchPushConstants);
-    pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
-    pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
     VK_CHECK_RESULT(
         vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr,
                                &graphics_.pipelineLayouts_.rayMarch));
@@ -1751,7 +1743,7 @@ class VulkanExample : public VulkanExampleBase {
     pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
         &graphics_.descriptorSetLayouts_.preMarch, 1);
     // push constants
-    pushConstantRange = VkPushConstantRange();
+    VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0;
     pushConstantRange.size = sizeof(Graphics::PreMarchPushConstants);
@@ -1936,6 +1928,7 @@ class VulkanExample : public VulkanExampleBase {
     graphics_.ubos_.march.perspective = camera_.matrices_.perspective;
     graphics_.ubos_.march.cameraPos = camera_.position_;
     graphics_.ubos_.march.time = time;
+    graphics_.ubos_.march.texId = graphics_.ui_features.textureRadioId;
     memcpy(graphics_.uniformBuffers_[currentBuffer_].march.mapped,
            &graphics_.ubos_.march, sizeof(Graphics::RayMarchUBO));
   }
@@ -2252,10 +2245,6 @@ class VulkanExample : public VulkanExampleBase {
                          VK_INDEX_TYPE_UINT32);
 
     cmdBeginLabel(cmdBuffer, "Cube Marching");
-    vkCmdPushConstants(cmdBuffer, graphics_.pipelineLayouts_.rayMarch,
-                       VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-                       sizeof(Graphics::RayMarchPushConstants),
-                       &graphics_.rayMarchPC);
     vkCmdDrawIndexed(cmdBuffer, graphics_.indexCount, 1, 0, 0, 0);
     cmdEndLabel(cmdBuffer);
 
@@ -2357,18 +2346,18 @@ class VulkanExample : public VulkanExampleBase {
                             graphics_.viewNames)) {
       }
 
-      static int textureID = graphics_.rayMarchPC.texID;
+      static int textureID = graphics_.ui_features.textureRadioId;
       if (overlay->radioButton("Velocity Texture", &textureID, 0)) {
-        graphics_.rayMarchPC.texID = 0;
+        graphics_.ui_features.textureRadioId = 0;
       }
       if (overlay->radioButton("Pressure Texture", &textureID, 1)) {
-        graphics_.rayMarchPC.texID = 1;
+        graphics_.ui_features.textureRadioId = 1;
       }
       if (overlay->radioButton("Smoke Texture", &textureID, 4)) {
-        graphics_.rayMarchPC.texID = 4;
+        graphics_.ui_features.textureRadioId = 4;
       }
       if (overlay->radioButton("Temperature Texture", &textureID, 5)) {
-        graphics_.rayMarchPC.texID = 5;
+        graphics_.ui_features.textureRadioId = 5;
       }
       overlay->checkBox("Toggle Rotation",
                         &graphics_.ui_features.toggleRotation);
