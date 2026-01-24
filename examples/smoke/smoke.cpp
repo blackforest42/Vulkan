@@ -39,7 +39,7 @@ class VulkanExample : public VulkanExampleBase {
     static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 256;
     static constexpr int WORKGROUP_SIZE = 8;
     static constexpr float TIME_DELTA = 1.f / 360;
-    static constexpr int JACOBI_ITERATION_COUNT = 1;
+    static constexpr int JACOBI_ITERATION_COUNT = 20;
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
@@ -97,8 +97,8 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 2.0f, 5.f,
                                          COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
       alignas(4) float sourceRadius{COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
-      alignas(4) float emissionRate{1000.0f};  // Density added per second
-      alignas(4) float emissionTemp{1.f};      // Temperature of emitted smoke
+      alignas(4) float emissionRate{10.0f};  // Density added per second
+      alignas(4) float emissionTemp{10.f};   // Temperature of emitted smoke
       alignas(4) float ambientTemp{0.f};
       alignas(4) float deltaTime{TIME_DELTA};
     };
@@ -118,19 +118,19 @@ class VulkanExample : public VulkanExampleBase {
 
     struct VorticityUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(4) float cellSize{1.f / COMPUTE_TEXTURE_DIMENSIONS};
+      alignas(4) float cellSize{1.f / 5};
     };
 
     struct VortConfinementUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(4) float deltaTime{TIME_DELTA};
       alignas(4) float vorticityStrength{1.f};  // Vorticity strength
-      alignas(4) float cellSize{1.f / COMPUTE_TEXTURE_DIMENSIONS};
+      alignas(4) float cellSize{1.f / 5};
     };
 
     struct DivergenceUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(4) float cellSize{1.f / COMPUTE_TEXTURE_DIMENSIONS};
+      alignas(4) float cellSize{1.f / 5};
     };
 
     struct JacobiUBO {
@@ -139,13 +139,13 @@ class VulkanExample : public VulkanExampleBase {
 
     struct GradientUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(4) float cellSize{1.f / COMPUTE_TEXTURE_DIMENSIONS};
+      alignas(4) float cellSize{1.f / 5};
     };
 
     struct BoundaryUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       // {-X, +X, -Y, +Y,-Z, +Z}  0 = solid, 1 = open
-      alignas(16) uint32_t boundaryTypes[6] = {0, 0, 0, 0, 0, 0};
+      alignas(16) uint32_t boundaryTypes[6] = {0, 0, 0, 1, 0, 0};
       alignas(16) uint32_t useNoSlip{0};  // 0=free-slip, 1=no-slip
     };
 

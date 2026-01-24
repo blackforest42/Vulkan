@@ -1,6 +1,6 @@
 Jan 22
 TODO:
-    - bug: velocity appears at the very top of the cube on frame 0
+    - bug: massive blowup of values (>e+33) somewhere (possibly jacobi iters)
 	- add to ImGUI
 		- time delta
 		- jacobi iterations
@@ -8,14 +8,12 @@ TODO:
 		- smoke emission temp
 		- ambient temp
 		- advection dissipation
-		- gravity
 		- buoyancy beta
 		- vorticity strength
 		- slip/no slip
 		- boundary types [+/-x, y, z]
 	- Remove layout transition from raymarchCmd() and call it only once after texture creation
 	- Refactor DescriptorLayouts and PipelineLayouts to reuse (same layouts across most shaders)
-
 
 glslc -g raymarch.vert -o raymarch.vert.spv
 glslc -g raymarch.frag -o raymarch.frag.spv
