@@ -58,7 +58,7 @@ class VulkanExample : public VulkanExampleBase {
   struct Compute {
     static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 256;
     static constexpr int WORKGROUP_SIZE = 8;
-    static constexpr float TIME_DELTA = 1.f / 360;
+    static constexpr float TIME_DELTA = 1 / 360.f;
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
@@ -118,6 +118,7 @@ class VulkanExample : public VulkanExampleBase {
       alignas(4) float sourceRadius{uiFeatures.radius};
       alignas(4) float emissionRate{uiFeatures.emissionRate};
       alignas(4) float deltaTime{TIME_DELTA};
+      alignas(4) float time{0};
     };
 
     struct AdvectionUBO {
@@ -1916,7 +1917,7 @@ class VulkanExample : public VulkanExampleBase {
     graphics_.ubos_.preMarch.cameraPos = camera_.position_;
     auto& model = graphics_.ubos_.preMarch.model;
     model = uiFeatures.toggleRotation
-                ? glm::rotate(model, glm::radians(float(time) / 10000000),
+                ? glm::rotate(model, glm::radians(float(time) / 10000),
                               glm::vec3(0.f, 1.f, 0.f))
                 : model;
     graphics_.ubos_.preMarch.worldViewProjection =
@@ -1937,6 +1938,7 @@ class VulkanExample : public VulkanExampleBase {
            &graphics_.ubos_.march, sizeof(Graphics::RayMarchUBO));
 
     // Emission
+    compute_.ubos_.emission.time = time;
     compute_.ubos_.emission.sourceRadius =
         compute_.COMPUTE_TEXTURE_DIMENSIONS / 2 * uiFeatures.radius;
     compute_.ubos_.emission.emissionRate = uiFeatures.emissionRate;

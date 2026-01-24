@@ -6,13 +6,16 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 layout (binding = 0) uniform sampler3D readOnlyTexs[];
 layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 
-layout(binding = 2) uniform EmissionParams {
+layout(binding = 2) uniform EmissionUBO {
     ivec3 gridSize;
     vec3 sourceCenter;
     float sourceRadius;
     float emissionRate;
     float deltaTime;
-} params;
+    float time;
+} ubo;
+
+const float PI = 3.141592653589793238462643383279502884197;
 
 // temperature is not used
 const float  emissionTemp = 10.f;
@@ -26,7 +29,7 @@ const float  emissionTemp = 10.f;
 // 5 temperature
 
 bool isBoundary(ivec3 coord) {
-    if (any(greaterThanEqual(coord, params.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0)))) {
+    if (any(greaterThanEqual(coord, ubo.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0)))) {
         return true;
     }
     return false;
@@ -39,8 +42,8 @@ void main() {
     }
 
     vec3 pos = vec3(coord) + 0.5;
-    float distSq = dot(pos - params.sourceCenter, pos - params.sourceCenter);
-    float radiusSq = params.sourceRadius * params.sourceRadius;
+    float distSq = dot(pos - ubo.sourceCenter, pos - ubo.sourceCenter);
+    float radiusSq = ubo.sourceRadius * ubo.sourceRadius;
 
     // We only calculate if within radius to save cycles and prevent infinite tails
     if (distSq < radiusSq) {
@@ -49,10 +52,9 @@ void main() {
         float falloff = exp(-distSq / sigmaSq2);
 
         // Add density (accumulate)
-        float currentDensity = texelFetch(readOnlyTexs[4], coord, 0).r;
-        float addedDensity = params.emissionRate * params.deltaTime * falloff;
-        float newDensity = min(currentDensity + addedDensity, 2.0);
-        imageStore(writeOnlyTexs[4], coord, vec4(newDensity));
+        float saturation = 0.78f;
+        float density = 1.5f*(((sin(ubo.time + 2.0f * PI/3.0f )*0.5f + 0.5f))*saturation + (1.0f-saturation));
+        imageStore(writeOnlyTexs[4], coord, vec4(density));
 
         // Set temperature
         float currentTemp = texelFetch(readOnlyTexs[5], coord, 0).r;
@@ -62,9 +64,9 @@ void main() {
 
         // Add velocity
         float impulseStrength = 0.8f;
-        float impulseDx = 0.4f * impulseStrength;
-        float impulseDy = 0.4f * impulseStrength;
-        float impulseDz = 0.64f * impulseStrength;
+        float impulseDx = 0.5f * impulseStrength;
+        float impulseDy = 0.5f * impulseStrength;
+        float impulseDz = 0.8f * impulseStrength;
         imageStore(writeOnlyTexs[0], coord, vec4(impulseDx, impulseDy, impulseDz, 1.));
     }
 }

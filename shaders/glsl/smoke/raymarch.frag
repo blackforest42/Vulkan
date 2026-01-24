@@ -41,7 +41,7 @@ vec4 permute(vec4 x);
 vec4 taylorInvSqrt(vec4 r);
 float snoise(vec3 pos);
 float fbm(vec3 pos);
-vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection);
+vec4 rayMarchScalar(vec3 rayOrigin, vec3 rayDirection);
 vec4 rayMarchSDF(vec3 rayOrigin, vec3 rayDir);
 vec4 rayMarchVelocity(vec3 rayOrigin, vec3 rayDir);
 bool intersectBox(vec3 rayOrigin, vec3 rayDir, out float tNear, out float tFar);
@@ -62,7 +62,7 @@ void main() {
             color = rayMarchVelocity(entry.xyz, rayDir);
         }
         else {
-            color = rayMarch(entry.xyz, rayDir);
+            color = rayMarchScalar(entry.xyz, rayDir);
         }
     } else if (ubo.toggleView == 1) {
         // March Noise
@@ -122,7 +122,7 @@ vec4 rayMarchVelocity(vec3 rayOrigin, vec3 rayDir) {
     return final_color;
 }
 
-vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {
+vec4 rayMarchScalar(vec3 rayOrigin, vec3 rayDir) {
     vec4 final_color = vec4(0.0);
 
     // Calculate proper entry and exit points
