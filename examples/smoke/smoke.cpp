@@ -1907,9 +1907,10 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    float time = std::chrono::duration_cast<std::chrono::seconds>(
-                     std::chrono::system_clock::now().time_since_epoch())
-                     .count();
+    float time =
+        std::chrono::duration<float>(
+            std::chrono::high_resolution_clock::now().time_since_epoch())
+            .count();
 
     // Premarch Uniform
     graphics_.ubos_.preMarch.cameraPos = camera_.position_;
