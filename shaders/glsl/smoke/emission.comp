@@ -10,10 +10,12 @@ layout(binding = 2) uniform EmissionParams {
     ivec3 gridSize;
     vec3 sourceCenter;
     float sourceRadius;
-    float emissionRate;// Density added per second
-    float emissionTemp;// Temperature of emitted smoke
+    float emissionRate;
     float deltaTime;
 } params;
+
+// temperature is not used
+const float  emissionTemp = 10.f;
 
 // Texture index mappings
 // 0 velocity
@@ -43,8 +45,6 @@ void main() {
     // We only calculate if within radius to save cycles and prevent infinite tails
     if (distSq < radiusSq) {
         // Gaussian Falloff: exp(-dist^2 / (2 * sigma^2))
-        // We define sigma such that at dist = sourceRadius, the value is ~0.01 (3-sigma rule)
-        // sigma = sourceRadius / 3.0 -> 2 * sigma^2 = 2 * (r^2 / 9) = r^2 / 4.5
         float sigmaSq2 = radiusSq / 4.5;
         float falloff = exp(-distSq / sigmaSq2);
 
@@ -56,7 +56,7 @@ void main() {
 
         // Set temperature
         float currentTemp = texelFetch(readOnlyTexs[5], coord, 0).r;
-        float emissionTemp = params.emissionTemp * falloff;
+        float emissionTemp = emissionTemp * falloff;
         float newTemp = max(currentTemp, emissionTemp);
         imageStore(writeOnlyTexs[5], coord, vec4(newTemp));
 
