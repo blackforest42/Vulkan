@@ -12,7 +12,6 @@ layout(binding = 2) uniform EmissionParams {
     float sourceRadius;
     float emissionRate;// Density added per second
     float emissionTemp;// Temperature of emitted smoke
-    float ambientTemp;
     float deltaTime;
 } params;
 
@@ -57,7 +56,7 @@ void main() {
 
         // Set temperature
         float currentTemp = texelFetch(readOnlyTexs[5], coord, 0).r;
-        float emissionTemp = params.ambientTemp + params.emissionTemp * falloff;
+        float emissionTemp = params.emissionTemp * falloff;
         float newTemp = max(currentTemp, emissionTemp);
         imageStore(writeOnlyTexs[5], coord, vec4(newTemp));
 

@@ -45,20 +45,9 @@ void main() {
 
     float div = texelFetch(readOnlyTexs[2], coord, 0).r;
 
-    // Count fluid neighbors
-    int numFluid = 0;
-    if (!isBoundary(coord - ivec3(1, 0, 0))) numFluid++;
-    if (!isBoundary(coord + ivec3(1, 0, 0))) numFluid++;
-    if (!isBoundary(coord - ivec3(0, 1, 0))) numFluid++;
-    if (!isBoundary(coord + ivec3(0, 1, 0))) numFluid++;
-    if (!isBoundary(coord - ivec3(0, 0, 1))) numFluid++;
-    if (!isBoundary(coord + ivec3(0, 0, 1))) numFluid++;
-
     // Modified Jacobi
     float pressure = 0.0;
-    if (numFluid > 0) {
-        pressure = (pL + pR + pD + pU + pB + pF - div) / float(numFluid);
-    }
+    pressure = (pL + pR + pD + pU + pB + pF - div) / 6.f;
 
     imageStore(writeOnlyTexs[1], coord, vec4(pressure));
 }

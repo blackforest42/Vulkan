@@ -8,7 +8,6 @@ layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 
 layout(binding = 2) uniform SimUBO {
     ivec3 gridSize;
-    float cellSize;
 } ubo;
 
 // Texture index mappings
@@ -44,8 +43,8 @@ void main() {
     vec3 vF = getVelocity(coord + ivec3(0, 0, 1));
 
     // Compute divergence
-    float div = ((vR.x - vL.x) + (vU.y - vD.y) + (vF.z - vB.z)) *
-    0.5 / ubo.cellSize;
+    vec3 x = -2.0f * ubo.gridSize;
+    float div = (x.x * (vR.x - vL.x) + x.y * (vU.y - vD.y) + x.z * (vF.z - vB.z));
 
     imageStore(writeOnlyTexs[2], coord, vec4(div));
 }

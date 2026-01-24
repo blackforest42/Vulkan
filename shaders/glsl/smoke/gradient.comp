@@ -7,7 +7,6 @@ layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 
 layout(binding = 2) uniform SimParams {
     ivec3 gridSize;
-    float cellSize;
 } ubo;
 
 // Texture index mappings
@@ -43,7 +42,7 @@ void main() {
     float pB = getPressure(coord - ivec3(0, 0, 1));
     float pF = getPressure(coord + ivec3(0, 0, 1));
 
-    vec3 gradP = vec3(pR - pL, pU - pD, pF - pB) * 0.5 / ubo.cellSize;
+    vec3 gradP = vec3(pR - pL, pU - pD, pF - pB) * 0.5 / ubo.gridSize;
 
     // Subtract gradient
     vec4 vel = texelFetch(readOnlyTexs[0], coord, 0);

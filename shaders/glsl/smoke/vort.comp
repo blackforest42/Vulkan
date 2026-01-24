@@ -7,7 +7,6 @@ layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 
 layout(binding = 2) uniform SimUBO {
     ivec3 gridSize;
-    float cellSize;
 } ubo;
 
 // Texture index mappings
@@ -43,11 +42,11 @@ void main() {
     vec3 vB = getVelocity(coord - ivec3(0, 0, 1));
     vec3 vF = getVelocity(coord + ivec3(0, 0, 1));
 
-    float invCellSize = 1.0 / ubo.cellSize;
+    vec3 invCellSize = 1.0 / ubo.gridSize;
     vec3 curl;
-    curl.x = (vU.z - vD.z - vF.y + vB.y) * 0.5 * invCellSize;
-    curl.y = (vF.x - vB.x - vR.z + vL.z) * 0.5 * invCellSize;
-    curl.z = (vR.y - vL.y - vU.x + vD.x) * 0.5 * invCellSize;
+    curl.x = (vU.z - vD.z - vF.y + vB.y) * 0.5 * invCellSize.x;
+    curl.y = (vF.x - vB.x - vR.z + vL.z) * 0.5 * invCellSize.y;
+    curl.z = (vR.y - vL.y - vU.x + vD.x) * 0.5 * invCellSize.z;
 
     float magnitude = length(curl);
     imageStore(writeOnlyTexs[3], coord, vec4(curl, magnitude));

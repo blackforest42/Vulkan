@@ -8,8 +8,7 @@ layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 layout(binding = 2) uniform SimUBO {
     ivec3 gridSize;
     float deltaTime;
-    float epsilon;// Vorticity strength
-    float cellSize;
+    float vortStrength;// Vorticity strength
 } ubo;
 
 // Texture index mappings
@@ -53,7 +52,7 @@ void main() {
         vec3 omega = texelFetch(readOnlyTexs[3], coord, 0).xyz;
 
         // Confinement force: f = e * h * (N x w)
-        vec3 force = ubo.epsilon * ubo.cellSize * cross(N, omega);
+        vec3 force = ubo.vortStrength * 1.f / ubo.gridSize * cross(N, omega);
 
         vec4 vel = texelFetch(readOnlyTexs[0], coord, 0);
         vel.xyz += force * ubo.deltaTime;

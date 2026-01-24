@@ -42,7 +42,7 @@ struct UiFeatures {
   float vorticityStrength{0.12f};  // Vorticity strength
   // boundary
   int useNoSlip{1};  // 0=free-slip, 1=no-slip
-  int jacobiIterationCount{1};
+  int jacobiIterationCount{5};
 } uiFeatures;
 
 class VulkanExample : public VulkanExampleBase {
@@ -63,7 +63,7 @@ class VulkanExample : public VulkanExampleBase {
   struct Compute {
     static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 256;
     static constexpr int WORKGROUP_SIZE = 8;
-    static constexpr float TIME_DELTA = 1.f / 360;
+    static constexpr float TIME_DELTA = 1.f / 60;
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
@@ -124,7 +124,6 @@ class VulkanExample : public VulkanExampleBase {
       alignas(4) float sourceRadius{uiFeatures.radius};
       alignas(4) float emissionRate{uiFeatures.emissionRate};
       alignas(4) float emissionTemp{uiFeatures.emissionTemp};
-      alignas(4) float ambientTemp{uiFeatures.ambientTemp};
       alignas(4) float deltaTime{TIME_DELTA};
     };
 
@@ -143,19 +142,16 @@ class VulkanExample : public VulkanExampleBase {
 
     struct VorticityUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(4) float cellSize{1.f};
     };
 
     struct VortConfinementUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(4) float deltaTime{TIME_DELTA};
       alignas(4) float vorticityStrength{uiFeatures.vorticityStrength};
-      alignas(4) float cellSize{1.f};
     };
 
     struct DivergenceUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(4) float cellSize{1.f};
     };
 
     struct JacobiUBO {
@@ -164,7 +160,6 @@ class VulkanExample : public VulkanExampleBase {
 
     struct GradientUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(4) float cellSize{1.f};
     };
 
     struct BoundaryUBO {
@@ -1347,10 +1342,10 @@ class VulkanExample : public VulkanExampleBase {
     emissionCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
 
-    buoyancyCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
-    boundaryCmd(cmdBuffer, /*Velocity*/ 0);
-    swapTexturesCmd(cmdBuffer);
+    // buoyancyCmd(cmdBuffer);
+    // swapTexturesCmd(cmdBuffer);
+    // boundaryCmd(cmdBuffer, /*Velocity*/ 0);
+    // swapTexturesCmd(cmdBuffer);
 
     vorticityCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
@@ -1952,7 +1947,6 @@ class VulkanExample : public VulkanExampleBase {
         compute_.COMPUTE_TEXTURE_DIMENSIONS / 2 * uiFeatures.radius;
     compute_.ubos_.emission.emissionRate = uiFeatures.emissionRate;
     compute_.ubos_.emission.emissionTemp = uiFeatures.emissionTemp;
-    compute_.ubos_.emission.ambientTemp = uiFeatures.ambientTemp;
     memcpy(compute_.uniformBuffers_[currentBuffer_].emission.mapped,
            &compute_.ubos_.emission, sizeof(Compute::EmissionUBO));
 
@@ -2388,7 +2382,8 @@ class VulkanExample : public VulkanExampleBase {
                         graphics_.viewNames);
       if (graphics_.ubos_.march.toggleView == 0) {
         overlay->sliderFloat("Smoke Radius", &uiFeatures.radius, 0, 1);
-        overlay->sliderFloat("Emission Rate", &uiFeatures.emissionRate, 0, 100);
+        overlay->sliderFloat("Emission Rate", &uiFeatures.emissionRate, 0,
+                             1000);
         overlay->sliderFloat("Emission Temp", &uiFeatures.emissionTemp, 0, 10);
         overlay->sliderFloat("Ambient Temp", &uiFeatures.ambientTemp, 0, 1);
         overlay->sliderFloat("Buoyancy Beta", &uiFeatures.buoyancyBeta, 0, 1);
