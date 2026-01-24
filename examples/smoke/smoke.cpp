@@ -2384,34 +2384,35 @@ class VulkanExample : public VulkanExampleBase {
     if (overlay->header("Settings")) {
       glm::vec3 pos = camera_.position_;
       overlay->text("Camera Position: %f, %f, %f", pos.x, pos.y, pos.z);
-      if (overlay->comboBox("Select View", &graphics_.ubos_.march.toggleView,
-                            graphics_.viewNames)) {
+      overlay->comboBox("Select View", &graphics_.ubos_.march.toggleView,
+                        graphics_.viewNames);
+      if (graphics_.ubos_.march.toggleView == 0) {
+        overlay->sliderFloat("Smoke Radius", &uiFeatures.radius, 0, 1);
+        overlay->sliderFloat("Emission Rate", &uiFeatures.emissionRate, 0, 100);
+        overlay->sliderFloat("Emission Temp", &uiFeatures.emissionTemp, 0, 10);
+        overlay->sliderFloat("Ambient Temp", &uiFeatures.ambientTemp, 0, 1);
+        overlay->sliderFloat("Buoyancy Beta", &uiFeatures.buoyancyBeta, 0, 1);
+        overlay->sliderFloat("Vorticity Strength",
+                             &uiFeatures.vorticityStrength, 0, 1);
+        overlay->sliderInt("Use No Slip", &uiFeatures.useNoSlip, 0, 1);
+        overlay->sliderInt("Jacobi Iterations",
+                           &uiFeatures.jacobiIterationCount, 1, 60);
+
+        static int textureID = uiFeatures.textureRadioId;
+        if (overlay->radioButton("Velocity Texture", &textureID, 0)) {
+          uiFeatures.textureRadioId = 0;
+        }
+        if (overlay->radioButton("Pressure Texture", &textureID, 1)) {
+          uiFeatures.textureRadioId = 1;
+        }
+        if (overlay->radioButton("Smoke Texture", &textureID, 4)) {
+          uiFeatures.textureRadioId = 4;
+        }
+        if (overlay->radioButton("Temperature Texture", &textureID, 5)) {
+          uiFeatures.textureRadioId = 5;
+        }
       }
 
-      overlay->sliderFloat("Smoke Radius", &uiFeatures.radius, 0, 1);
-      overlay->sliderFloat("Emission Rate", &uiFeatures.emissionRate, 0, 100);
-      overlay->sliderFloat("Emission Temp", &uiFeatures.emissionTemp, 0, 10);
-      overlay->sliderFloat("Ambient Temp", &uiFeatures.ambientTemp, 0, 1);
-      overlay->sliderFloat("Buoyancy Beta", &uiFeatures.buoyancyBeta, 0, 1);
-      overlay->sliderFloat("Vorticity Strength", &uiFeatures.vorticityStrength,
-                           0, 1);
-      overlay->sliderInt("Use No Slip", &uiFeatures.useNoSlip, 0, 1);
-      overlay->sliderInt("Jacobi Iterations", &uiFeatures.jacobiIterationCount,
-                         1, 60);
-
-      static int textureID = uiFeatures.textureRadioId;
-      if (overlay->radioButton("Velocity Texture", &textureID, 0)) {
-        uiFeatures.textureRadioId = 0;
-      }
-      if (overlay->radioButton("Pressure Texture", &textureID, 1)) {
-        uiFeatures.textureRadioId = 1;
-      }
-      if (overlay->radioButton("Smoke Texture", &textureID, 4)) {
-        uiFeatures.textureRadioId = 4;
-      }
-      if (overlay->radioButton("Temperature Texture", &textureID, 5)) {
-        uiFeatures.textureRadioId = 5;
-      }
       overlay->checkBox("Toggle Rotation", &uiFeatures.toggleRotation);
       if (overlay->button("Reset")) {
         clearAllComputeTextures();
