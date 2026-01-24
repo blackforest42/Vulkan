@@ -1,6 +1,8 @@
 Jan 22
 TODO:
-    - bug: massive blowup of values (>e+33) somewhere (possibly jacobi iters)
+    - bug: massive blowup of values (>e+33) somewhere
+        - consider using emission.comp in intervals
+        - tried reducing cell size
 	- add to ImGUI
 		- time delta
 		- jacobi iterations
@@ -28,3 +30,4 @@ glslc -g jacobi.comp -o jacobi.comp.spv
 glslc -g gradient.comp -o gradient.comp.spv
 glslc -g boundary.comp -o boundary.comp.spv
 glslc -g emission.comp -o emission.comp.spv
+

@@ -20,6 +20,31 @@ struct Vertex {
   float uvw[3];
 };
 
+struct UiFeatures {
+  bool toggleRotation{false};
+  // Texture index mappings
+  // 0 velocity
+  // 1 pressure
+  // 4 density
+  // 5 temperature
+  uint32_t textureRadioId{0};
+
+  // emission
+  float radius{.5f};
+  // Rate of emitted smoke
+  float emissionRate{10.0f};
+  // Temperature of emitted smoke
+  float emissionTemp{10.f};
+  float ambientTemp{0.f};
+  // buoyancy
+  float buoyancyBeta{.5f};
+  // vort confine
+  float vorticityStrength{0.12f};  // Vorticity strength
+  // boundary
+  int useNoSlip{1};  // 0=free-slip, 1=no-slip
+  int jacobiIterationCount{1};
+} uiFeatures;
+
 class VulkanExample : public VulkanExampleBase {
  public:
   // Enable Vulkan 1.3
@@ -39,7 +64,6 @@ class VulkanExample : public VulkanExampleBase {
     static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 256;
     static constexpr int WORKGROUP_SIZE = 8;
     static constexpr float TIME_DELTA = 1.f / 360;
-    static constexpr int JACOBI_ITERATION_COUNT = 20;
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
@@ -94,43 +118,44 @@ class VulkanExample : public VulkanExampleBase {
 
     struct EmissionUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 2.0f, 5.f,
-                                         COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
-      alignas(4) float sourceRadius{COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
-      alignas(4) float emissionRate{10.0f};  // Density added per second
-      alignas(4) float emissionTemp{10.f};   // Temperature of emitted smoke
-      alignas(4) float ambientTemp{0.f};
+      alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 10.0f,
+                                         COMPUTE_TEXTURE_DIMENSIONS / 10.0f,
+                                         COMPUTE_TEXTURE_DIMENSIONS / 4.0f};
+      alignas(4) float sourceRadius{uiFeatures.radius};
+      alignas(4) float emissionRate{uiFeatures.emissionRate};
+      alignas(4) float emissionTemp{uiFeatures.emissionTemp};
+      alignas(4) float ambientTemp{uiFeatures.ambientTemp};
       alignas(4) float deltaTime{TIME_DELTA};
     };
 
     struct AdvectionUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(4) float deltaTime{TIME_DELTA};
-      alignas(4) float dissipation{0.00f};
+      alignas(4) float dissipation{0.0f};
     };
 
     struct BuoyancyUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(4) float deltaTime{TIME_DELTA};
-      alignas(4) float buoyancyBeta{.5f};
-      alignas(4) float ambientTemp{0.f};
+      alignas(4) float buoyancyBeta{uiFeatures.buoyancyBeta};
+      alignas(4) float ambientTemp{uiFeatures.ambientTemp};
     };
 
     struct VorticityUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(4) float cellSize{1.f / 5};
+      alignas(4) float cellSize{1.f};
     };
 
     struct VortConfinementUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(4) float deltaTime{TIME_DELTA};
-      alignas(4) float vorticityStrength{1.f};  // Vorticity strength
-      alignas(4) float cellSize{1.f / 5};
+      alignas(4) float vorticityStrength{uiFeatures.vorticityStrength};
+      alignas(4) float cellSize{1.f};
     };
 
     struct DivergenceUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(4) float cellSize{1.f / 5};
+      alignas(4) float cellSize{1.f};
     };
 
     struct JacobiUBO {
@@ -139,14 +164,15 @@ class VulkanExample : public VulkanExampleBase {
 
     struct GradientUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(4) float cellSize{1.f / 5};
+      alignas(4) float cellSize{1.f};
     };
 
     struct BoundaryUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       // {-X, +X, -Y, +Y,-Z, +Z}  0 = solid, 1 = open
       alignas(16) uint32_t boundaryTypes[6] = {0, 0, 0, 1, 0, 0};
-      alignas(16) uint32_t useNoSlip{0};  // 0=free-slip, 1=no-slip
+      // 0=free-slip, 1=no-slip
+      alignas(16) int useNoSlip{uiFeatures.useNoSlip};
     };
 
     struct BoundaryPushConstants {
@@ -241,16 +267,6 @@ class VulkanExample : public VulkanExampleBase {
     vks::Buffer cubeVerticesBuffer;
     vks::Buffer cubeIndicesBuffer;
     uint32_t indexCount{0};
-
-    struct UiFeatures {
-      bool toggleRotation{false};
-      // Texture index mappings
-      // 0 velocity
-      // 1 pressure
-      // 4 density
-      // 5 temperature
-      uint32_t textureRadioId{0};
-    } ui_features;
 
     std::vector<std::string> viewNames{"Smoke", "Noise", "Entry Rays",
                                        "Exit Rays"};
@@ -1352,7 +1368,7 @@ class VulkanExample : public VulkanExampleBase {
     divergenceCmd(cmdBuffer);
 
     cmdBeginLabel(cmdBuffer, "Jacobi Iterations Start", {.3f, 0.5f, 0.8f, 1.f});
-    for (int i = 0; i < compute_.JACOBI_ITERATION_COUNT; i++) {
+    for (int i = 0; i < uiFeatures.jacobiIterationCount; i++) {
       std::string text_label = "iteration: " + std::to_string(i);
       cmdBeginLabel(cmdBuffer, text_label.c_str(), {.3f, 0.5f, 0.8f, 1.f});
       jacobiCmd(cmdBuffer);
@@ -1910,7 +1926,7 @@ class VulkanExample : public VulkanExampleBase {
     // Premarch Uniform
     graphics_.ubos_.preMarch.cameraPos = camera_.position_;
     auto& model = graphics_.ubos_.preMarch.model;
-    model = graphics_.ui_features.toggleRotation
+    model = uiFeatures.toggleRotation
                 ? glm::rotate(model, glm::radians(float(time) / 10000000),
                               glm::vec3(0.f, 1.f, 0.f))
                 : model;
@@ -1927,9 +1943,36 @@ class VulkanExample : public VulkanExampleBase {
     graphics_.ubos_.march.perspective = camera_.matrices_.perspective;
     graphics_.ubos_.march.cameraPos = camera_.position_;
     graphics_.ubos_.march.time = time;
-    graphics_.ubos_.march.texId = graphics_.ui_features.textureRadioId;
+    graphics_.ubos_.march.texId = uiFeatures.textureRadioId;
     memcpy(graphics_.uniformBuffers_[currentBuffer_].march.mapped,
            &graphics_.ubos_.march, sizeof(Graphics::RayMarchUBO));
+
+    // Emission
+    compute_.ubos_.emission.sourceRadius =
+        compute_.COMPUTE_TEXTURE_DIMENSIONS / 2 * uiFeatures.radius;
+    compute_.ubos_.emission.emissionRate = uiFeatures.emissionRate;
+    compute_.ubos_.emission.emissionTemp = uiFeatures.emissionTemp;
+    compute_.ubos_.emission.ambientTemp = uiFeatures.ambientTemp;
+    memcpy(compute_.uniformBuffers_[currentBuffer_].emission.mapped,
+           &compute_.ubos_.emission, sizeof(Compute::EmissionUBO));
+
+    // Buoyancy
+    compute_.ubos_.buoyancy.buoyancyBeta = uiFeatures.buoyancyBeta;
+    compute_.ubos_.buoyancy.ambientTemp = uiFeatures.ambientTemp;
+    memcpy(compute_.uniformBuffers_[currentBuffer_].buoyancy.mapped,
+           &compute_.ubos_.buoyancy, sizeof(Compute::BuoyancyUBO));
+
+    // vort confine
+    compute_.ubos_.vortConfinement.vorticityStrength =
+        uiFeatures.vorticityStrength;
+    memcpy(compute_.uniformBuffers_[currentBuffer_].vortConfinement.mapped,
+           &compute_.ubos_.vortConfinement,
+           sizeof(Compute::VortConfinementUBO));
+
+    // Boundary
+    compute_.ubos_.boundary.useNoSlip = uiFeatures.useNoSlip;
+    memcpy(compute_.uniformBuffers_[currentBuffer_].boundary.mapped,
+           &compute_.ubos_.boundary, sizeof(Compute::BoundaryUBO));
   }
 
   void prepareGraphics() {
@@ -2345,21 +2388,31 @@ class VulkanExample : public VulkanExampleBase {
                             graphics_.viewNames)) {
       }
 
-      static int textureID = graphics_.ui_features.textureRadioId;
+      overlay->sliderFloat("Smoke Radius", &uiFeatures.radius, 0, 1);
+      overlay->sliderFloat("Emission Rate", &uiFeatures.emissionRate, 0, 100);
+      overlay->sliderFloat("Emission Temp", &uiFeatures.emissionTemp, 0, 10);
+      overlay->sliderFloat("Ambient Temp", &uiFeatures.ambientTemp, 0, 1);
+      overlay->sliderFloat("Buoyancy Beta", &uiFeatures.buoyancyBeta, 0, 1);
+      overlay->sliderFloat("Vorticity Strength", &uiFeatures.vorticityStrength,
+                           0, 1);
+      overlay->sliderInt("Use No Slip", &uiFeatures.useNoSlip, 0, 1);
+      overlay->sliderInt("Jacobi Iterations", &uiFeatures.jacobiIterationCount,
+                         1, 60);
+
+      static int textureID = uiFeatures.textureRadioId;
       if (overlay->radioButton("Velocity Texture", &textureID, 0)) {
-        graphics_.ui_features.textureRadioId = 0;
+        uiFeatures.textureRadioId = 0;
       }
       if (overlay->radioButton("Pressure Texture", &textureID, 1)) {
-        graphics_.ui_features.textureRadioId = 1;
+        uiFeatures.textureRadioId = 1;
       }
       if (overlay->radioButton("Smoke Texture", &textureID, 4)) {
-        graphics_.ui_features.textureRadioId = 4;
+        uiFeatures.textureRadioId = 4;
       }
       if (overlay->radioButton("Temperature Texture", &textureID, 5)) {
-        graphics_.ui_features.textureRadioId = 5;
+        uiFeatures.textureRadioId = 5;
       }
-      overlay->checkBox("Toggle Rotation",
-                        &graphics_.ui_features.toggleRotation);
+      overlay->checkBox("Toggle Rotation", &uiFeatures.toggleRotation);
       if (overlay->button("Reset")) {
         clearAllComputeTextures();
       }

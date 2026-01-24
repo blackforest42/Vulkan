@@ -9,7 +9,7 @@ layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 layout(binding = 2) uniform SimUBO {
     ivec3 gridSize;
     uint boundaryTypes[6];// -X, +X, -Y, +Y, -Z, +Z
-    uint useNoSlip;// 0=free-slip, 1=no-slip
+    int useNoSlip;// 0=free-slip, 1=no-slip
 } ubo;
 
 layout (push_constant) uniform PushConsts {
