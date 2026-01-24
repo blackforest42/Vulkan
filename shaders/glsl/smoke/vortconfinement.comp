@@ -27,6 +27,7 @@ bool isBoundary(ivec3 coord) {
 }
 
 float getVorticityMagnitude(ivec3 coord) {
+    // magnitude is stored in w channel from previous compute
     return texelFetch(readOnlyTexs[3], coord, 0).w;
 }
 
@@ -36,6 +37,9 @@ void main() {
         return;
     }
 
+    // Temp vorticity from previous compute
+	vec3 omega = texelFetch(readOnlyTexs[3], coord, 0).xyz;
+
     // Compute gradient of vorticity magnitude
     float wL = getVorticityMagnitude(coord - ivec3(1, 0, 0));
     float wR = getVorticityMagnitude(coord + ivec3(1, 0, 0));
@@ -44,18 +48,13 @@ void main() {
     float wB = getVorticityMagnitude(coord - ivec3(0, 0, 1));
     float wF = getVorticityMagnitude(coord + ivec3(0, 0, 1));
 
-    vec3 gradMag = vec3(wR - wL, wU - wD, wF - wB) * 0.5;
+    vec3 eta = vec3(wR - wL, wU - wD, wF - wB) * 0.5;
+    eta = normalize(eta + vec3(0.001));
 
-    float len = length(gradMag);
-    if (len > 0.0001) {
-        vec3 N = gradMag / len;// Normalized gradient
-        vec3 omega = texelFetch(readOnlyTexs[3], coord, 0).xyz;
+	// Confinement force: f = e * h * (N x w)
+	vec3 force = ubo.deltaTime * ubo.vortStrength * cross(eta, omega);
 
-        // Confinement force: f = e * h * (N x w)
-        vec3 force = ubo.vortStrength * 1.f / ubo.gridSize * cross(N, omega);
-
-        vec4 vel = texelFetch(readOnlyTexs[0], coord, 0);
-        vel.xyz += force * ubo.deltaTime;
-        imageStore(writeOnlyTexs[0], coord, vel);
-    }
+	vec4 vel = texelFetch(readOnlyTexs[0], coord, 0);
+	vel.xyz += force;
+	imageStore(writeOnlyTexs[0], coord, vel);
 }

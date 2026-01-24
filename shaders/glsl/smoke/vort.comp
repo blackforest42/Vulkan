@@ -42,11 +42,11 @@ void main() {
     vec3 vB = getVelocity(coord - ivec3(0, 0, 1));
     vec3 vF = getVelocity(coord + ivec3(0, 0, 1));
 
-    vec3 invCellSize = 1.0 / ubo.gridSize;
     vec3 curl;
-    curl.x = (vU.z - vD.z - vF.y + vB.y) * 0.5 * invCellSize.x;
-    curl.y = (vF.x - vB.x - vR.z + vL.z) * 0.5 * invCellSize.y;
-    curl.z = (vR.y - vL.y - vU.x + vD.x) * 0.5 * invCellSize.z;
+    curl.x = (vU.z - vD.z - vF.y + vB.y);
+    curl.y = (vF.x - vB.x - vR.z + vL.z);
+    curl.z = (vR.y - vL.y - vU.x + vD.x);
+    curl *= 0.5f;
 
     float magnitude = length(curl);
     imageStore(writeOnlyTexs[3], coord, vec4(curl, magnitude));

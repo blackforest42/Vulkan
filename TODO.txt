@@ -1,18 +1,6 @@
 Jan 22
 TODO:
-    - bug: massive blowup of values (>e+33) somewhere
-        - consider using emission.comp in intervals
-        - tried reducing cell size
 	- add to ImGUI
-		- time delta
-		- jacobi iterations
-		- smoke density emission rate
-		- smoke emission temp
-		- ambient temp
-		- advection dissipation
-		- buoyancy beta
-		- vorticity strength
-		- slip/no slip
 		- boundary types [+/-x, y, z]
 	- Remove layout transition from raymarchCmd() and call it only once after texture creation
 	- Refactor DescriptorLayouts and PipelineLayouts to reuse (same layouts across most shaders)

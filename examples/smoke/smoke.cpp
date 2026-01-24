@@ -22,14 +22,14 @@ struct Vertex {
 
 struct UiFeatures {
   // emission
-  float radius{1.f};
+  float radius{.5f};
   float emissionRate{100.0f};
 
   // Vorticity confinement
-  float vorticityStrength{0.12f};  // Vorticity strength
-                                   // Boundary
-  int useNoSlip{1};                // 0=free-slip, 1=no-slip
-  int jacobiIterationCount{5};
+  float vorticityStrength{0.12f};
+  // Boundary
+  int useNoSlip{1};  // 0=free-slip, 1=no-slip
+  int jacobiIterationCount{1};
 
   // Texture index mappings
   // 0 velocity
@@ -113,8 +113,9 @@ class VulkanExample : public VulkanExampleBase {
 
     struct EmissionUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 2.0f, 5.f,
-                                         COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
+      alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 10.0f,
+                                         COMPUTE_TEXTURE_DIMENSIONS / 10.0f,
+                                         COMPUTE_TEXTURE_DIMENSIONS / 10.0f};
       alignas(4) float sourceRadius{uiFeatures.radius};
       alignas(4) float emissionRate{uiFeatures.emissionRate};
       alignas(4) float deltaTime{TIME_DELTA};
@@ -2378,7 +2379,7 @@ class VulkanExample : public VulkanExampleBase {
         overlay->sliderFloat("Emission Rate", &uiFeatures.emissionRate, 0,
                              1000);
         overlay->sliderFloat("Vorticity Strength",
-                             &uiFeatures.vorticityStrength, 0, 1);
+                             &uiFeatures.vorticityStrength, 0, .24f);
         overlay->sliderInt("Use No Slip", &uiFeatures.useNoSlip, 0, 1);
         overlay->sliderInt("Jacobi Iterations",
                            &uiFeatures.jacobiIterationCount, 1, 60);
@@ -2443,8 +2444,8 @@ class VulkanExample : public VulkanExampleBase {
     camera_.setMovementSpeed(25.f);
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -30.f));
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
-    width_ *= 1.5;
-    height_ *= 1.5;
+    width_ = uint32_t(width_ * 1.5f);
+    height_ = uint32_t(height_ * 1.5f);
 
     apiVersion_ = VK_API_VERSION_1_3;
 
