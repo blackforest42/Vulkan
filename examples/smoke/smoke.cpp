@@ -22,7 +22,7 @@ struct Vertex {
 
 struct UiFeatures {
   // emission
-  float radius{.5f};
+  float radius{.15f};
 
   // Vorticity confinement
   float vorticityStrength{0.12f};
@@ -114,7 +114,7 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 10.0f,
                                          COMPUTE_TEXTURE_DIMENSIONS / 10.0f,
-                                         COMPUTE_TEXTURE_DIMENSIONS / 10.0f};
+                                         COMPUTE_TEXTURE_DIMENSIONS / 4.0f};
       alignas(4) float sourceRadius{uiFeatures.radius};
       alignas(4) float deltaTime{TIME_DELTA};
       alignas(4) float time{0};

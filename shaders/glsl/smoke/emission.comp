@@ -33,11 +33,8 @@ bool isBoundary(ivec3 coord) {
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (isBoundary(coord)) {
-        return;
-    }
 
-    vec3 pos = vec3(coord) + 0.5;
+    vec3 pos = vec3(coord);
     float distSq = dot(pos - ubo.sourceCenter, pos - ubo.sourceCenter);
     float radiusSq = ubo.sourceRadius * ubo.sourceRadius;
 
@@ -49,14 +46,8 @@ void main() {
 
         // Add density (accumulate)
         float saturation = 0.78f;
-        float density = 1.5f*(((sin(ubo.time * 3)*0.5f + 0.5f))*saturation + (1.0f-saturation));
+        float density = 1.5f*(((sin(ubo.time * 2.f/3)*0.5f + 0.5f))*saturation + (1.0f-saturation));
         imageStore(writeOnlyTexs[4], coord, vec4(density));
-
-        // Set temperature
-        float currentTemp = texelFetch(readOnlyTexs[5], coord, 0).r;
-        float emissionTemp = 10.f * falloff;
-        float newTemp = max(currentTemp, emissionTemp);
-        imageStore(writeOnlyTexs[5], coord, vec4(newTemp));
 
         // Add velocity
         float impulseStrength = 0.8f;
