@@ -16,7 +16,7 @@ layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 layout(binding = 2) uniform AdvectionUBO {
     ivec3 gridSize;
     vec3 invGridSize;
-    float deltaTime;
+    float timeStep;
     float dissipation;
 } ubo;
 
@@ -56,7 +56,7 @@ void advectVelocityField(vec3 uvw) {
 vec3 getAdvectedPos(const vec3 uvw) {
     // Backtrace to find where this particle came from
     vec3 vel = texture(readOnlyTexs[0], uvw).xyz;
-    return uvw - vel * ubo.deltaTime;
+    return uvw - vel * ubo.timeStep;
 }
 
 bool isBoundary(ivec3 coord) {

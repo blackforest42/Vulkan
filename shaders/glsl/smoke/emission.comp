@@ -10,7 +10,7 @@ layout(binding = 2) uniform EmissionUBO {
     ivec3 gridSize;
     vec3 sourceCenter;
     float sourceRadius;
-    float deltaTime;
+    float timeStep;
     float time;
 } ubo;
 

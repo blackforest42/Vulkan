@@ -26,9 +26,12 @@ struct UiFeatures {
 
   // Vorticity confinement
   float vorticityStrength{0.12f};
+
   // Boundary
   int useNoSlip{1};  // 0=free-slip, 1=no-slip
   int jacobiIterationCount{1};
+
+  int timeStep{60};
 
   // Texture index mappings
   // 0 velocity
@@ -57,7 +60,6 @@ class VulkanExample : public VulkanExampleBase {
   struct Compute {
     static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 256;
     static constexpr int WORKGROUP_SIZE = 8;
-    static constexpr float TIME_DELTA = 1 / 360.f;
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
@@ -116,20 +118,20 @@ class VulkanExample : public VulkanExampleBase {
                                          COMPUTE_TEXTURE_DIMENSIONS / 10.0f,
                                          COMPUTE_TEXTURE_DIMENSIONS / 4.0f};
       alignas(4) float sourceRadius{uiFeatures.radius};
-      alignas(4) float deltaTime{TIME_DELTA};
+      alignas(4) float deltaTime{1.f / uiFeatures.timeStep};
       alignas(4) float time{0};
     };
 
     struct AdvectionUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(16) glm::vec3 invGridSize{1.f / COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(4) float deltaTime{TIME_DELTA};
+      alignas(4) float deltaTime{1.f / uiFeatures.timeStep};
       alignas(4) float dissipation{0.0f};
     };
 
     struct BuoyancyUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(4) float deltaTime{TIME_DELTA};
+      alignas(4) float deltaTime{1.f / uiFeatures.timeStep};
       alignas(4) float buoyancy{0.5f};
       alignas(4) float ambientTemp{0.f};
     };
@@ -140,7 +142,7 @@ class VulkanExample : public VulkanExampleBase {
 
     struct VortConfinementUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(4) float deltaTime{TIME_DELTA};
+      alignas(4) float deltaTime{1.f / uiFeatures.timeStep};
       alignas(4) float vorticityStrength{uiFeatures.vorticityStrength};
     };
 
@@ -1942,16 +1944,23 @@ class VulkanExample : public VulkanExampleBase {
     compute_.ubos_.emission.time = time;
     compute_.ubos_.emission.sourceRadius =
         compute_.COMPUTE_TEXTURE_DIMENSIONS / 2 * uiFeatures.radius;
+    compute_.ubos_.emission.deltaTime = 1.f / uiFeatures.timeStep;
     memcpy(compute_.uniformBuffers_[currentBuffer_].emission.mapped,
            &compute_.ubos_.emission, sizeof(Compute::EmissionUBO));
 
+    // Advection
+    compute_.ubos_.advection.deltaTime = 1.f / uiFeatures.timeStep;
+
     // Buoyancy
+    compute_.ubos_.buoyancy.deltaTime = 1.f / uiFeatures.timeStep;
     memcpy(compute_.uniformBuffers_[currentBuffer_].buoyancy.mapped,
            &compute_.ubos_.buoyancy, sizeof(Compute::BuoyancyUBO));
 
-    // vort confine
+    // Vorticity Confinement
     compute_.ubos_.vortConfinement.vorticityStrength =
         uiFeatures.vorticityStrength;
+    compute_.ubos_.vortConfinement.deltaTime =
+        1.f / uiFeatures.vorticityStrength;
     memcpy(compute_.uniformBuffers_[currentBuffer_].vortConfinement.mapped,
            &compute_.ubos_.vortConfinement,
            sizeof(Compute::VortConfinementUBO));
@@ -2380,6 +2389,7 @@ class VulkanExample : public VulkanExampleBase {
         overlay->sliderInt("Use No Slip", &uiFeatures.useNoSlip, 0, 1);
         overlay->sliderInt("Jacobi Iterations",
                            &uiFeatures.jacobiIterationCount, 1, 60);
+        overlay->sliderInt("1 / Time Step", &uiFeatures.timeStep, 1, 120);
 
         if (overlay->radioButton("Smoke Texture", &uiFeatures.textureRadioId,
                                  4)) {
