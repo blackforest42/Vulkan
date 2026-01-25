@@ -31,17 +31,21 @@ float getPressure(ivec3 coord) {
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (isBoundary(coord)) {
-        return;
-    }
+    float pCenter = texelFetch(readOnlyTexs[2], coord, 0). r;
 
-    // Get neighboring pressures (treat solid neighbors as 0)
-    float pL = getPressure(coord - ivec3(1, 0, 0));
-    float pR = getPressure(coord + ivec3(1, 0, 0));
-    float pD = getPressure(coord - ivec3(0, 1, 0));
-    float pU = getPressure(coord + ivec3(0, 1, 0));
-    float pB = getPressure(coord - ivec3(0, 0, 1));
-    float pF = getPressure(coord + ivec3(0, 0, 1));
+    const ivec3 LEFT =  coord - ivec3(1, 0, 0);
+    const ivec3 RIGHT=  coord + ivec3(1, 0, 0);
+    const ivec3 DOWN =  coord - ivec3(0, 1, 0);
+    const ivec3 UP   =  coord + ivec3(0, 1, 0);
+    const ivec3 BACK =  coord - ivec3(0, 0, 1);
+    const ivec3 FORW =  coord + ivec3(0, 0, 1);
+
+    float pL = isBoundary(LEFT) ?  pCenter : getPressure(LEFT);
+    float pR = isBoundary(RIGHT)?  pCenter : getPressure(RIGHT);
+    float pD = isBoundary(DOWN) ?  pCenter : getPressure(DOWN);
+    float pU = isBoundary(UP)   ?  pCenter : getPressure(UP);
+    float pB = isBoundary(BACK) ?  pCenter : getPressure(BACK);
+    float pF = isBoundary(FORW) ?  pCenter : getPressure(FORW);
 
     float div = texelFetch(readOnlyTexs[2], coord, 0).r;
 
