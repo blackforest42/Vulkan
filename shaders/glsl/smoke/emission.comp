@@ -10,15 +10,11 @@ layout(binding = 2) uniform EmissionUBO {
     ivec3 gridSize;
     vec3 sourceCenter;
     float sourceRadius;
-    float emissionRate;
     float deltaTime;
     float time;
 } ubo;
 
 const float PI = 3.141592653589793238462643383279502884197;
-
-// temperature is not used
-const float  emissionTemp = 10.f;
 
 // Texture index mappings
 // 0 velocity
@@ -58,7 +54,7 @@ void main() {
 
         // Set temperature
         float currentTemp = texelFetch(readOnlyTexs[5], coord, 0).r;
-        float emissionTemp = emissionTemp * falloff;
+        float emissionTemp = 10.f * falloff;
         float newTemp = max(currentTemp, emissionTemp);
         imageStore(writeOnlyTexs[5], coord, vec4(newTemp));
 

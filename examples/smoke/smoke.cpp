@@ -23,7 +23,6 @@ struct Vertex {
 struct UiFeatures {
   // emission
   float radius{.5f};
-  float emissionRate{100.0f};
 
   // Vorticity confinement
   float vorticityStrength{0.12f};
@@ -117,7 +116,6 @@ class VulkanExample : public VulkanExampleBase {
                                          COMPUTE_TEXTURE_DIMENSIONS / 10.0f,
                                          COMPUTE_TEXTURE_DIMENSIONS / 10.0f};
       alignas(4) float sourceRadius{uiFeatures.radius};
-      alignas(4) float emissionRate{uiFeatures.emissionRate};
       alignas(4) float deltaTime{TIME_DELTA};
       alignas(4) float time{0};
     };
@@ -1944,7 +1942,6 @@ class VulkanExample : public VulkanExampleBase {
     compute_.ubos_.emission.time = time;
     compute_.ubos_.emission.sourceRadius =
         compute_.COMPUTE_TEXTURE_DIMENSIONS / 2 * uiFeatures.radius;
-    compute_.ubos_.emission.emissionRate = uiFeatures.emissionRate;
     memcpy(compute_.uniformBuffers_[currentBuffer_].emission.mapped,
            &compute_.ubos_.emission, sizeof(Compute::EmissionUBO));
 
@@ -2378,8 +2375,6 @@ class VulkanExample : public VulkanExampleBase {
                         graphics_.viewNames);
       if (graphics_.ubos_.march.toggleView == 0) {
         overlay->sliderFloat("Smoke Radius", &uiFeatures.radius, 0, 1);
-        overlay->sliderFloat("Emission Rate", &uiFeatures.emissionRate, 0,
-                             1000);
         overlay->sliderFloat("Vorticity Strength",
                              &uiFeatures.vorticityStrength, 0, .24f);
         overlay->sliderInt("Use No Slip", &uiFeatures.useNoSlip, 0, 1);
