@@ -19,13 +19,6 @@ layout(binding = 2) uniform SimUBO {
 // 4 density
 // 5 temperature
 
-bool isBoundary(ivec3 coord) {
-    if (any(greaterThanEqual(coord, ubo.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0)))) {
-        return true;
-    }
-    return false;
-}
-
 float getVorticityMagnitude(ivec3 coord) {
     // magnitude is stored in w channel from previous compute
     return texelFetch(readOnlyTexs[3], coord, 0).w;
@@ -33,9 +26,6 @@ float getVorticityMagnitude(ivec3 coord) {
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (isBoundary(coord)) {
-        return;
-    }
 
     // Temp vorticity from previous compute
 	vec3 omega = texelFetch(readOnlyTexs[3], coord, 0).xyz;

@@ -8,7 +8,7 @@ layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 layout(binding = 2) uniform SimParams {
     ivec3 gridSize;
     float timeStep;
-    float buoyancyBeta;
+    float buoyancy;
     float ambientTemp;
 } ubo;
 
@@ -29,15 +29,12 @@ bool isBoundary(ivec3 coord) {
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (isBoundary(coord)) {
-        return;
-    }
 
     vec4 vel = texelFetch(readOnlyTexs[0], coord, 0);
     float temp = texelFetch(readOnlyTexs[5], coord, 0).r;
 
     // Buoyancy force: F = beta * (T - T_ambient)
-    float buoyancy = ubo.buoyancyBeta * (temp - ubo.ambientTemp);
+    float buoyancy = ubo.buoyancy* (temp - ubo.ambientTemp);
 
     vel.xyz += buoyancy;
     imageStore(writeOnlyTexs[0], coord, vel);
