@@ -124,6 +124,7 @@ class VulkanExample : public VulkanExampleBase {
 
     struct AdvectionUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
+      alignas(16) glm::vec3 invGridSize{1.f / COMPUTE_TEXTURE_DIMENSIONS};
       alignas(4) float deltaTime{TIME_DELTA};
       alignas(4) float dissipation{0.0f};
     };

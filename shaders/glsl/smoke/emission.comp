@@ -53,7 +53,7 @@ void main() {
 
         // Add density (accumulate)
         float saturation = 0.78f;
-        float density = 1.5f*(((sin(ubo.time + 2.0f * PI/3.0f )*0.5f + 0.5f))*saturation + (1.0f-saturation));
+        float density = 1.5f*(((sin(ubo.time * 3)*0.5f + 0.5f))*saturation + (1.0f-saturation));
         imageStore(writeOnlyTexs[4], coord, vec4(density));
 
         // Set temperature

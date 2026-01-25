@@ -1,5 +1,8 @@
-Jan 22
+Jan 24
 TODO:
+	- massive bug: texelFetch does not LERP, must use texture lookup
+
+Long term:
 	- add to ImGUI
 		- boundary types [+/-x, y, z]
 	- Remove layout transition from raymarchCmd() and call it only once after texture creation
