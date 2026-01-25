@@ -160,6 +160,7 @@ class VulkanExample : public VulkanExampleBase {
 
     struct BoundaryUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
+      alignas(16) glm::vec3 invGridSize{1.f / COMPUTE_TEXTURE_DIMENSIONS};
       // {-X, +X, -Y, +Y,-Z, +Z}  0 = solid, 1 = open
       alignas(16) uint32_t boundaryTypes[6] = {1, 1, 1, 1, 1, 1};
       // 0=free-slip, 1=no-slip
@@ -1348,12 +1349,12 @@ class VulkanExample : public VulkanExampleBase {
 
     vortConfinementCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
-    boundaryCmd(cmdBuffer, /*Velocity*/ 0);
+    // boundaryCmd(cmdBuffer, /*Velocity*/ 0);
     swapTexturesCmd(cmdBuffer);
 
     advectCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
-    boundaryCmd(cmdBuffer);
+    // boundaryCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
 
     divergenceCmd(cmdBuffer);
@@ -1367,12 +1368,12 @@ class VulkanExample : public VulkanExampleBase {
       cmdEndLabel(cmdBuffer);
     }
     cmdEndLabel(cmdBuffer);
-    boundaryCmd(cmdBuffer, /*Pressure*/ 1);
+    // boundaryCmd(cmdBuffer, /*Pressure*/ 1);
     swapTexturesCmd(cmdBuffer);
 
     gradientCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
-    boundaryCmd(cmdBuffer, /*Velocity*/ 0);
+    // boundaryCmd(cmdBuffer, /*Velocity*/ 0);
     swapTexturesCmd(cmdBuffer);
 
     cmdEndLabel(cmdBuffer);

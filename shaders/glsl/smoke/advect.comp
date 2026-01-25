@@ -3,6 +3,13 @@
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
+// Texture index mappings
+// 0 velocity
+// 1 pressure
+// 2 divergence
+// 3 vorticity
+// 4 density
+// 5 temperature
 layout (binding = 0) uniform sampler3D readOnlyTexs[];
 layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 
@@ -17,14 +24,6 @@ bool isBoundary(vec3 uvw);
 vec3 getAdvectedPos(const vec3 uvw);
 void advectScalarField(vec3 uvw, const int idx);
 void advectVelocityField(vec3 uvw);
-
-// Texture index mappings
-// 0 velocity
-// 1 pressure
-// 2 divergence
-// 3 vorticity
-// 4 density
-// 5 temperature
 
 vec3 convertToUvCoord(ivec3 coord) {
     vec3 a = 0.5f * ubo.invGridSize;
@@ -70,9 +69,6 @@ bool isBoundary(ivec3 coord) {
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (isBoundary(coord)) {
-        return;
-    }
     vec3 uvw = convertToUvCoord(coord);
 
     // advect velocity (with itself)
