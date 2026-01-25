@@ -1264,8 +1264,9 @@ class VulkanExample : public VulkanExampleBase {
     computePipelineCreateInfo = vks::initializers::computePipelineCreateInfo(
         compute_.pipelineLayouts_.vorticity, 0);
     computePipelineCreateInfo.layout = compute_.pipelineLayouts_.vorticity;
-    computePipelineCreateInfo.stage = loadShader(
-        getShadersPath() + "smoke/vort.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+    computePipelineCreateInfo.stage =
+        loadShader(getShadersPath() + "smoke/vorticity.comp.spv",
+                   VK_SHADER_STAGE_COMPUTE_BIT);
     VK_CHECK_RESULT(vkCreateComputePipelines(
         device_, pipelineCache_, 1, &computePipelineCreateInfo, nullptr,
         &compute_.pipelines_.vorticity));
