@@ -9,9 +9,10 @@ import sys
 parser = argparse.ArgumentParser(description='Compile all GLSL shaders in a folder')
 parser.add_argument('folder', type=str, help='path to folder containing GLSL shaders')
 parser.add_argument('--glslang', type=str, help='path to glslangvalidator executable')
-parser.add_argument('--g', action='store_true', help='compile with debug symbols')
+parser.add_argument('--no-debug', action='store_true', help='compile without debug symbols')
 parser.add_argument('--recursive', '-r', action='store_true', help='recursively compile shaders in subdirectories')
 args = parser.parse_args()
+
 
 def findGlslang():
     def isExe(path):
@@ -31,7 +32,9 @@ def findGlslang():
 
     sys.exit("Could not find glslangvalidator executable on PATH, and was not specified with --glslang")
 
-file_extensions = tuple([".vert", ".frag", ".comp", ".geom", ".tesc", ".tese", ".rgen", ".rchit", ".rmiss", ".mesh", ".task"])
+
+file_extensions = tuple(
+    [".vert", ".frag", ".comp", ".geom", ".tesc", ".tese", ".rgen", ".rchit", ".rmiss", ".mesh", ".task"])
 
 # Validate folder argument
 if not os.path.isdir(args.folder):
@@ -58,13 +61,13 @@ for root, dirs, files in file_iterator:
             input_file = os.path.join(root, file)
             output_file = input_file + ".spv"
 
-            add_params = ""
-            if args.g:
-                add_params = "-g"
+            add_params = "-g"
+            if args.no_debug:
+                add_params = ""
 
             # Ray tracing shaders require a different target environment
             if file.endswith(".rgen") or file.endswith(".rchit") or file.endswith(".rmiss"):
-               add_params = add_params + " --target-env vulkan1.2"
+                add_params = add_params + " --target-env vulkan1.2"
             # Same goes for samples that use ray queries
             if root.endswith("rayquery") and file.endswith(".frag"):
                 add_params = add_params + " --target-env vulkan1.2"
