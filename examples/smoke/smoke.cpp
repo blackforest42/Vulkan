@@ -29,7 +29,7 @@ struct UiFeatures {
 
   // Boundary
   int useNoSlip{1};  // 0=free-slip, 1=no-slip
-  int jacobiIterationCount{1};
+  int jacobiIterationCount{20};
 
   int timeStep{60};
 
@@ -2383,7 +2383,7 @@ class VulkanExample : public VulkanExampleBase {
       if (graphics_.ubos_.march.toggleView == 0) {
         overlay->sliderFloat("Smoke Radius", &uiFeatures.radius, 0, 1);
         overlay->sliderFloat("Vorticity Strength",
-                             &uiFeatures.vorticityStrength, .01f, .5);
+                             &uiFeatures.vorticityStrength, .01f, 1.f);
         overlay->sliderInt("Jacobi Iterations",
                            &uiFeatures.jacobiIterationCount, 1, 60);
         overlay->sliderInt("1 / Time Step", &uiFeatures.timeStep, 1, 360);

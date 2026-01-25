@@ -1,6 +1,8 @@
 Jan 24
 TODO:
-	- massive bug: texelFetch does not LERP, must use texture lookup
+	- bug: smoke drifts diagonally even with straight upward emission.
+	- continue fixing boundary cases
+	- consider using a different smoke shape besides gauss splat
 
 Long term:
 	- add to ImGUI

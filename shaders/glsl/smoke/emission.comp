@@ -46,9 +46,9 @@ void main() {
 
         // Add velocity
         float impulseStrength = 0.8f;
-        float impulseDx = 0.8f * impulseStrength;
+        float impulseDx = 0.0f * impulseStrength;
         float impulseDy = 0.8f * impulseStrength;
-        float impulseDz = 0.8f * impulseStrength;
+        float impulseDz = 0.0f * impulseStrength;
         imageStore(writeOnlyTexs[0], coord, vec4(impulseDx, impulseDy, impulseDz, 1.));
     }
 }
