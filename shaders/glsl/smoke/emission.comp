@@ -24,13 +24,6 @@ const float PI = 3.141592653589793238462643383279502884197;
 // 4 density
 // 5 temperature
 
-bool isBoundary(ivec3 coord) {
-    if (any(greaterThanEqual(coord, ubo.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0)))) {
-        return true;
-    }
-    return false;
-}
-
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
 
@@ -47,13 +40,14 @@ void main() {
         // Add density (accumulate)
         float saturation = 0.78f;
         // Creates a time varying "pulse"
-        float density = 1.5f*(((sin(ubo.time * 3.f)* 0.5f + 0.5f))*saturation + (1.0f - saturation));
+        float density = 1.5f * (((sin(ubo.time * 3.0f)* 0.5f + 0.5f))
+            * saturation + (1.0f - saturation));
         imageStore(writeOnlyTexs[4], coord, vec4(density));
 
         // Add velocity
         float impulseStrength = 0.8f;
-        float impulseDx = 0.5f * impulseStrength;
-        float impulseDy = 0.5f * impulseStrength;
+        float impulseDx = 0.8f * impulseStrength;
+        float impulseDy = 0.8f * impulseStrength;
         float impulseDz = 0.8f * impulseStrength;
         imageStore(writeOnlyTexs[0], coord, vec4(impulseDx, impulseDy, impulseDz, 1.));
     }

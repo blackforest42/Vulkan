@@ -18,7 +18,7 @@ layout(binding = 2) uniform SimParams {
 // 5 temperature
 
 bool isBoundary(ivec3 coord) {
-    if (any(greaterThanEqual(coord, ubo.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0)))) {
+    if (any(greaterThan(coord, ubo.gridSize - 1)) || any(lessThan(coord, ivec3(0)))) {
         return true;
     }
     return false;
@@ -28,27 +28,49 @@ float getPressure(ivec3 coord) {
     return texelFetch(readOnlyTexs[1], coord, 0).r;
 }
 
+vec3 getVelocity(ivec3 coord) {
+    return texelFetch(readOnlyTexs[0], coord, 0).xyz;
+}
+
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    if (isBoundary(coord)) {
-        imageStore(writeOnlyTexs[0], coord, vec4(0));
-        return;
-    }
+
+    const ivec3 LEFT =  coord - ivec3(1, 0, 0);
+    const ivec3 RIGHT=  coord + ivec3(1, 0, 0);
+    const ivec3 DOWN =  coord - ivec3(0, 1, 0);
+    const ivec3 UP   =  coord + ivec3(0, 1, 0);
+    const ivec3 BACK =  coord - ivec3(0, 0, 1);
+    const ivec3 FORW =  coord + ivec3(0, 0, 1);
 
     // Compute pressure gradient
-    float pL = getPressure(coord - ivec3(1, 0, 0));
-    float pR = getPressure(coord + ivec3(1, 0, 0));
-    float pD = getPressure(coord - ivec3(0, 1, 0));
-    float pU = getPressure(coord + ivec3(0, 1, 0));
-    float pB = getPressure(coord - ivec3(0, 0, 1));
-    float pF = getPressure(coord + ivec3(0, 0, 1));
+    float pL = getPressure(LEFT);
+    float pR = getPressure(RIGHT);
+    float pD = getPressure(DOWN);
+    float pU = getPressure(UP);
+    float pB = getPressure(BACK);
+    float pF = getPressure(FORW);
 
     // Divide by two for derivative between 2 cells
     // e.g. (f(x + 1) - f(x)) / 2
     vec3 gradP = vec3(pR - pL, pU - pD, pF - pB) * 0.5f;
 
     // Subtract gradient
-    vec4 vel = texelFetch(readOnlyTexs[0], coord, 0);
+    vec3 vel = texelFetch(readOnlyTexs[0], coord, 0).xyz;
     vel.xyz -= gradP;
-    imageStore(writeOnlyTexs[0], coord, vel);
+
+    vec3 vLeft  = isBoundary(LEFT)  ? vec3(0) : getVelocity(LEFT);
+    vec3 vRight = isBoundary(RIGHT) ? vec3(0) : getVelocity(RIGHT);
+    vec3 vDown  = isBoundary(DOWN)  ? vec3(0) : getVelocity(DOWN);
+    vec3 vUp    = isBoundary(UP)    ? vec3(0) : getVelocity(UP);
+    vec3 vBack  = isBoundary(BACK)  ? vec3(0) : getVelocity(BACK);
+    vec3 vForw  = isBoundary(FORW)  ? vec3(0) : getVelocity(FORW);
+
+    vec3 vMask;
+    vMask.x = (isBoundary(LEFT)  || isBoundary(RIGHT)) ? 0 : 1;
+    vMask.y = (isBoundary(UP)    || isBoundary(DOWN)) ? 0 : 1;
+    vMask.z = (isBoundary(BACK)  || isBoundary(FORW)) ? 0 : 1;
+
+    vel = (vMask * vel);
+
+    imageStore(writeOnlyTexs[0], coord, vec4(vel, 1));
 }

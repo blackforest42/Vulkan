@@ -22,7 +22,7 @@ struct Vertex {
 
 struct UiFeatures {
   // emission
-  float radius{.15f};
+  float radius{.5f};
 
   // Vorticity confinement
   float vorticityStrength{0.12f};
@@ -114,9 +114,9 @@ class VulkanExample : public VulkanExampleBase {
 
     struct EmissionUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 10.0f,
+      alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 2.0f,
                                          COMPUTE_TEXTURE_DIMENSIONS / 10.0f,
-                                         COMPUTE_TEXTURE_DIMENSIONS / 4.0f};
+                                         COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
       alignas(4) float sourceRadius{uiFeatures.radius};
       alignas(4) float deltaTime{1.f / uiFeatures.timeStep};
       alignas(4) float time{0};
@@ -2378,31 +2378,19 @@ class VulkanExample : public VulkanExampleBase {
 
   virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) override {
     if (overlay->header("Settings")) {
-      glm::vec3 pos = camera_.position_;
-      overlay->text("Camera Position: %f, %f, %f", pos.x, pos.y, pos.z);
       overlay->comboBox("Select View", &graphics_.ubos_.march.toggleView,
                         graphics_.viewNames);
       if (graphics_.ubos_.march.toggleView == 0) {
         overlay->sliderFloat("Smoke Radius", &uiFeatures.radius, 0, 1);
         overlay->sliderFloat("Vorticity Strength",
-                             &uiFeatures.vorticityStrength, 0, .24f);
-        overlay->sliderInt("Use No Slip", &uiFeatures.useNoSlip, 0, 1);
+                             &uiFeatures.vorticityStrength, .01f, .5);
         overlay->sliderInt("Jacobi Iterations",
                            &uiFeatures.jacobiIterationCount, 1, 60);
-        overlay->sliderInt("1 / Time Step", &uiFeatures.timeStep, 1, 120);
+        overlay->sliderInt("1 / Time Step", &uiFeatures.timeStep, 1, 360);
 
-        if (overlay->radioButton("Smoke Texture", &uiFeatures.textureRadioId,
-                                 4)) {
-          // uiFeatures.textureRadioId = 4;
-        }
-        if (overlay->radioButton("Velocity Texture", &uiFeatures.textureRadioId,
-                                 0)) {
-          // uiFeatures.textureRadioId = 0;
-        }
-        if (overlay->radioButton("Pressure Texture", &uiFeatures.textureRadioId,
-                                 1)) {
-          // uiFeatures.textureRadioId = 1;
-        }
+        overlay->radioButton("Smoke Texture", &uiFeatures.textureRadioId, 4);
+        overlay->radioButton("Velocity Texture", &uiFeatures.textureRadioId, 0);
+        overlay->radioButton("Pressure Texture", &uiFeatures.textureRadioId, 1);
       }
 
       overlay->checkBox("Toggle Rotation", &uiFeatures.toggleRotation);
