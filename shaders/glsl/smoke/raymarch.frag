@@ -35,7 +35,7 @@ const float MAX_STEPS = 200;
 const float SMOKE_DENSITY = 1.0f;
 const float CLOUD_SIZE = .5f;
 const vec3 SMOKE_COLOR = vec3(1.0);
-const float DENSITY_SCALE = 1.0f;
+const float DENSITY_SCALE = 5.0f;
 
 vec4 permute(vec4 x);
 vec4 taylorInvSqrt(vec4 r);
