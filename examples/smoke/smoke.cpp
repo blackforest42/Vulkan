@@ -22,7 +22,9 @@ struct Vertex {
 
 struct UiFeatures {
   // emission
-  float radius{.25f};
+  float radius{.1};
+
+  float smokeDissipation{0.9995f};
 
   // Vorticity confinement
   float vorticityStrength{0.12f};
@@ -58,7 +60,7 @@ class VulkanExample : public VulkanExampleBase {
 
   // Handles all compute pipelines
   struct Compute {
-    static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 256;
+    static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 128;
     static constexpr int WORKGROUP_SIZE = 8;
 
     // Used to check if compute and graphics queue
@@ -126,7 +128,7 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
       alignas(16) glm::vec3 invGridSize{1.f / COMPUTE_TEXTURE_DIMENSIONS};
       alignas(4) float deltaTime{1.f / uiFeatures.timeStep};
-      alignas(4) float dissipation{0.0f};
+      alignas(4) float dissipation{uiFeatures.smokeDissipation};
     };
 
     struct BuoyancyUBO {
@@ -156,6 +158,7 @@ class VulkanExample : public VulkanExampleBase {
 
     struct GradientUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
+      alignas(4) float dissipation{uiFeatures.smokeDissipation};
     };
 
     struct BoundaryUBO {
@@ -1940,6 +1943,7 @@ class VulkanExample : public VulkanExampleBase {
 
     // Advection
     compute_.ubos_.advection.deltaTime = 1.f / uiFeatures.timeStep;
+    compute_.ubos_.advection.dissipation = uiFeatures.smokeDissipation;
 
     // Buoyancy
     compute_.ubos_.buoyancy.deltaTime = 1.f / uiFeatures.timeStep;
@@ -1954,10 +1958,10 @@ class VulkanExample : public VulkanExampleBase {
            &compute_.ubos_.vortConfinement,
            sizeof(Compute::VortConfinementUBO));
 
-    // Boundary
-    compute_.ubos_.boundary.useNoSlip = uiFeatures.useNoSlip;
-    memcpy(compute_.uniformBuffers_[currentBuffer_].boundary.mapped,
-           &compute_.ubos_.boundary, sizeof(Compute::BoundaryUBO));
+    // Gradient
+    compute_.ubos_.gradient.dissipation = uiFeatures.smokeDissipation;
+    memcpy(compute_.uniformBuffers_[currentBuffer_].gradient.mapped,
+           &compute_.ubos_.gradient, sizeof(Compute::GradientUBO));
   }
 
   void prepareGraphics() {
@@ -2371,8 +2375,10 @@ class VulkanExample : public VulkanExampleBase {
                         graphics_.viewNames);
       if (graphics_.ubos_.march.toggleView == 0) {
         overlay->sliderFloat("Smoke Radius", &uiFeatures.radius, 0, 1);
+        overlay->sliderFloat("Smoke Dissipation", &uiFeatures.smokeDissipation,
+                             0, 1);
         overlay->sliderFloat("Vorticity Strength",
-                             &uiFeatures.vorticityStrength, 0.0f, 1.f);
+                             &uiFeatures.vorticityStrength, 0.0f, .24f);
         overlay->sliderInt("Jacobi Iterations",
                            &uiFeatures.jacobiIterationCount, 1, 60);
         overlay->sliderInt("1 / Time Step", &uiFeatures.timeStep, 1, 360);

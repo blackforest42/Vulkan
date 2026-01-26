@@ -64,14 +64,14 @@ void advectScalarField(vec3 uvw, const int idx) {
     }
 
     vec3 nuvw = getAdvectedPos(uvw);
-    float scalar = texture(readOnlyTexs[idx], nuvw).r;
+    float scalar = ubo.dissipation * texture(readOnlyTexs[idx], nuvw).r;
     imageStore(writeOnlyTexs[idx], coord, vec4(scalar));
 }
 
 void advectVelocityField(vec3 uvw) {
     vec3 nuvw = getAdvectedPos(uvw);
     ivec3 coord = convertToGridCoord(uvw);
-    vec4 vel = texture(readOnlyTexs[0], nuvw);
+    vec4 vel = ubo.dissipation * texture(readOnlyTexs[0], nuvw);
     imageStore(writeOnlyTexs[0], coord, vel);
 }
 

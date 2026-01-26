@@ -2,13 +2,6 @@
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
-layout (binding = 0) uniform sampler3D readOnlyTexs[];
-layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
-
-layout(binding = 2) uniform SimParams {
-    ivec3 gridSize;
-} ubo;
-
 // Texture index mappings
 // 0 velocity
 // 1 pressure
@@ -16,6 +9,13 @@ layout(binding = 2) uniform SimParams {
 // 3 vorticity
 // 4 density
 // 5 temperature
+layout (binding = 0) uniform sampler3D readOnlyTexs[];
+layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
+
+layout(binding = 2) uniform SimParams {
+    ivec3 gridSize;
+    float dissipation;
+} ubo;
 
 bool isBoundary(ivec3 coord) {
     return (any(greaterThanEqual(coord, ubo.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0))));
@@ -54,7 +54,7 @@ void main() {
 
     // Divide by two for derivative between 2 cells
     // e.g. (f(x + 1) - f(x)) / 2
-    vec3 gradP = vec3(pR - pL, pU - pD, pF - pB) * 0.5f;
+    vec3 gradP = ubo.dissipation * 0.5f * vec3(pR - pL, pU - pD, pF - pB);
 
     // Subtract gradient
     vel.xyz -= gradP;
