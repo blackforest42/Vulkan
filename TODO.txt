@@ -1,16 +1,14 @@
 Jan 24
 TODO:
-    - use MacCormack advection
-    - fix temperature + buoyancy
+    - remove dependency on  "assets" subrepo
 
 Long term:
     - how to make it interactive with mouse?
     - texture dimensions in UI?
-    - smoke intensity in UI?
-    - field arrows?
 	- add to ImGUI
 		- boundary types [+/-x, y, z]
 	- Remove layout transition from raymarchCmd() and call it only once after texture creation
 	- Refactor DescriptorLayouts and PipelineLayouts to reuse (same layouts across most shaders)
     - micro-randomness to smoke plume position
-    - remove dependency on  "assets" subrepo
+    - use BFECC MacCormack advection
+        - needs three passes: forward, backward, maccormack

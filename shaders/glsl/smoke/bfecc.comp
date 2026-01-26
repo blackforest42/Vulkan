@@ -1,0 +1,215 @@
+#version 450
+#extension GL_EXT_nonuniform_qualifier : enable
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+// Texture index mappings
+// 0 velocity
+// 1 pressure
+// 2 divergence
+// 3 vorticity
+// 4 density
+// 5 temperature
+// 6+ auxiliary textures for MacCormack (phi_hat for each field)
+layout (binding = 0) uniform sampler3D readOnlyTexs[];
+layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
+
+layout(binding = 2) uniform AdvectionUBO {
+    ivec3 gridSize;
+    vec3 invGridSize;
+    float timeStep;
+    float dissipation;
+    int pass;// 0 = forward, 1 = backward, 2 = final correction
+} ubo;
+
+vec3 getAdvectedPos(const vec3 uvw, float timeStepScale);
+void advectScalarFieldMacCormack(vec3 uvw, const int idx, const int auxIdx);
+void advectVelocityFieldMacCormack(vec3 uvw, const int auxIdx);
+bool isBoundary(ivec3 coord);
+vec3 convertToUvCoord(ivec3 coord);
+ivec3 convertToGridCoord(vec3 uvw);
+float clampToNeighborhood(float value, vec3 uvw, int texIdx);
+vec3 clampToNeighborhoodVec(vec3 value, vec3 uvw, int texIdx);
+void finalizeMacCormack(vec3 uvw);
+
+void main() {
+    ivec3 coord = ivec3(gl_GlobalInvocationID);
+    vec3 uvw = convertToUvCoord(coord);
+
+    if (ubo.pass == 0) {
+        // Pass 0: Forward advection (phi_n -> phi_hat)
+        // Advect velocity
+        advectVelocityFieldMacCormack(uvw, 6);// aux velocity
+
+        // Advect density
+        advectScalarFieldMacCormack(uvw, 4, 7);// aux density
+
+        // Advect temperature
+        advectScalarFieldMacCormack(uvw, 5, 8);// aux temperature
+
+    } else if (ubo.pass == 1) {
+        // Pass 1: Backward advection (phi_hat -> phi_tilde)
+        // Use negative timestep for backward trace
+        // These write to the SAME auxiliary textures
+        advectVelocityFieldMacCormack(uvw, 6);
+        advectScalarFieldMacCormack(uvw, 4, 7);
+        advectScalarFieldMacCormack(uvw, 5, 8);
+
+    } else if (ubo.pass == 2) {
+        // Pass 2: Final MacCormack correction
+        // phi_n+1 = phi_hat + 0.5 * (phi_n - phi_tilde)
+        finalizeMacCormack(uvw);
+    }
+}
+
+bool isBoundary(ivec3 coord) {
+    return (any(greaterThanEqual(coord, ubo.gridSize - 1)) ||
+    any(lessThanEqual(coord, ivec3(0))));
+}
+
+vec3 convertToUvCoord(ivec3 coord) {
+    vec3 a = 0.5f * ubo.invGridSize;
+    return (1.f * coord / ubo.gridSize) + a;
+}
+
+ivec3 convertToGridCoord(vec3 uvw) {
+    vec3 a = 0.5f * ubo.invGridSize;
+    return ivec3((uvw - a) * ubo.gridSize);
+}
+
+void advectScalarFieldMacCormack(vec3 uvw, const int idx, const int auxIdx) {
+    ivec3 coord = ivec3(gl_GlobalInvocationID);
+    if (isBoundary(coord)) {
+        imageStore(writeOnlyTexs[auxIdx], coord, vec4(0));
+        return;
+    }
+
+    float timeStepScale = (ubo.pass == 1) ? -1.0 : 1.0;
+    vec3 nuvw = getAdvectedPos(uvw, timeStepScale);
+
+    int sourceIdx = (ubo.pass == 0) ? idx : auxIdx;
+    float scalar = ubo.dissipation * texture(readOnlyTexs[sourceIdx], nuvw).r;
+
+    imageStore(writeOnlyTexs[auxIdx], coord, vec4(scalar));
+}
+
+void advectVelocityFieldMacCormack(vec3 uvw, const int auxIdx) {
+    ivec3 coord = ivec3(gl_GlobalInvocationID);
+
+    float timeStepScale = (ubo.pass == 1) ? -1.0 : 1.0;
+    vec3 nuvw = getAdvectedPos(uvw, timeStepScale);
+
+    int sourceIdx = (ubo.pass == 0) ? 0 : auxIdx;
+    vec4 vel = ubo.dissipation * texture(readOnlyTexs[sourceIdx], nuvw);
+
+    imageStore(writeOnlyTexs[auxIdx], coord, vel);
+}
+
+void finalizeMacCormack(vec3 uvw) {
+    ivec3 coord = ivec3(gl_GlobalInvocationID);
+
+    // Check boundaries - use semi-Lagrangian at boundaries
+    vec3 diff = abs(vec3(ubo.gridSize / 2) - vec3(coord));
+    vec3 halfDim = vec3(ubo.gridSize / 2);
+
+    bool nearBoundary = (diff.x > (halfDim.x - 4)) ||
+    (diff.y > (halfDim.y - 4)) ||
+    (diff.z > (halfDim.z - 4));
+
+    if (nearBoundary || isBoundary(coord)) {
+        // Fall back to semi-Lagrangian at boundaries
+        vec3 nuvw = getAdvectedPos(uvw, 1.0);
+
+        // Velocity
+        vec4 vel = ubo.dissipation * texture(readOnlyTexs[0], nuvw);
+        imageStore(writeOnlyTexs[0], coord, vel);
+
+        // Density
+        float density = ubo.dissipation * texture(readOnlyTexs[4], nuvw).r;
+        imageStore(writeOnlyTexs[4], coord, vec4(density));
+
+        // Temperature
+        float temp = ubo.dissipation * texture(readOnlyTexs[5], nuvw).r;
+        imageStore(writeOnlyTexs[5], coord, vec4(temp));
+
+        return;
+    }
+
+    // MacCormack correction: phi_n+1 = phi_hat + 0.5 * (phi_n - phi_tilde)
+
+    // Velocity
+    vec3 vel_n = texture(readOnlyTexs[0], uvw).xyz;// original
+    vec3 vel_hat = texture(readOnlyTexs[6], uvw).xyz;// forward advected
+    vec3 vel_tilde = texture(readOnlyTexs[6], uvw).xyz;// back advected (overwrites aux)
+    vec3 vel_corrected = vel_hat + 0.5 * (vel_n - vel_tilde);
+
+    // Clamp to neighborhood to prevent overshoots
+    vel_corrected = clampToNeighborhoodVec(vel_corrected, uvw, 0);
+    vel_corrected *= ubo.dissipation;
+    imageStore(writeOnlyTexs[0], coord, vec4(vel_corrected, 0));
+
+    // Density
+    float density_n = texture(readOnlyTexs[4], uvw).r;
+    float density_hat = texture(readOnlyTexs[7], uvw).r;
+    float density_tilde = texture(readOnlyTexs[7], uvw).r;
+    float density_corrected = density_hat + 0.5 * (density_n - density_tilde);
+    density_corrected = clampToNeighborhood(density_corrected, uvw, 4);
+    density_corrected = clamp(density_corrected * ubo.dissipation, 0.0, 1.0);
+    imageStore(writeOnlyTexs[4], coord, vec4(density_corrected));
+
+    // Temperature
+    float temp_n = texture(readOnlyTexs[5], uvw).r;
+    float temp_hat = texture(readOnlyTexs[8], uvw).r;
+    float temp_tilde = texture(readOnlyTexs[8], uvw).r;
+    float temp_corrected = temp_hat + 0.5 * (temp_n - temp_tilde);
+    temp_corrected = clampToNeighborhood(temp_corrected, uvw, 5);
+    temp_corrected = clamp(temp_corrected * ubo.dissipation, 0.0, 1.0);
+    imageStore(writeOnlyTexs[5], coord, vec4(temp_corrected));
+}
+
+// Clamp scalar value to min/max of neighborhood to prevent overshoots
+float clampToNeighborhood(float value, vec3 uvw, int texIdx) {
+    float minVal = 1e10;
+    float maxVal = -1e10;
+
+    // Sample 3x3x3 neighborhood
+    for (int z = -1; z <= 1; z++) {
+        for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+                vec3 offset = vec3(x, y, z) * ubo.invGridSize;
+                float scalar = texture(readOnlyTexs[texIdx], uvw + offset).r;
+                minVal = min(minVal, scalar);
+                maxVal = max(maxVal, scalar);
+            }
+        }
+    }
+
+    return clamp(value, minVal, maxVal);
+}
+
+// Clamp vector value to min/max of neighborhood (component-wise)
+vec3 clampToNeighborhoodVec(vec3 value, vec3 uvw, int texIdx) {
+    vec3 minVal = vec3(1e10);
+    vec3 maxVal = vec3(-1e10);
+
+    // Sample 3x3x3 neighborhood
+    for (int z = -1; z <= 1; z++) {
+        for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+                vec3 offset = vec3(x, y, z) * ubo.invGridSize;
+                vec3 scalar = texture(readOnlyTexs[texIdx], uvw + offset).xyz;
+                minVal = min(minVal, scalar);
+                maxVal = max(maxVal, scalar);
+            }
+        }
+    }
+
+    return clamp(value, minVal, maxVal);
+}
+
+vec3 getAdvectedPos(const vec3 uvw, float timeStepScale) {
+    // Backtrace to find where this particle came from
+    // timeStepScale is 1.0 for forward, -1.0 for backward
+    vec3 vel = texture(readOnlyTexs[0], uvw).xyz;
+    return uvw - vel * ubo.timeStep * timeStepScale;
+}
