@@ -34,7 +34,7 @@ const float MAX_STEPS = 100;
 const float SMOKE_DENSITY = 1.0f;
 const float CLOUD_SIZE = .5f;
 const vec3 SMOKE_COLOR = vec3(1.0);
-const float INTENSITY_SCALE = 5.0f;
+const float INTENSITY_SCALE = 5.f;
 
 vec4 permute(vec4 x);
 vec4 taylorInvSqrt(vec4 r);
@@ -93,7 +93,8 @@ vec4 rayMarchVelocity(vec3 rayOrigin, vec3 rayDir) {
         vec3 velocity = texture(readOnlyTexs[ubo.texId], vec3(pos.x, 1.0 - pos.y, pos.z)).rgb;
 
         // Calculate magnitude to use as density/opacity
-        float magnitude = length(velocity);
+        // 3x is to see the texture field a bit clearer.
+        float magnitude = 3.f * length(velocity);
 
         if (magnitude > 0.001) {
             // 1. Calculate opacity based on velocity magnitude
@@ -102,14 +103,11 @@ vec4 rayMarchVelocity(vec3 rayOrigin, vec3 rayDir) {
             // 2. Map velocity direction to color
             // Option A: Use the absolute direction for RGB (X=R, Y=G, Z=B)
             // We use abs() or (v*0.5+0.5) to ensure values are in [0,1] range
-            vec3 dirColor = (normalize(velocity) + vec3(1)) * 0.5f;
-
-            // Apply the chosen color to the source
-            vec3 srcRGB = dirColor * srcA;
+            vec3 srcRGB = (normalize(velocity) + vec3(1)) * 0.5f;
 
             // Standard front-to-back alpha blending
             float weight = 1.0 - final_color.a;
-            final_color.rgb += weight * srcRGB;
+            final_color.rgb += weight * srcRGB * srcA;
             final_color.a += weight * srcA;
 
             if (final_color.a >= 0.95) break;
@@ -146,13 +144,16 @@ vec4 rayMarchScalar(vec3 rayOrigin, vec3 rayDir) {
 
             vec3 srcRGB;
             if (ubo.texId == 5) {
+                // Temperature
                 // Map the normalized scalar to a thermal color palette
                 srcRGB = INTENSITY_SCALE * getBlackbodyColor(clamp(scalar, 0.0, 1.0));
             } else if (ubo.texId == 1) {
+                // Pressure
                 float pScalar = 3.0 * abs(scalar);
                 srcA = clamp(pScalar * INTENSITY_SCALE * STEP_SIZE, 0.0, 1.0);
                 srcRGB = SMOKE_COLOR;
             } else {
+                // Smoke density
                 srcRGB = SMOKE_COLOR;
             }
 
