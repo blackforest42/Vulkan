@@ -29,8 +29,7 @@ struct UiFeatures {
   // Vorticity confinement
   float vorticityStrength{0.12f};
 
-  // Boundary
-  int useNoSlip{1};  // 0=free-slip, 1=no-slip
+  // Jacobi
   int jacobiIterationCount{20};
 
   int timeStep{30};
@@ -60,7 +59,7 @@ class VulkanExample : public VulkanExampleBase {
 
   // Handles all compute pipelines
   struct Compute {
-    static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 128;
+    static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 256;
     static constexpr int WORKGROUP_SIZE = 8;
 
     // Used to check if compute and graphics queue
@@ -167,7 +166,7 @@ class VulkanExample : public VulkanExampleBase {
       // {-X, +X, -Y, +Y,-Z, +Z}  0 = solid, 1 = open
       alignas(16) uint32_t boundaryTypes[6] = {1, 1, 1, 1, 1, 1};
       // 0=free-slip, 1=no-slip
-      alignas(16) int useNoSlip{uiFeatures.useNoSlip};
+      alignas(16) int useNoSlip{1};
     };
 
     struct BoundaryPushConstants {
@@ -1342,9 +1341,6 @@ class VulkanExample : public VulkanExampleBase {
 
     emissionCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
-
-    // buoyancyCmd(cmdBuffer);
-    // swapTexturesCmd(cmdBuffer);
 
     vorticityCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
