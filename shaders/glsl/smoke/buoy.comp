@@ -21,10 +21,7 @@ layout(binding = 2) uniform SimParams {
 // 5 temperature
 
 bool isBoundary(ivec3 coord) {
-    if (any(greaterThanEqual(coord, ubo.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0)))) {
-        return true;
-    }
-    return false;
+    return (any(greaterThanEqual(coord, ubo.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0))));
 }
 
 void main() {
@@ -34,7 +31,7 @@ void main() {
     float temp = texelFetch(readOnlyTexs[5], coord, 0).r;
 
     // Buoyancy force: F = beta * (T - T_ambient)
-    float buoyancy = ubo.buoyancy* (temp - ubo.ambientTemp);
+    float buoyancy = ubo.buoyancy * (temp - ubo.ambientTemp);
 
     vel.xyz += buoyancy;
     imageStore(writeOnlyTexs[0], coord, vel);

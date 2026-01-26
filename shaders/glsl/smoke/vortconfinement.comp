@@ -8,7 +8,7 @@ layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 layout(binding = 2) uniform SimUBO {
     ivec3 gridSize;
     float timeStep;
-    float vortStrength;// Vorticity strength
+    float vorticityStrength;
 } ubo;
 
 // Texture index mappings
@@ -28,7 +28,7 @@ void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
 
     // Temp vorticity from previous compute
-	vec3 omega = texelFetch(readOnlyTexs[3], coord, 0).xyz;
+    vec3 omega = texelFetch(readOnlyTexs[3], coord, 0).xyz;
 
     // Compute gradient of vorticity magnitude
     float wL = getVorticityMagnitude(coord - ivec3(1, 0, 0));
@@ -41,10 +41,10 @@ void main() {
     vec3 eta = vec3(wR - wL, wU - wD, wF - wB) * 0.5;
     eta = normalize(eta + vec3(0.001));
 
-	// Confinement force: f = e * h * (N x w)
-	vec3 force = ubo.timeStep * ubo.vortStrength * cross(eta, omega);
+    // Confinement force: f = e * h * (N x w)
+    vec3 force = ubo.timeStep * ubo.vorticityStrength * cross(eta, omega);
 
-	vec4 vel = texelFetch(readOnlyTexs[0], coord, 0);
-	vel.xyz += force;
-	imageStore(writeOnlyTexs[0], coord, vel);
+    vec4 vel = texelFetch(readOnlyTexs[0], coord, 0);
+    vel.xyz += force;
+    imageStore(writeOnlyTexs[0], coord, vel);
 }

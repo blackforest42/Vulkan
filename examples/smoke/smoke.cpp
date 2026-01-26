@@ -25,7 +25,7 @@ struct UiFeatures {
   float radius{.25f};
 
   // Vorticity confinement
-  float vorticityStrength{0.12f};
+  float vorticityStrength{0.0f};
 
   // Boundary
   int useNoSlip{1};  // 0=free-slip, 1=no-slip
@@ -1343,11 +1343,11 @@ class VulkanExample : public VulkanExampleBase {
     // buoyancyCmd(cmdBuffer);
     // swapTexturesCmd(cmdBuffer);
 
-    // vorticityCmd(cmdBuffer);
-    // swapTexturesCmd(cmdBuffer);
-    //
-    // vortConfinementCmd(cmdBuffer);
-    // swapTexturesCmd(cmdBuffer);
+    vorticityCmd(cmdBuffer);
+    swapTexturesCmd(cmdBuffer);
+
+    vortConfinementCmd(cmdBuffer);
+    swapTexturesCmd(cmdBuffer);
 
     advectCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
@@ -2373,7 +2373,7 @@ class VulkanExample : public VulkanExampleBase {
       if (graphics_.ubos_.march.toggleView == 0) {
         overlay->sliderFloat("Smoke Radius", &uiFeatures.radius, 0, 1);
         overlay->sliderFloat("Vorticity Strength",
-                             &uiFeatures.vorticityStrength, .01f, 1.f);
+                             &uiFeatures.vorticityStrength, 0.0f, 1.f);
         overlay->sliderInt("Jacobi Iterations",
                            &uiFeatures.jacobiIterationCount, 1, 60);
         overlay->sliderInt("1 / Time Step", &uiFeatures.timeStep, 1, 360);
