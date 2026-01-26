@@ -1,7 +1,9 @@
 Jan 24
 TODO:
-    - fix huge smoke plume at start
+    - resize window crash
+    - use MacCormack advection
 Long term:
+    - how to make it interactive with mouse?
     - texture dimensions in UI?
     - smoke intensity in UI?
     - field arrows?

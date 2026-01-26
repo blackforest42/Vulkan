@@ -22,7 +22,7 @@ struct Vertex {
 
 struct UiFeatures {
   // emission
-  float radius{.25};
+  float radius{.15};
 
   float smokeDissipation{0.9995f};
 

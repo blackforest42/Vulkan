@@ -28,7 +28,7 @@ float getPressure(ivec3 coord) {
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
-    float pCenter = texelFetch(readOnlyTexs[2], coord, 0). r;
+    float pCenter = getPressure(coord);
 
     const ivec3 LEFT  =  coord - ivec3(1, 0, 0);
     const ivec3 RIGHT =  coord + ivec3(1, 0, 0);
