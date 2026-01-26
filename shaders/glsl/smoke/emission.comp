@@ -35,7 +35,7 @@ void main() {
     // We only calculate if within radius to save cycles and prevent infinite tails
     if (distSq < radiusSq) {
         // Gaussian Falloff: exp(-dist^2 / (2 * sigma^2))
-        float sigmaSq2 = radiusSq / 4.5;
+        float sigmaSq2 = radiusSq / 1.f;
         float falloff = exp(-distSq / sigmaSq2);
 
         // Add density (accumulate)

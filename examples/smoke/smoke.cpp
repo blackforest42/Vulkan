@@ -23,7 +23,7 @@ struct Vertex {
 struct UiFeatures {
   // emission
   float smokeRadius{.25};
-  float emissionTemperature{2.f};
+  float emissionTemperature{1.f};
 
   float smokeDissipation{0.995f};
 
@@ -2391,13 +2391,11 @@ class VulkanExample : public VulkanExampleBase {
         overlay->sliderFloat("Smoke Dissipation", &uiFeatures.smokeDissipation,
                              0, 1);
         overlay->sliderFloat("Smoke Emission Temp",
-                             &uiFeatures.emissionTemperature, 0, 5.f);
+                             &uiFeatures.emissionTemperature, 0, 1.5f);
         overlay->sliderFloat("Smoke Weight Coeff.", &uiFeatures.weightCoeff, 0,
                              0.5f);
         overlay->sliderFloat("Smoke Buoyancy Coeff.", &uiFeatures.buoyancyCoeff,
                              0, 0.5f);
-        overlay->sliderFloat("Vorticity Strength",
-                             &uiFeatures.vorticityStrength, 0.0f, .25f);
         overlay->sliderInt("Jacobi Iterations",
                            &uiFeatures.jacobiIterationCount, 1, 60);
         overlay->sliderInt("1 / Time Step", &uiFeatures.timeStep, 1, 360);

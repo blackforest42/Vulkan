@@ -30,7 +30,7 @@ layout(binding = 2) uniform sampler2D preMarchBackTex;
 layout(binding = 3) uniform sampler3D readOnlyTexs[];
 
 const float STEP_SIZE = 0.01;
-const float MAX_STEPS = 200;
+const float MAX_STEPS = 100;
 const float SMOKE_DENSITY = 1.0f;
 const float CLOUD_SIZE = .5f;
 const vec3 SMOKE_COLOR = vec3(1.0);
@@ -44,6 +44,7 @@ vec4 rayMarchScalar(vec3 rayOrigin, vec3 rayDirection);
 vec4 rayMarchSDF(vec3 rayOrigin, vec3 rayDir);
 vec4 rayMarchVelocity(vec3 rayOrigin, vec3 rayDir);
 bool intersectBox(vec3 rayOrigin, vec3 rayDir, out float tNear, out float tFar);
+vec3 getBlackbodyColor(float t);
 
 void main() {
     vec4 entry = texture(preMarchFrontTex, inUV);
@@ -137,29 +138,59 @@ vec4 rayMarchScalar(vec3 rayOrigin, vec3 rayDir) {
 
     // March from entry to exit
     for (int i = 0; i < MAX_STEPS && t < tFar; i++) {
-        float scalar = texture(readOnlyTexs[ubo.texId], vec3(pos.x, 1 - pos.y, pos.z)).r;
-        if (ubo.texId == 1) {
-            // Pressure can be negative. also scale up intensity.
-            scalar = 3 * abs(scalar);
-        }
-        // Small threshold to skip empty space
+        // Sample temperature from your 3D texture (Binding 3, Index 5)
+        float scalar = texture(readOnlyTexs[ubo.texId], vec3(pos.x, 1.0 - pos.y, pos.z)).r;
+
         if (scalar > 0.001) {
             float srcA = clamp(scalar * INTENSITY_SCALE * STEP_SIZE, 0.0, 1.0);
-            vec3 srcRGB = SMOKE_COLOR * srcA;
+
+            vec3 srcRGB;
+            if (ubo.texId == 5) {
+                // Map the normalized scalar to a thermal color palette
+                srcRGB = INTENSITY_SCALE * getBlackbodyColor(clamp(scalar, 0.0, 1.0));
+            } else if (ubo.texId == 1) {
+                float pScalar = 3.0 * abs(scalar);
+                srcA = clamp(pScalar * INTENSITY_SCALE * STEP_SIZE, 0.0, 1.0);
+                srcRGB = SMOKE_COLOR;
+            } else {
+                srcRGB = SMOKE_COLOR;
+            }
 
             float weight = 1.0 - final_color.a;
-            final_color.rgb += weight * srcRGB;
+            final_color.rgb += weight * srcRGB * srcA;
             final_color.a += weight * srcA;
 
             if (final_color.a >= 0.95) break;
         }
 
-        // Step along ray parametrically
         t += STEP_SIZE;
         pos = rayOrigin + rayDir * t;
+
     }
 
     return final_color;
+}
+
+vec3 getBlackbodyColor(float t) {
+    // Standard "Ironbow" style thermal gradient
+    // t should be normalized 0.0 to 1.0
+    vec3 color;
+    color.r = clamp(smoothstep(0.0, 0.3, t), 0.0, 1.0);
+    color.g = clamp(smoothstep(0.3, 0.7, t), 0.0, 1.0);
+    color.b = clamp(smoothstep(0.7, 1.0, t), 0.0, 1.0) + (smoothstep(0.0, 0.2, t) - smoothstep(0.2, 0.5, t));
+
+    // Manual mapping for a standard thermal look:
+    // Dark Blue (0) -> Purple -> Red -> Orange -> Yellow -> White (1)
+    vec3 c1 = vec3(0.0, 0.0, 0.05);// Black/Blue
+    vec3 c2 = vec3(0.5, 0.0, 0.5);// Purple
+    vec3 c3 = vec3(1.0, 0.1, 0.0);// Red/Orange
+    vec3 c4 = vec3(1.0, 0.9, 0.0);// Yellow
+    vec3 c5 = vec3(1.0, 1.0, 1.0);// White
+
+    if (t < 0.25) return mix(c1, c2, t * 4.0);
+    if (t < 0.5)  return mix(c2, c3, (t - 0.25) * 4.0);
+    if (t < 0.75) return mix(c3, c4, (t - 0.5) * 4.0);
+    return mix(c4, c5, (t - 0.75) * 4.0);
 }
 
 bool intersectBox(vec3 rayOrigin, vec3 rayDir, out float tNear, out float tFar) {
