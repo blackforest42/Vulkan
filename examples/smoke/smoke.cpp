@@ -25,7 +25,7 @@ struct UiFeatures {
   float radius{.25f};
 
   // Vorticity confinement
-  float vorticityStrength{0.0f};
+  float vorticityStrength{0.12f};
 
   // Boundary
   int useNoSlip{1};  // 0=free-slip, 1=no-slip
@@ -1949,8 +1949,7 @@ class VulkanExample : public VulkanExampleBase {
     // Vorticity Confinement
     compute_.ubos_.vortConfinement.vorticityStrength =
         uiFeatures.vorticityStrength;
-    compute_.ubos_.vortConfinement.deltaTime =
-        1.f / uiFeatures.vorticityStrength;
+    compute_.ubos_.vortConfinement.deltaTime = 1.f / uiFeatures.timeStep;
     memcpy(compute_.uniformBuffers_[currentBuffer_].vortConfinement.mapped,
            &compute_.ubos_.vortConfinement,
            sizeof(Compute::VortConfinementUBO));
