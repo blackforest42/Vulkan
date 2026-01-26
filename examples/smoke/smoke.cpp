@@ -1987,9 +1987,10 @@ class VulkanExample : public VulkanExampleBase {
     {
       // Use a fence to ensure that compute command buffer has finished
       // executing before using it again
-      vkWaitForFences(device_, 1, &compute_.fences[currentBuffer_], VK_TRUE,
-                      UINT64_MAX);
-      vkResetFences(device_, 1, &compute_.fences[currentBuffer_]);
+      VK_CHECK_RESULT(vkWaitForFences(
+          device_, 1, &compute_.fences[currentBuffer_], VK_TRUE, UINT64_MAX));
+      VK_CHECK_RESULT(
+          vkResetFences(device_, 1, &compute_.fences[currentBuffer_]));
 
       buildComputeCommandBuffer();
 
@@ -2424,6 +2425,44 @@ class VulkanExample : public VulkanExampleBase {
     // With VK_KHR_dynamic_rendering we no longer need a frame buffer
     // LEAVE THIS EMPTY
   }
+
+  void recreateVelocityFieldBuffers() {
+    vkDeviceWaitIdle(device_);
+
+    // Destroy old buffers
+    vkDestroyImageView(device_, graphics_.preMarchPass_.incoming.imageView,
+                       nullptr);
+    vkDestroyImage(device_, graphics_.preMarchPass_.incoming.image, nullptr);
+    vkFreeMemory(device_, graphics_.preMarchPass_.incoming.memory, nullptr);
+
+    vkDestroyImageView(device_, graphics_.preMarchPass_.outgoing.imageView,
+                       nullptr);
+    vkDestroyImage(device_, graphics_.preMarchPass_.outgoing.image, nullptr);
+    vkFreeMemory(device_, graphics_.preMarchPass_.outgoing.memory, nullptr);
+
+    // Recreate with new dimensions
+    createVelocityFieldBuffer(graphics_.preMarchPass_.incoming);
+    createVelocityFieldBuffer(graphics_.preMarchPass_.outgoing);
+
+    // Update descriptors to point to new image views
+    for (auto i = 0; i < graphics_.uniformBuffers_.size(); i++) {
+      std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptorSets_[i].rayMarch,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              /*binding id*/ 1, &graphics_.preMarchPass_.incoming.descriptor),
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptorSets_[i].rayMarch,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              /*binding id*/ 2, &graphics_.preMarchPass_.outgoing.descriptor),
+      };
+      vkUpdateDescriptorSets(device_,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
+    }
+  }
+
+  void windowResized() override { recreateVelocityFieldBuffers(); }
 
   VulkanExample() : VulkanExampleBase() {
     title_ = "Smoke Simulation";
