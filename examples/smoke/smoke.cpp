@@ -22,9 +22,14 @@ struct Vertex {
 
 struct UiFeatures {
   // emission
-  float radius{.15};
+  float smokeRadius{.25};
+  float emissionTemperature{2.f};
 
   float smokeDissipation{0.995f};
+
+  // buoyancy
+  float weightCoeff{0.1f};
+  float buoyancyCoeff{0.1f};
 
   // Vorticity confinement
   float vorticityStrength{0.12f};
@@ -38,6 +43,7 @@ struct UiFeatures {
   // 0 velocity
   // 1 pressure
   // 4 density
+  // 5 temperature
   int textureRadioId{4};
 
   bool toggleRotation{false};
@@ -118,9 +124,9 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 sourceCenter{COMPUTE_TEXTURE_DIMENSIONS / 2.0f,
                                          COMPUTE_TEXTURE_DIMENSIONS / 10.0f,
                                          COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
-      alignas(4) float sourceRadius{uiFeatures.radius};
+      alignas(4) float sourceRadius{uiFeatures.smokeRadius};
       alignas(4) float ambientTemp{0.f};
-      alignas(4) float emissionTemp{1.f};
+      alignas(4) float emissionTemp{uiFeatures.emissionTemperature};
       alignas(4) float deltaTime{1.f / uiFeatures.timeStep};
       alignas(4) float time{0};
     };
@@ -134,9 +140,8 @@ class VulkanExample : public VulkanExampleBase {
 
     struct BuoyancyUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(16) glm::vec3 gravity{0.f, -1.f, 0.f};
-      alignas(4) float weightCoeff{0.5f};
-      alignas(4) float buoyancyCoeff{0.5f};
+      alignas(4) float weightCoeff{uiFeatures.weightCoeff};
+      alignas(4) float buoyancyCoeff{uiFeatures.buoyancyCoeff};
       alignas(4) float ambientTemp{0.f};
       alignas(4) float deltaTime{1.f / uiFeatures.timeStep};
     };
@@ -1939,8 +1944,9 @@ class VulkanExample : public VulkanExampleBase {
 
     // Emission
     compute_.ubos_.emission.time = time;
+    compute_.ubos_.emission.emissionTemp = uiFeatures.emissionTemperature;
     compute_.ubos_.emission.sourceRadius =
-        compute_.COMPUTE_TEXTURE_DIMENSIONS / 2 * uiFeatures.radius;
+        compute_.COMPUTE_TEXTURE_DIMENSIONS / 2 * uiFeatures.smokeRadius;
     compute_.ubos_.emission.deltaTime = 1.f / uiFeatures.timeStep;
     memcpy(compute_.uniformBuffers_[currentBuffer_].emission.mapped,
            &compute_.ubos_.emission, sizeof(Compute::EmissionUBO));
@@ -1951,6 +1957,8 @@ class VulkanExample : public VulkanExampleBase {
 
     // Buoyancy
     compute_.ubos_.buoyancy.deltaTime = 1.f / uiFeatures.timeStep;
+    compute_.ubos_.buoyancy.weightCoeff = uiFeatures.weightCoeff;
+    compute_.ubos_.buoyancy.buoyancyCoeff = uiFeatures.buoyancyCoeff;
     memcpy(compute_.uniformBuffers_[currentBuffer_].buoyancy.mapped,
            &compute_.ubos_.buoyancy, sizeof(Compute::BuoyancyUBO));
 
@@ -2379,17 +2387,25 @@ class VulkanExample : public VulkanExampleBase {
       overlay->comboBox("Select View", &graphics_.ubos_.march.toggleView,
                         graphics_.viewNames);
       if (graphics_.ubos_.march.toggleView == 0) {
-        overlay->sliderFloat("Smoke Radius", &uiFeatures.radius, 0, 1);
+        overlay->sliderFloat("Smoke Radius", &uiFeatures.smokeRadius, 0, 1);
         overlay->sliderFloat("Smoke Dissipation", &uiFeatures.smokeDissipation,
                              0, 1);
+        overlay->sliderFloat("Smoke Emission Temp",
+                             &uiFeatures.emissionTemperature, 0, 5.f);
+        overlay->sliderFloat("Smoke Weight Coeff.", &uiFeatures.weightCoeff, 0,
+                             0.5f);
+        overlay->sliderFloat("Smoke Buoyancy Coeff.", &uiFeatures.buoyancyCoeff,
+                             0, 0.5f);
         overlay->sliderFloat("Vorticity Strength",
-                             &uiFeatures.vorticityStrength, 0.0f, 0.5f);
+                             &uiFeatures.vorticityStrength, 0.0f, .25f);
         overlay->sliderInt("Jacobi Iterations",
                            &uiFeatures.jacobiIterationCount, 1, 60);
         overlay->sliderInt("1 / Time Step", &uiFeatures.timeStep, 1, 360);
 
         overlay->radioButton("Smoke Texture", &uiFeatures.textureRadioId, 4);
         overlay->radioButton("Velocity Texture", &uiFeatures.textureRadioId, 0);
+        overlay->radioButton("Temperature Texture", &uiFeatures.textureRadioId,
+                             5);
         overlay->radioButton("Pressure Texture", &uiFeatures.textureRadioId, 1);
       }
 

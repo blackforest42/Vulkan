@@ -14,26 +14,24 @@ layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
 
 layout(binding = 2) uniform SimParams {
     ivec3 gridSize;
-    vec3 gravity;
     float weightCoeff;
     float buoyancyCoeff;
-    float ambientTemp;
+    float ambientTemperature;
     float timeStep;
 } ubo;
-
-bool isBoundary(ivec3 coord) {
-    return (any(greaterThanEqual(coord, ubo.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0))));
-}
 
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
 
     vec4 vel = texelFetch(readOnlyTexs[0], coord, 0);
-    float temp = texelFetch(readOnlyTexs[5], coord, 0).r;
     float density = texelFetch(readOnlyTexs[4], coord, 0).r;
+    float smokeTemperature = texelFetch(readOnlyTexs[5], coord, 0).r;
 
-    float buoyancyMagnitude = -ubo.weightCoeff * density + ubo.buoyancyCoeff * (temp - ubo.ambientTemp);
-    vec3 buoyancyForce = buoyancyMagnitude * ubo.gravity;
+    // Total buoyancy = down force from weight + up force from temperature buoyancy
+    float buoyancyMagnitude = -ubo.weightCoeff * density + ubo.buoyancyCoeff *
+    (smokeTemperature - ubo.ambientTemperature);
+    vec3 upDir = vec3(0, 1, 0);
+    vec3 buoyancyForce = buoyancyMagnitude * upDir;
 
     vel.xyz += buoyancyForce * ubo.timeStep;
 
