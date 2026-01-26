@@ -3,13 +3,6 @@
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
-layout (binding = 0) uniform sampler3D readOnlyTexs[];
-layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
-
-layout(binding = 2) uniform SimParams {
-    ivec3 gridSize;
-} ubo;
-
 // Texture index mappings
 // 0 velocity
 // 1 pressure
@@ -17,12 +10,16 @@ layout(binding = 2) uniform SimParams {
 // 3 vorticity
 // 4 density
 // 5 temperature
+layout (binding = 0) uniform sampler3D readOnlyTexs[];
+layout (binding = 1) uniform writeonly image3D writeOnlyTexs[];
+
+layout(binding = 2) uniform SimParams {
+    ivec3 gridSize;
+} ubo;
 
 bool isBoundary(ivec3 coord) {
-    if (any(greaterThanEqual(coord, ubo.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0)))) {
-        return true;
-    }
-    return false;
+    return (any(greaterThanEqual(coord, ubo.gridSize - 1)) ||
+    any(lessThanEqual(coord, ivec3(0))));
 }
 
 float getPressure(ivec3 coord) {
@@ -33,19 +30,19 @@ void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
     float pCenter = texelFetch(readOnlyTexs[2], coord, 0). r;
 
-    const ivec3 LEFT =  coord - ivec3(1, 0, 0);
-    const ivec3 RIGHT=  coord + ivec3(1, 0, 0);
-    const ivec3 DOWN =  coord - ivec3(0, 1, 0);
-    const ivec3 UP   =  coord + ivec3(0, 1, 0);
-    const ivec3 BACK =  coord - ivec3(0, 0, 1);
-    const ivec3 FORW =  coord + ivec3(0, 0, 1);
+    const ivec3 LEFT  =  coord - ivec3(1, 0, 0);
+    const ivec3 RIGHT =  coord + ivec3(1, 0, 0);
+    const ivec3 DOWN  =  coord - ivec3(0, 1, 0);
+    const ivec3 UP    =  coord + ivec3(0, 1, 0);
+    const ivec3 BACK  =  coord - ivec3(0, 0, 1);
+    const ivec3 FORW  =  coord + ivec3(0, 0, 1);
 
-    float pL = isBoundary(LEFT) ?  pCenter : getPressure(LEFT);
-    float pR = isBoundary(RIGHT)?  pCenter : getPressure(RIGHT);
-    float pD = isBoundary(DOWN) ?  pCenter : getPressure(DOWN);
-    float pU = isBoundary(UP)   ?  pCenter : getPressure(UP);
-    float pB = isBoundary(BACK) ?  pCenter : getPressure(BACK);
-    float pF = isBoundary(FORW) ?  pCenter : getPressure(FORW);
+    float pL = isBoundary(LEFT)  ?  pCenter : getPressure(LEFT);
+    float pR = isBoundary(RIGHT) ?  pCenter : getPressure(RIGHT);
+    float pD = isBoundary(DOWN)  ?  pCenter : getPressure(DOWN);
+    float pU = isBoundary(UP)    ?  pCenter : getPressure(UP);
+    float pB = isBoundary(BACK)  ?  pCenter : getPressure(BACK);
+    float pF = isBoundary(FORW)  ?  pCenter : getPressure(FORW);
 
     float div = texelFetch(readOnlyTexs[2], coord, 0).r;
 

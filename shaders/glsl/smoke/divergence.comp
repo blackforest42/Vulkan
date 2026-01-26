@@ -18,10 +18,7 @@ layout(binding = 2) uniform SimUBO {
 } ubo;
 
 bool isBoundary(ivec3 coord) {
-    if (any(greaterThanEqual(coord, ubo.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0)))) {
-        return true;
-    }
-    return false;
+    return (any(greaterThanEqual(coord, ubo.gridSize - 1)) || any(lessThanEqual(coord, ivec3(0))));
 }
 
 vec3 getVelocity(ivec3 coord) {
@@ -31,19 +28,19 @@ vec3 getVelocity(ivec3 coord) {
 void main() {
     ivec3 coord = ivec3(gl_GlobalInvocationID);
 
-    const ivec3 LEFT =  coord - ivec3(1, 0, 0);
-    const ivec3 RIGHT=  coord + ivec3(1, 0, 0);
-    const ivec3 DOWN =  coord - ivec3(0, 1, 0);
-    const ivec3 UP   =  coord + ivec3(0, 1, 0);
-    const ivec3 BACK =  coord - ivec3(0, 0, 1);
-    const ivec3 FORW =  coord + ivec3(0, 0, 1);
+    const ivec3 LEFT  =  coord - ivec3(1, 0, 0);
+    const ivec3 RIGHT =  coord + ivec3(1, 0, 0);
+    const ivec3 DOWN  =  coord - ivec3(0, 1, 0);
+    const ivec3 UP    =  coord + ivec3(0, 1, 0);
+    const ivec3 BACK  =  coord - ivec3(0, 0, 1);
+    const ivec3 FOR   =  coord + ivec3(0, 0, 1);
 
     vec3 vL = isBoundary(LEFT)  ? vec3(0) : getVelocity(LEFT);
     vec3 vR = isBoundary(RIGHT) ? vec3(0) : getVelocity(RIGHT);
     vec3 vD = isBoundary(DOWN)  ? vec3(0) : getVelocity(DOWN);
     vec3 vU = isBoundary(UP)    ? vec3(0) : getVelocity(UP);
     vec3 vB = isBoundary(BACK)  ? vec3(0) : getVelocity(BACK);
-    vec3 vF = isBoundary(FORW)  ? vec3(0) : getVelocity(FORW);
+    vec3 vF = isBoundary(FOR)   ? vec3(0) : getVelocity(FOR);
 
     // Divide by two for derivative between 2 cells
     // e.g. (f(x + 1) - f(x)) / 2

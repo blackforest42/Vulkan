@@ -10,19 +10,5 @@ Long term:
 	- Remove layout transition from raymarchCmd() and call it only once after texture creation
 	- Refactor DescriptorLayouts and PipelineLayouts to reuse (same layouts across most shaders)
 
-python3 compileshaders.py --g dirname
-
-glslc -g raymarch.vert -o raymarch.vert.spv
-glslc -g raymarch.frag -o raymarch.frag.spv
-glslc -g premarch.vert -o premarch.vert.spv
-glslc -g premarch.frag -o premarch.frag.spv
-glslc -g advect.comp -o advect.comp.spv
-glslc -g buoy.comp -o buoy.comp.spv
-glslc -g vort.comp -o vort.comp.spv
-glslc -g vortconfinement.comp -o vortconfinement.comp.spv
-glslc -g divergence.comp -o divergence.comp.spv
-glslc -g jacobi.comp -o jacobi.comp.spv
-glslc -g gradient.comp -o gradient.comp.spv
-glslc -g boundary.comp -o boundary.comp.spv
-glslc -g emission.comp -o emission.comp.spv
-
+// compile shader sub-directory with debug symbols (ON by default)
+python3 compileshaders.py dirname

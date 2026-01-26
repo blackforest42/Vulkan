@@ -22,7 +22,7 @@ struct Vertex {
 
 struct UiFeatures {
   // emission
-  float radius{.5f};
+  float radius{.25f};
 
   // Vorticity confinement
   float vorticityStrength{0.12f};
@@ -31,7 +31,7 @@ struct UiFeatures {
   int useNoSlip{1};  // 0=free-slip, 1=no-slip
   int jacobiIterationCount{20};
 
-  int timeStep{60};
+  int timeStep{30};
 
   // Texture index mappings
   // 0 velocity
@@ -1342,20 +1342,14 @@ class VulkanExample : public VulkanExampleBase {
 
     // buoyancyCmd(cmdBuffer);
     // swapTexturesCmd(cmdBuffer);
-    //  boundaryCmd(cmdBuffer, /*Velocity*/ 0);
-    //  swapTexturesCmd(cmdBuffer);
 
-    vorticityCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
-
-    vortConfinementCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
-    // boundaryCmd(cmdBuffer, /*Velocity*/ 0);
-    swapTexturesCmd(cmdBuffer);
+    // vorticityCmd(cmdBuffer);
+    // swapTexturesCmd(cmdBuffer);
+    //
+    // vortConfinementCmd(cmdBuffer);
+    // swapTexturesCmd(cmdBuffer);
 
     advectCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
-    // boundaryCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
 
     divergenceCmd(cmdBuffer);
@@ -1365,16 +1359,11 @@ class VulkanExample : public VulkanExampleBase {
       std::string text_label = "iteration: " + std::to_string(i);
       cmdBeginLabel(cmdBuffer, text_label.c_str(), {.3f, 0.5f, 0.8f, 1.f});
       jacobiCmd(cmdBuffer);
-      swapTexturesCmd(cmdBuffer);
       cmdEndLabel(cmdBuffer);
+      swapTexturesCmd(cmdBuffer);
     }
-    cmdEndLabel(cmdBuffer);
-    // boundaryCmd(cmdBuffer, /*Pressure*/ 1);
-    swapTexturesCmd(cmdBuffer);
 
     gradientCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
-    // boundaryCmd(cmdBuffer, /*Velocity*/ 0);
     swapTexturesCmd(cmdBuffer);
 
     cmdEndLabel(cmdBuffer);
