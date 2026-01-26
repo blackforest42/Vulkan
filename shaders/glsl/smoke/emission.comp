@@ -17,6 +17,8 @@ layout(binding = 2) uniform EmissionUBO {
     ivec3 gridSize;
     vec3 sourceCenter;
     float sourceRadius;
+    float ambientTemp;
+    float emissionTemp;
     float timeStep;
     float time;
 } ubo;
@@ -42,6 +44,12 @@ void main() {
         float density = 1.5f * (((sin(ubo.time / 2.f)* 0.5f + 0.5f))
         * saturation + (1.0f - saturation));
         imageStore(writeOnlyTexs[4], coord, vec4(density));
+
+        // Set temperature (take maximum of current and emission temp)
+        float currentTemp = texelFetch(readOnlyTexs[5], coord, 0).r;
+        float emissionTemp = ubo.ambientTemp + ubo.emissionTemp * falloff;
+        float newTemp = max(currentTemp, emissionTemp);
+        imageStore(writeOnlyTexs[5], coord, vec4(newTemp));
 
         // Add velocity
         float impulseStrength = 0.8f;

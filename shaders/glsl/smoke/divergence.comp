@@ -35,15 +35,14 @@ void main() {
     const ivec3 BACK  =  coord - ivec3(0, 0, 1);
     const ivec3 FOR   =  coord + ivec3(0, 0, 1);
 
-    vec3 vL = isBoundary(LEFT)  ? vec3(0) : getVelocity(LEFT);
-    vec3 vR = isBoundary(RIGHT) ? vec3(0) : getVelocity(RIGHT);
-    vec3 vD = isBoundary(DOWN)  ? vec3(0) : getVelocity(DOWN);
-    vec3 vU = isBoundary(UP)    ? vec3(0) : getVelocity(UP);
-    vec3 vB = isBoundary(BACK)  ? vec3(0) : getVelocity(BACK);
-    vec3 vF = isBoundary(FOR)   ? vec3(0) : getVelocity(FOR);
+    vec3 vL = isBoundary(LEFT)  ?  vec3(0) : getVelocity(LEFT);
+    vec3 vR = isBoundary(RIGHT) ?  vec3(0) : getVelocity(RIGHT);
+    vec3 vD = isBoundary(DOWN)  ?  vec3(0) : getVelocity(DOWN);
+    vec3 vU = isBoundary(UP)    ?  vec3(0) : getVelocity(UP);
+    vec3 vB = isBoundary(BACK)  ?  vec3(0) : getVelocity(BACK);
+    vec3 vF = isBoundary(FOR)   ?  vec3(0) : getVelocity(FOR);
 
-    // Divide by two for derivative between 2 cells
-    // e.g. (f(x + 1) - f(x)) / 2
+    // Divide by two for difference quotient
     vec3 x = vec3(0.5f);
     float div = (x.x * (vR.x - vL.x) + x.y * (vU.y - vD.y) + x.z * (vF.z - vB.z));
 

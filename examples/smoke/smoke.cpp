@@ -119,6 +119,8 @@ class VulkanExample : public VulkanExampleBase {
                                          COMPUTE_TEXTURE_DIMENSIONS / 10.0f,
                                          COMPUTE_TEXTURE_DIMENSIONS / 2.0f};
       alignas(4) float sourceRadius{uiFeatures.radius};
+      alignas(4) float ambientTemp{0.f};
+      alignas(4) float emissionTemp{1.f};
       alignas(4) float deltaTime{1.f / uiFeatures.timeStep};
       alignas(4) float time{0};
     };
@@ -132,9 +134,11 @@ class VulkanExample : public VulkanExampleBase {
 
     struct BuoyancyUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
-      alignas(4) float deltaTime{1.f / uiFeatures.timeStep};
-      alignas(4) float buoyancy{0.5f};
+      alignas(16) glm::vec3 gravity{0.f, -1.f, 0.f};
+      alignas(4) float weightCoeff{0.5f};
+      alignas(4) float buoyancyCoeff{0.5f};
       alignas(4) float ambientTemp{0.f};
+      alignas(4) float deltaTime{1.f / uiFeatures.timeStep};
     };
 
     struct VorticityUBO {
@@ -1340,6 +1344,9 @@ class VulkanExample : public VulkanExampleBase {
     cmdBeginLabel(cmdBuffer, "Begin Compute Pipelines", {.5f, 0.2f, 3.f, 1.f});
 
     emissionCmd(cmdBuffer);
+    swapTexturesCmd(cmdBuffer);
+
+    buoyancyCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);
 
     vorticityCmd(cmdBuffer);

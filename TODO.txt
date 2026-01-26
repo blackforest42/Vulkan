@@ -1,7 +1,8 @@
 Jan 24
 TODO:
-    - resize window crash
     - use MacCormack advection
+    - fix temperature + buoyancy
+
 Long term:
     - how to make it interactive with mouse?
     - texture dimensions in UI?
@@ -12,4 +13,4 @@ Long term:
 	- Remove layout transition from raymarchCmd() and call it only once after texture creation
 	- Refactor DescriptorLayouts and PipelineLayouts to reuse (same layouts across most shaders)
     - micro-randomness to smoke plume position
-    - add back buoyancy?
+    - remove dependency on  "assets" subrepo
