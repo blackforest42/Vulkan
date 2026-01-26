@@ -24,7 +24,7 @@ struct UiFeatures {
   // emission
   float radius{.15};
 
-  float smokeDissipation{0.90f};
+  float smokeDissipation{0.995f};
 
   // Vorticity confinement
   float vorticityStrength{0.12f};
@@ -2376,7 +2376,7 @@ class VulkanExample : public VulkanExampleBase {
         overlay->sliderFloat("Smoke Dissipation", &uiFeatures.smokeDissipation,
                              0, 1);
         overlay->sliderFloat("Vorticity Strength",
-                             &uiFeatures.vorticityStrength, 0.0f, 1.f);
+                             &uiFeatures.vorticityStrength, 0.0f, 0.5f);
         overlay->sliderInt("Jacobi Iterations",
                            &uiFeatures.jacobiIterationCount, 1, 60);
         overlay->sliderInt("1 / Time Step", &uiFeatures.timeStep, 1, 360);
