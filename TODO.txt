@@ -1,14 +1,11 @@
 Jan 24
 TODO:
-	- bug: smoke drifts diagonally even with straight upward emission.
-	- continue fixing boundary cases
-	- consider using a different smoke shape besides gauss splat
-
+    - fix huge smoke plume at start
 Long term:
+    - micro-randomness to smoke plume position
+    - smoke color/intensity in UI?
+    - field arrows?
 	- add to ImGUI
 		- boundary types [+/-x, y, z]
 	- Remove layout transition from raymarchCmd() and call it only once after texture creation
 	- Refactor DescriptorLayouts and PipelineLayouts to reuse (same layouts across most shaders)
-
-// compile shader sub-directory with debug symbols (ON by default)
-python3 compileshaders.py dirname

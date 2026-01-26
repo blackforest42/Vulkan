@@ -22,7 +22,7 @@ struct Vertex {
 
 struct UiFeatures {
   // emission
-  float radius{.1};
+  float radius{.25};
 
   float smokeDissipation{0.9995f};
 
@@ -1365,6 +1365,7 @@ class VulkanExample : public VulkanExampleBase {
       cmdEndLabel(cmdBuffer);
       swapTexturesCmd(cmdBuffer);
     }
+    cmdEndLabel(cmdBuffer);
 
     gradientCmd(cmdBuffer);
     swapTexturesCmd(cmdBuffer);

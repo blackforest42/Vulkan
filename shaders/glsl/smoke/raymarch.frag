@@ -14,6 +14,9 @@ layout(binding = 0) uniform RayMarchUBO {
     vec2 screenRes;
     float time;
     int toggleView;
+    uint texId;
+}
+ubo;
 
 // Texture index mappings
 // 0 velocity
@@ -22,10 +25,6 @@ layout(binding = 0) uniform RayMarchUBO {
 // 3 vorticity
 // 4 density
 // 5 temperature
-    uint texId;
-}
-ubo;
-
 layout(binding = 1) uniform sampler2D preMarchFrontTex;
 layout(binding = 2) uniform sampler2D preMarchBackTex;
 layout(binding = 3) uniform sampler3D readOnlyTexs[];
@@ -35,7 +34,7 @@ const float MAX_STEPS = 200;
 const float SMOKE_DENSITY = 1.0f;
 const float CLOUD_SIZE = .5f;
 const vec3 SMOKE_COLOR = vec3(1.0);
-const float DENSITY_SCALE = 5.0f;
+const float INTENSITY_SCALE = 5.0f;
 
 vec4 permute(vec4 x);
 vec4 taylorInvSqrt(vec4 r);
@@ -97,12 +96,12 @@ vec4 rayMarchVelocity(vec3 rayOrigin, vec3 rayDir) {
 
         if (magnitude > 0.001) {
             // 1. Calculate opacity based on velocity magnitude
-            float srcA = clamp(magnitude * DENSITY_SCALE * STEP_SIZE, 0.0, 1.0);
+            float srcA = clamp(magnitude * INTENSITY_SCALE * STEP_SIZE, 0.0, 1.0);
 
             // 2. Map velocity direction to color
             // Option A: Use the absolute direction for RGB (X=R, Y=G, Z=B)
             // We use abs() or (v*0.5+0.5) to ensure values are in [0,1] range
-            vec3 dirColor = normalize(velocity) * 0.5 + 0.5;
+            vec3 dirColor = (normalize(velocity) + vec3(1)) * 0.5f;
 
             // Apply the chosen color to the source
             vec3 srcRGB = dirColor * srcA;
@@ -128,7 +127,8 @@ vec4 rayMarchScalar(vec3 rayOrigin, vec3 rayDir) {
     // Calculate proper entry and exit points
     float tNear, tFar;
     if (!intersectBox(rayOrigin, rayDir, tNear, tFar)) {
-        return vec4(0.0);// Ray completely misses the volume
+        // Ray completely misses the volume
+        return vec4(0.0);
     }
 
     // Start at entry point (or origin if already inside)
@@ -137,10 +137,14 @@ vec4 rayMarchScalar(vec3 rayOrigin, vec3 rayDir) {
 
     // March from entry to exit
     for (int i = 0; i < MAX_STEPS && t < tFar; i++) {
-        float density = texture(readOnlyTexs[ubo.texId], vec3(pos.x, 1 - pos.y, pos.z)).r;
-
-        if (density > 0.001) { // Small threshold to skip empty space
-            float srcA = clamp(density * DENSITY_SCALE * STEP_SIZE, 0.0, 1.0);
+        float scalar = texture(readOnlyTexs[ubo.texId], vec3(pos.x, 1 - pos.y, pos.z)).r;
+        if (ubo.texId == 1) {
+            // Pressure can be negative. also scale up intensity.
+            scalar = 3 * abs(scalar);
+        }
+        // Small threshold to skip empty space
+        if (scalar > 0.001) {
+            float srcA = clamp(scalar * INTENSITY_SCALE * STEP_SIZE, 0.0, 1.0);
             vec3 srcRGB = SMOKE_COLOR * srcA;
 
             float weight = 1.0 - final_color.a;
