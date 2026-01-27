@@ -1423,9 +1423,6 @@ class VulkanExample : public VulkanExampleBase {
   // (A.1)
   void loadAssets() {
     // Cubemap texture
-    // Full ktx script
-    // toktx --cubemap --assign_oetf srgb --target_type RGBA  --resize 2048x2048
-    // skybox.ktx left.png right.png top.png bottom.png back.png front.png
     cubeMap_.loadFromFile(
         getExamplesBasePath() + "blackhole/textures/skybox/skybox.ktx",
         VK_FORMAT_B8G8R8A8_SRGB, vulkanDevice_, queue_);

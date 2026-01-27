@@ -1,5 +1,2 @@
-# convert an rgb height map to a linear 8-bit single channel texture map
-toktx --target_type R --assign_oetf linear iceland_heightmap_r8.ktx iceland_heightmap.png
-
-ktx create --format R8_UNORM --assign-tf linear iceland_heightmap.png iceland_heightmap_r8.ktx2
-
+Full ktx script to convert 6 rgb png's to a cubemap:
+toktx --cubemap --assign_oetf srgb --target_type RGBA  --resize 2048x2048 skybox.ktx left.png right.png top.png bottom.png back.png front.png
