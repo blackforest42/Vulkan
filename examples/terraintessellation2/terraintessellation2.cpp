@@ -77,7 +77,8 @@ class VulkanExample : public VulkanExampleBase {
 
   // Generate a terrain quad patch with normals based on heightmap data
   void generateTerrain() {
-    std::string filename = getAssetPath() + "textures/iceland_heightmap_r8.ktx";
+    std::string filename =
+        getExamplesBasePath() + "terraintessellation2/iceland_heightmap_r8.ktx";
 
     ktxResult result;
     ktxTexture* ktxTexture;
@@ -591,7 +592,7 @@ class VulkanExample : public VulkanExampleBase {
   void loadAssets() {
     // Height data is stored in a one-channel texture
     textures_.heightMap.loadFromFile(
-        getAssetPath() + "textures/iceland_heightmap_r8.ktx",
+        getExamplesBasePath() + "terraintessellation2/iceland_heightmap_r8.ktx",
         VK_FORMAT_R8_UNORM, vulkanDevice_, queue_);
 
     VkSamplerCreateInfo samplerInfo = vks::initializers::samplerCreateInfo();
@@ -605,7 +606,7 @@ class VulkanExample : public VulkanExampleBase {
                                 vulkanDevice_, queue_, glTFLoadingFlags);
     // Skybox textures
     textures_.cubeMap.loadFromFile(
-        getAssetPath() + "textures/cartoon_sky_cubemap.ktx",
+        getExamplesBasePath() + "terraintessellation2/cartoon_sky_cubemap.ktx",
         VK_FORMAT_R8G8B8A8_SRGB, vulkanDevice_, queue_);
   }
 

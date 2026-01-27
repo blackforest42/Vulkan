@@ -11,12 +11,12 @@
  * (http://opensource.org/licenses/MIT)
  */
 
-#include "vulkanexamplebase.h"
-
 #include <ktx.h>
 #include <ktxvulkan.h>
+
 #include "VulkanglTFModel.h"
 #include "stb_image.h"
+#include "vulkanexamplebase.h"
 
 // Offscreen frame buffer properties
 // #define FB_COLOR_FORMAT VK_FORMAT_R8G8B8A8_UNORM
@@ -798,8 +798,9 @@ class VulkanExample : public VulkanExampleBase {
 
   // (B) Called in VulkanExampleBase::renderLoop()
   void render() override {
-    if (!prepared_)
+    if (!prepared_) {
       return;
+    }
     VulkanExampleBase::prepareFrame();
     updateUniformBuffers();
     buildCommandBuffer();
@@ -1422,11 +1423,14 @@ class VulkanExample : public VulkanExampleBase {
   // (A.1)
   void loadAssets() {
     // Cubemap texture
+    // Full ktx script
+    // toktx --cubemap --assign_oetf srgb --target_type RGBA  --resize 2048x2048
+    // skybox.ktx left.png right.png top.png bottom.png back.png front.png
     cubeMap_.loadFromFile(
-        getAssetPath() + "textures/blackhole/skybox/cubemap.ktx",
-        VK_FORMAT_R8G8B8A8_SRGB, vulkanDevice_, queue_);
-    // loadTexture(getAssetPath() + "textures/blackhole/uv_checker.ktx");
-    loadTexture(getAssetPath() + "textures/blackhole/blackhole_color_map.ktx");
+        getExamplesBasePath() + "blackhole/textures/skybox/skybox.ktx",
+        VK_FORMAT_B8G8R8A8_SRGB, vulkanDevice_, queue_);
+    loadTexture(getExamplesBasePath() +
+                "blackhole/textures/accretion_disk.ktx");
   }
 
   ~VulkanExample() {

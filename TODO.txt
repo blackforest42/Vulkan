@@ -1,6 +1,5 @@
 Jan 24
 TODO:
-    - remove dependency on  "assets" subrepo
 
 Long term:
     - how to make it interactive with mouse?

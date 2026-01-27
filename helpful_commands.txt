@@ -1,12 +1,3 @@
-# Compile shaders
-glslc -g terrain.vert -o terrain.vert.spv
-glslc -g terrain.frag -o terrain.frag.spv
-glslc -g terrain.tesc -o terrain.tesc.spv
-glslc -g terrain.tese -o terrain.tese.spv
-glslc -g skybox.vert -o skybox.vert.spv
-glslc -g skybox.frag -o skybox.frag.spv
-
-
 # convert an rgb height map to a linear 8-bit single channel texture map
 toktx --target_type R --assign_oetf linear iceland_heightmap_r8.ktx iceland_heightmap.png
 
