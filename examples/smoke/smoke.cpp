@@ -67,6 +67,8 @@ class VulkanExample : public VulkanExampleBase {
   struct Compute {
     static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 256;
     static constexpr int WORKGROUP_SIZE = 8;
+    // 3D textures needed to store vector/scalar states
+    static constexpr int COMPUTE_TEXTURE_COUNT = 6;
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
@@ -106,9 +108,6 @@ class VulkanExample : public VulkanExampleBase {
       uint32_t mipLevels{0};
     };
 
-    // 3D textures needed to store vector/scalar states
-    // Split into read/write respectively
-    static constexpr int texture_count = 6;
     // Texture index mappings
     // 0 velocity
     // 1 pressure
@@ -116,8 +115,8 @@ class VulkanExample : public VulkanExampleBase {
     // 3 vorticity
     // 4 density
     // 5 temperature
-    std::array<Texture3D, texture_count> read_textures;
-    std::array<Texture3D, texture_count> write_textures;
+    std::array<Texture3D, COMPUTE_TEXTURE_COUNT> read_textures;
+    std::array<Texture3D, COMPUTE_TEXTURE_COUNT> write_textures;
 
     struct EmissionUBO {
       alignas(16) glm::ivec3 gridSize{COMPUTE_TEXTURE_DIMENSIONS};
@@ -442,9 +441,9 @@ class VulkanExample : public VulkanExampleBase {
                              bool readOnly,
                              VkFormat texture_format) const {
     // A 3D texture is described as width x height x depth
-    texture.width = compute_.COMPUTE_TEXTURE_DIMENSIONS;
-    texture.height = compute_.COMPUTE_TEXTURE_DIMENSIONS;
-    texture.depth = compute_.COMPUTE_TEXTURE_DIMENSIONS;
+    texture.width = VulkanExample::Compute::COMPUTE_TEXTURE_DIMENSIONS;
+    texture.height = VulkanExample::Compute::COMPUTE_TEXTURE_DIMENSIONS;
+    texture.depth = VulkanExample::Compute::COMPUTE_TEXTURE_DIMENSIONS;
     texture.mipLevels = 1;
     texture.format = texture_format;
 
@@ -577,7 +576,7 @@ class VulkanExample : public VulkanExampleBase {
                             VECTOR_FIELD_FORMAT);
     }
     // (2) Rest are scalar fields
-    for (int i = 1; i < compute_.texture_count; i++) {
+    for (int i = 1; i < VulkanExample::Compute::COMPUTE_TEXTURE_COUNT; i++) {
       prepareComputeTexture(compute_.read_textures[i], true,
                             SCALAR_FIELD_FORMAT);
       prepareComputeTexture(compute_.write_textures[i], false,
@@ -587,16 +586,16 @@ class VulkanExample : public VulkanExampleBase {
 
   void clearAllComputeTextures() const {
     // Clear all textures
-    VkCommandBuffer clearCmd = vulkanDevice_->createCommandBuffer(
+    const VkCommandBuffer clearCmd = vulkanDevice_->createCommandBuffer(
         VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-    VkClearColorValue clearColor = {{0.0f, 0.0f, 0.0f, 0.0f}};
+    constexpr VkClearColorValue clearColor = {{0.0f, 0.0f, 0.0f, 0.0f}};
     VkImageSubresourceRange range{};
     range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     range.baseMipLevel = 0;
     range.levelCount = 1;
     range.baseArrayLayer = 0;
     range.layerCount = 1;
-    for (int i = 0; i < compute_.texture_count; i++) {
+    for (int i = 0; i < VulkanExample::Compute::COMPUTE_TEXTURE_COUNT; i++) {
       vkCmdClearColorImage(clearCmd, compute_.read_textures[i].image,
                            VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
       vkCmdClearColorImage(clearCmd, compute_.write_textures[i].image,
@@ -730,7 +729,7 @@ class VulkanExample : public VulkanExampleBase {
 
     // Emission
     setLayoutBindings = {
-        // Binding 0 : Array of read-only texs
+        // Binding 0 : Array of read-only textures
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
@@ -752,7 +751,7 @@ class VulkanExample : public VulkanExampleBase {
 
     // Buoyancy
     setLayoutBindings = {
-        // Binding 0 : Array of read-only texs
+        // Binding 0 : Array of read-only textures
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
@@ -774,7 +773,7 @@ class VulkanExample : public VulkanExampleBase {
 
     // Vorticity
     setLayoutBindings = {
-        // Binding 0 : Array of read-only texs
+        // Binding 0 : Array of read-only textures
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
@@ -796,7 +795,7 @@ class VulkanExample : public VulkanExampleBase {
 
     // Vorticity Confinement
     setLayoutBindings = {
-        // Binding 0 : Array of read-only texs
+        // Binding 0 : Array of read-only textures
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
@@ -818,7 +817,7 @@ class VulkanExample : public VulkanExampleBase {
 
     // Divergence
     setLayoutBindings = {
-        // Binding 0 : Array of read-only texs
+        // Binding 0 : Array of read-only textures
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
@@ -840,7 +839,7 @@ class VulkanExample : public VulkanExampleBase {
 
     // Jacobi
     setLayoutBindings = {
-        // Binding 0 : Array of read-only texs
+        // Binding 0 : Array of read-only textures
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
@@ -862,7 +861,7 @@ class VulkanExample : public VulkanExampleBase {
 
     // Gradient
     setLayoutBindings = {
-        // Binding 0 : Array of read-only texs
+        // Binding 0 : Array of read-only textures
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
@@ -884,7 +883,7 @@ class VulkanExample : public VulkanExampleBase {
 
     // Boundary
     setLayoutBindings = {
-        // Binding 0 : Array of read-only texs
+        // Binding 0 : Array of read-only textures
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT, /*binding id*/ 0,
@@ -909,7 +908,7 @@ class VulkanExample : public VulkanExampleBase {
         compute_.read_textures.size());
     std::vector<VkDescriptorImageInfo> writeOnlyTextureDescriptors(
         compute_.write_textures.size());
-    for (size_t i = 0; i < compute_.texture_count; i++) {
+    for (size_t i = 0; i < VulkanExample::Compute::COMPUTE_TEXTURE_COUNT; i++) {
       readOnlyTextureDescriptors[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
       readOnlyTextureDescriptors[i].sampler = compute_.read_textures[i].sampler;
       readOnlyTextureDescriptors[i].imageView = compute_.read_textures[i].view;
@@ -1338,10 +1337,10 @@ class VulkanExample : public VulkanExampleBase {
         &compute_.pipelines_.boundary));
   }
 
-  void buildComputeCommandBuffer() {
-    VkCommandBuffer cmdBuffer = compute_.commandBuffers[currentBuffer_];
+  void buildComputeCommandBuffer() const {
+    const VkCommandBuffer cmdBuffer = compute_.commandBuffers[currentBuffer_];
 
-    VkCommandBufferBeginInfo cmdBufInfo =
+    const VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
 
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
@@ -1391,9 +1390,12 @@ class VulkanExample : public VulkanExampleBase {
                             0, nullptr);
     cmdBeginLabel(cmdBuffer, "Emission", {1.f, .0f, .0f, 1.f});
     vkCmdDispatch(cmdBuffer,
-                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
+                  compute_.write_textures[0].width /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].height /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].depth /
+                      VulkanExample::Compute::WORKGROUP_SIZE);
     cmdEndLabel(cmdBuffer);
   }
 
@@ -1406,9 +1408,12 @@ class VulkanExample : public VulkanExampleBase {
                             0, nullptr);
     cmdBeginLabel(cmdBuffer, "Buoyancy", {1.f, .4f, .4f, 1.f});
     vkCmdDispatch(cmdBuffer,
-                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
+                  compute_.write_textures[0].width /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].height /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].depth /
+                      VulkanExample::Compute::WORKGROUP_SIZE);
     cmdEndLabel(cmdBuffer);
   }
 
@@ -1421,9 +1426,12 @@ class VulkanExample : public VulkanExampleBase {
                             0, nullptr);
     cmdBeginLabel(cmdBuffer, "Advection", {1, 0, 0, 1});
     vkCmdDispatch(cmdBuffer,
-                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
+                  compute_.write_textures[0].width /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].height /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].depth /
+                      VulkanExample::Compute::WORKGROUP_SIZE);
     cmdEndLabel(cmdBuffer);
   }
 
@@ -1436,9 +1444,12 @@ class VulkanExample : public VulkanExampleBase {
                             0, nullptr);
     cmdBeginLabel(cmdBuffer, "Vorticity", {1, 1, 0, 1});
     vkCmdDispatch(cmdBuffer,
-                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
+                  compute_.write_textures[0].width /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].height /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].depth /
+                      VulkanExample::Compute::WORKGROUP_SIZE);
     cmdEndLabel(cmdBuffer);
   }
 
@@ -1451,9 +1462,12 @@ class VulkanExample : public VulkanExampleBase {
         &compute_.descriptorSets_[currentBuffer_].vortConfinement, 0, nullptr);
     cmdBeginLabel(cmdBuffer, "Vort Confinement", {0, 1, 0, 1});
     vkCmdDispatch(cmdBuffer,
-                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
+                  compute_.write_textures[0].width /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].height /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].depth /
+                      VulkanExample::Compute::WORKGROUP_SIZE);
     cmdEndLabel(cmdBuffer);
   }
 
@@ -1466,9 +1480,12 @@ class VulkanExample : public VulkanExampleBase {
         &compute_.descriptorSets_[currentBuffer_].divergence, 0, nullptr);
     cmdBeginLabel(cmdBuffer, "Divergence", {0, .7f, 0.7f, 1});
     vkCmdDispatch(cmdBuffer,
-                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
+                  compute_.write_textures[0].width /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].height /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].depth /
+                      VulkanExample::Compute::WORKGROUP_SIZE);
     cmdEndLabel(cmdBuffer);
   }
 
@@ -1480,9 +1497,12 @@ class VulkanExample : public VulkanExampleBase {
                             &compute_.descriptorSets_[currentBuffer_].jacobi, 0,
                             nullptr);
     vkCmdDispatch(cmdBuffer,
-                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
+                  compute_.write_textures[0].width /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].height /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].depth /
+                      VulkanExample::Compute::WORKGROUP_SIZE);
   }
 
   void gradientCmd(const VkCommandBuffer& cmdBuffer) const {
@@ -1494,9 +1514,12 @@ class VulkanExample : public VulkanExampleBase {
                             0, nullptr);
     cmdBeginLabel(cmdBuffer, "Gradient", {.5f, .7f, 0.3f, 1.f});
     vkCmdDispatch(cmdBuffer,
-                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
+                  compute_.write_textures[0].width /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].height /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].depth /
+                      VulkanExample::Compute::WORKGROUP_SIZE);
     cmdEndLabel(cmdBuffer);
   }
 
@@ -1505,8 +1528,8 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void boundaryCmd(const VkCommandBuffer& cmdBuffer,
-                   uint32_t textureId,
-                   int allTextures = 0) {
+                   const uint32_t textureId,
+                   const int allTextures = 0) {
     compute_.boundaryPC.texture_id = textureId;
     compute_.boundaryPC.allTextures = allTextures;
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -1522,16 +1545,19 @@ class VulkanExample : public VulkanExampleBase {
                        &compute_.boundaryPC);
 
     vkCmdDispatch(cmdBuffer,
-                  compute_.write_textures[0].width / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].height / compute_.WORKGROUP_SIZE,
-                  compute_.write_textures[0].depth / compute_.WORKGROUP_SIZE);
+                  compute_.write_textures[0].width /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].height /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.write_textures[0].depth /
+                      VulkanExample::Compute::WORKGROUP_SIZE);
     cmdEndLabel(cmdBuffer);
   }
 
-  void swapTexturesCmd(const VkCommandBuffer& cmdBuffer) {
+  void swapTexturesCmd(const VkCommandBuffer& cmdBuffer) const {
     cmdBeginLabel(cmdBuffer, "Swap read/write textures", swapColor_);
 
-    for (int i = 0; i < compute_.texture_count; i++) {
+    for (int i = 0; i < VulkanExample::Compute::COMPUTE_TEXTURE_COUNT; i++) {
       VkImageCopy copyRegion = {};
 
       copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1546,9 +1572,12 @@ class VulkanExample : public VulkanExampleBase {
       copyRegion.dstSubresource.layerCount = 1;
       copyRegion.dstOffset = {0, 0, 0};
 
-      copyRegion.extent.width = compute_.COMPUTE_TEXTURE_DIMENSIONS;
-      copyRegion.extent.height = compute_.COMPUTE_TEXTURE_DIMENSIONS;
-      copyRegion.extent.depth = compute_.COMPUTE_TEXTURE_DIMENSIONS;
+      copyRegion.extent.width =
+          VulkanExample::Compute::COMPUTE_TEXTURE_DIMENSIONS;
+      copyRegion.extent.height =
+          VulkanExample::Compute::COMPUTE_TEXTURE_DIMENSIONS;
+      copyRegion.extent.depth =
+          VulkanExample::Compute::COMPUTE_TEXTURE_DIMENSIONS;
 
       // Copy output of write to read buffer
       vkCmdCopyImage(cmdBuffer, compute_.write_textures[i].image,
@@ -1569,7 +1598,7 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             /*total texture count (across all pipelines) */ (
-                /*graphics: 2 premarch texures + all read textures*/ 2 +
+                /*graphics: 2 premarch textures + all read textures*/ 2 +
                 static_cast<uint32_t>(compute_.read_textures.size()) +
                 /*compute textures*/
                 static_cast<uint32_t>(compute_.read_textures.size())) *
@@ -1665,7 +1694,7 @@ class VulkanExample : public VulkanExampleBase {
     // Image descriptors for the 3D texture array
     std::vector<VkDescriptorImageInfo> readOnlyTextureDescriptors(
         compute_.read_textures.size());
-    for (size_t i = 0; i < compute_.texture_count; i++) {
+    for (size_t i = 0; i < VulkanExample::Compute::COMPUTE_TEXTURE_COUNT; i++) {
       readOnlyTextureDescriptors[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
       readOnlyTextureDescriptors[i].sampler = compute_.read_textures[i].sampler;
       readOnlyTextureDescriptors[i].imageView = compute_.read_textures[i].view;
@@ -1884,24 +1913,22 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void prepareUniformBuffers() {
-    for (auto& buffer : graphics_.uniformBuffers_) {
+    for (auto& [preMarch, march] : graphics_.uniformBuffers_) {
       // ray march
       VK_CHECK_RESULT(vulkanDevice_->createBuffer(
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer.march, sizeof(Graphics::RayMarchUBO),
-          &graphics_.ubos_.march));
-      VK_CHECK_RESULT(buffer.march.map());
+          &march, sizeof(Graphics::RayMarchUBO), &graphics_.ubos_.march));
+      VK_CHECK_RESULT(march.map());
 
       // pre march
       VK_CHECK_RESULT(vulkanDevice_->createBuffer(
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer.preMarch, sizeof(Graphics::PreMarchUBO),
-          &graphics_.ubos_.preMarch));
-      VK_CHECK_RESULT(buffer.preMarch.map());
+          &preMarch, sizeof(Graphics::PreMarchUBO), &graphics_.ubos_.preMarch));
+      VK_CHECK_RESULT(preMarch.map());
 
       // Init cube state
       auto& model = graphics_.ubos_.preMarch.model;
@@ -1912,7 +1939,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    float time =
+    const float time =
         std::chrono::duration<float>(
             std::chrono::high_resolution_clock::now().time_since_epoch())
             .count();
@@ -1920,10 +1947,11 @@ class VulkanExample : public VulkanExampleBase {
     // Premarch Uniform
     graphics_.ubos_.preMarch.cameraPos = camera_.position_;
     auto& model = graphics_.ubos_.preMarch.model;
-    model = uiFeatures.toggleRotation
-                ? glm::rotate(model, glm::radians(float(time) / 10000),
-                              glm::vec3(0.f, 1.f, 0.f))
-                : model;
+    model =
+        uiFeatures.toggleRotation
+            ? glm::rotate(model, glm::radians(static_cast<float>(time) / 10000),
+                          glm::vec3(0.f, 1.f, 0.f))
+            : model;
     graphics_.ubos_.preMarch.worldViewProjection =
         camera_.matrices_.perspective * camera_.matrices_.view * model;
     graphics_.ubos_.preMarch.invWorldViewProjection =
@@ -1945,7 +1973,8 @@ class VulkanExample : public VulkanExampleBase {
     compute_.ubos_.emission.time = time;
     compute_.ubos_.emission.emissionTemp = uiFeatures.emissionTemperature;
     compute_.ubos_.emission.sourceRadius =
-        compute_.COMPUTE_TEXTURE_DIMENSIONS / 2 * uiFeatures.smokeRadius;
+        VulkanExample::Compute::COMPUTE_TEXTURE_DIMENSIONS / 2.f *
+        uiFeatures.smokeRadius;
     compute_.ubos_.emission.deltaTime = 1.f / uiFeatures.timeStep;
     memcpy(compute_.uniformBuffers_[currentBuffer_].emission.mapped,
            &compute_.ubos_.emission, sizeof(Compute::EmissionUBO));
@@ -2024,9 +2053,9 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void buildGraphicsCommandBuffer() {
-    VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
+    const VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
 
-    VkCommandBufferBeginInfo cmdBufInfo =
+    const VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
     frontPreMarchCmd(cmdBuffer);
@@ -2080,15 +2109,18 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 
     // Set viewport and scissor
-    VkViewport viewport{0.0f, 0.0f, (float)width_, (float)height_, 0.0f, 1.0f};
+    VkViewport viewport{
+        0.0f, 0.0f, static_cast<float>(width_), static_cast<float>(height_),
+        0.0f, 1.0f};
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    VkRect2D scissor = vks::initializers::rect2D(
+        static_cast<float>(width_), static_cast<float>(height_), 0, 0);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       graphics_.pipelines_.preMarch);
-    vkCmdSetCullMode(cmdBuffer, VkCullModeFlagBits(VK_CULL_MODE_BACK_BIT));
+    vkCmdSetCullMode(cmdBuffer, VK_CULL_MODE_BACK_BIT);
     vkCmdSetFrontFace(cmdBuffer, VK_FRONT_FACE_CLOCKWISE);
 
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -2160,10 +2192,13 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 
     // Set viewport and scissor
-    VkViewport viewport{0.0f, 0.0f, (float)width_, (float)height_, 0.0f, 1.0f};
+    VkViewport viewport{
+        0.0f, 0.0f, static_cast<float>(width_), static_cast<float>(height_),
+        0.0f, 1.0f};
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    VkRect2D scissor = vks::initializers::rect2D(
+        static_cast<float>(width_), static_cast<float>(height_), 0, 0);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -2265,11 +2300,12 @@ class VulkanExample : public VulkanExampleBase {
 
     // Begin dynamic rendering
     vkCmdBeginRendering(cmdBuffer, &renderingInfo);
-    VkViewport viewport =
-        vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+    VkViewport viewport = vks::initializers::viewport(
+        static_cast<float>(width_), static_cast<float>(height_), 0.0f, 1.0f);
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    VkRect2D scissor = vks::initializers::rect2D(
+        static_cast<float>(width_), static_cast<float>(height_), 0, 0);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -2366,11 +2402,11 @@ class VulkanExample : public VulkanExampleBase {
     }
 
     // Semaphores to order compute and graphics submissions
-    for (auto& semaphore : compute_.semaphores) {
+    for (auto& [ready, complete] : compute_.semaphores) {
       VkSemaphoreCreateInfo semaphoreInfo{
           .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-      vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &semaphore.ready);
-      vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &semaphore.complete);
+      vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &ready);
+      vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &complete);
     }
     // Signal first used ready semaphore
     VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
@@ -2381,7 +2417,7 @@ class VulkanExample : public VulkanExampleBase {
         vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo, VK_NULL_HANDLE));
   }
 
-  virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) override {
+  void OnUpdateUIOverlay(vks::UIOverlay* overlay) override {
     if (overlay->header("Settings")) {
       overlay->comboBox("Select View", &graphics_.ubos_.march.toggleView,
                         graphics_.viewNames);
@@ -2424,7 +2460,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void cmdBeginLabel(const VkCommandBuffer& command_buffer,
                      const char* label_name,
-                     std::array<float, 4> color = debugColor_) const {
+                     const std::array<float, 4> color = debugColor_) const {
     VkDebugUtilsLabelEXT label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT};
     label.pLabelName = label_name;
     memcpy(label.color, color.data(), sizeof(float) * 4);
@@ -2489,9 +2525,11 @@ class VulkanExample : public VulkanExampleBase {
     camera_.type_ = Camera::CameraType::firstperson;
     camera_.setMovementSpeed(25.f);
     camera_.setPosition(glm::vec3(0.0f, 0.0f, -30.f));
-    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
-    width_ = uint32_t(width_ * 1.5f);
-    height_ = uint32_t(height_ * 1.5f);
+    camera_.setPerspective(
+        60.0f, static_cast<float>(width_) / static_cast<float>(height_), 0.1f,
+        256.0f);
+    width_ = static_cast<float>(width_) * 1.5f;
+    height_ = static_cast<float>(height_) * 1.5f;
 
     apiVersion_ = VK_API_VERSION_1_3;
 
@@ -2573,7 +2611,7 @@ class VulkanExample : public VulkanExampleBase {
                               nullptr);
 
       // Compute Textures
-      for (auto& texture : compute_.read_textures) {
+      for (const auto& texture : compute_.read_textures) {
         if (texture.view != VK_NULL_HANDLE) {
           vkDestroyImageView(device_, texture.view, nullptr);
         }
@@ -2587,7 +2625,7 @@ class VulkanExample : public VulkanExampleBase {
           vkFreeMemory(device_, texture.deviceMemory, nullptr);
         }
       }
-      for (auto& texture : compute_.write_textures) {
+      for (const auto& texture : compute_.write_textures) {
         if (texture.view != VK_NULL_HANDLE) {
           vkDestroyImageView(device_, texture.view, nullptr);
         }
@@ -2635,12 +2673,12 @@ class VulkanExample : public VulkanExampleBase {
           device_, compute_.descriptorSetLayouts_.boundary, nullptr);
 
       vkDestroyCommandPool(device_, compute_.commandPool, nullptr);
-      for (auto& fence : compute_.fences) {
+      for (const auto& fence : compute_.fences) {
         vkDestroyFence(device_, fence, nullptr);
       }
-      for (auto& semaphore : compute_.semaphores) {
-        vkDestroySemaphore(device_, semaphore.ready, nullptr);
-        vkDestroySemaphore(device_, semaphore.complete, nullptr);
+      for (auto& [ready, complete] : compute_.semaphores) {
+        vkDestroySemaphore(device_, ready, nullptr);
+        vkDestroySemaphore(device_, complete, nullptr);
       }
     }
   }
