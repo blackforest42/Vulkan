@@ -34,6 +34,7 @@ const float MAX_STEPS = 100;
 const float SMOKE_DENSITY = 1.0f;
 const float CLOUD_SIZE = .5f;
 const vec3 SMOKE_COLOR = vec3(1.0);
+const vec3 PRESSURE_COLOR = vec3(1.0, 0, 0);
 const float INTENSITY_SCALE = 5.f;
 
 vec4 permute(vec4 x);
@@ -149,9 +150,9 @@ vec4 rayMarchScalar(vec3 rayOrigin, vec3 rayDir) {
                 srcRGB = INTENSITY_SCALE * getBlackbodyColor(clamp(scalar, 0.0, 1.0));
             } else if (ubo.texId == 1) {
                 // Pressure
-                float pScalar = 3.0 * abs(scalar);
+                float pScalar = abs(scalar);
                 srcA = clamp(pScalar * INTENSITY_SCALE * STEP_SIZE, 0.0, 1.0);
-                srcRGB = SMOKE_COLOR;
+                srcRGB = PRESSURE_COLOR;
             } else {
                 // Smoke density
                 srcRGB = SMOKE_COLOR;
