@@ -1,5 +1,8 @@
 Jan 24
 TODO:
+    - add fast diffuse lighting
+        - https://blog.maximeheckel.com/posts/real-time-cloudscapes-with-volumetric-raymarching/
+        float diffuse = clamp((scene(p) - scene(p + 0.3 * sunDirection)) / 0.3, 0.0, 1.0 );
 
 Long term:
     - how to make it interactive with mouse?
