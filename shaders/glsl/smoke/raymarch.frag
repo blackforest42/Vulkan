@@ -7,17 +7,6 @@ layout(location = 0) in vec2 inUV;
 // out
 layout(location = 0) out vec4 outFragColor;
 
-layout(binding = 0) uniform RayMarchUBO {
-    mat4 cameraView;
-    mat4 perspective;
-    vec3 cameraPos;
-    vec2 screenRes;
-    float time;
-    int toggleView;
-    uint texId;
-}
-ubo;
-
 // Texture index mappings
 // 0 velocity
 // 1 pressure
@@ -29,8 +18,19 @@ layout(binding = 1) uniform sampler2D preMarchFrontTex;
 layout(binding = 2) uniform sampler2D preMarchBackTex;
 layout(binding = 3) uniform sampler3D readOnlyTexs[];
 
-const float STEP_SIZE = 0.01;
-const float MAX_STEPS = 100;
+layout(binding = 0) uniform RayMarchUBO {
+    mat4 cameraView;
+    mat4 perspective;
+    vec3 cameraPos;
+    vec2 screenRes;
+    float time;
+    float rayStepSize;
+    int toggleView;
+    uint texId;
+}
+ubo;
+
+float MAX_STEPS = 1 / ubo.rayStepSize;
 const float SMOKE_DENSITY = 1.0f;
 const float CLOUD_SIZE = .5f;
 const vec3 SMOKE_COLOR = vec3(1.0);
@@ -116,7 +116,7 @@ vec4 rayMarchVelocity(vec3 rayOrigin, vec3 rayDir) {
 
         if (magnitude > 0.001) {
             // 1. Calculate opacity based on velocity magnitude
-            float srcA = clamp(magnitude * INTENSITY_SCALE * STEP_SIZE, 0.0, 1.0);
+            float srcA = clamp(magnitude * INTENSITY_SCALE * ubo.rayStepSize, 0.0, 1.0);
 
             // 2. Map velocity direction to color
             // Option A: Use the absolute direction for RGB (X=R, Y=G, Z=B)
@@ -131,7 +131,7 @@ vec4 rayMarchVelocity(vec3 rayOrigin, vec3 rayDir) {
             if (final_color.a >= 0.95) break;
         }
 
-        t += STEP_SIZE;
+        t += ubo.rayStepSize;
         pos = rayOrigin + rayDir * t;
     }
 
@@ -158,7 +158,7 @@ vec4 rayMarchScalar(vec3 rayOrigin, vec3 rayDir) {
         float scalar = texture(readOnlyTexs[ubo.texId], vec3(pos.x, 1.0 - pos.y, pos.z)).r;
 
         if (scalar > 0.001) {
-            float srcA = clamp(scalar * INTENSITY_SCALE * STEP_SIZE, 0.0, 1.0);
+            float srcA = clamp(scalar * INTENSITY_SCALE * ubo.rayStepSize, 0.0, 1.0);
 
             vec3 srcRGB;
             if (ubo.texId == 5) {
@@ -168,7 +168,7 @@ vec4 rayMarchScalar(vec3 rayOrigin, vec3 rayDir) {
             } else if (ubo.texId == 1) {
                 // Pressure
                 float pScalar = abs(scalar);
-                srcA = clamp(pScalar * INTENSITY_SCALE * STEP_SIZE, 0.0, 1.0);
+                srcA = clamp(pScalar * INTENSITY_SCALE * ubo.rayStepSize, 0.0, 1.0);
                 srcRGB = PRESSURE_COLOR;
             } else {
                 // Smoke density
@@ -182,7 +182,7 @@ vec4 rayMarchScalar(vec3 rayOrigin, vec3 rayDir) {
             if (final_color.a >= 0.95) break;
         }
 
-        t += STEP_SIZE;
+        t += ubo.rayStepSize;
         pos = rayOrigin + rayDir * t;
 
     }
@@ -260,7 +260,7 @@ vec4 rayMarchSDF(vec3 rayOrigin, vec3 rayDir) {
             res += color*(1.0-res.a);
         }
 
-        t += STEP_SIZE;
+        t += ubo.rayStepSize;
         pos = rayOrigin + t * rayDir;
     }
 

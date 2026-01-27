@@ -35,9 +35,12 @@ struct UiFeatures {
   float vorticityStrength{0.12f};
 
   // Jacobi
-  int jacobiIterationCount{20};
+  int jacobiIterations{10};
 
   int timeStep{30};
+
+  // Ray march
+  float rayStepSize{0.01};
 
   // Texture index mappings
   // 0 velocity
@@ -289,8 +292,8 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
       alignas(4) float time{0};
-      alignas(4) int toggleView{0};  // 0 == 3D texture, 1 == noise, 2 =
-                                     // entry Ray, 3 = exit ray
+      alignas(4) float rayStepSize{uiFeatures.rayStepSize};
+      alignas(4) int toggleView{0};
       alignas(4) uint32_t texId{};
     };
 
@@ -1364,7 +1367,7 @@ class VulkanExample : public VulkanExampleBase {
     divergenceCmd(cmdBuffer);
 
     cmdBeginLabel(cmdBuffer, "Jacobi Iterations Start", {.3f, 0.5f, 0.8f, 1.f});
-    for (int i = 0; i < uiFeatures.jacobiIterationCount; i++) {
+    for (int i = 0; i < uiFeatures.jacobiIterations; i++) {
       std::string text_label = "iteration: " + std::to_string(i);
       cmdBeginLabel(cmdBuffer, text_label.c_str(), {.3f, 0.5f, 0.8f, 1.f});
       jacobiCmd(cmdBuffer);
@@ -1965,6 +1968,7 @@ class VulkanExample : public VulkanExampleBase {
     graphics_.ubos_.march.perspective = camera_.matrices_.perspective;
     graphics_.ubos_.march.cameraPos = camera_.position_;
     graphics_.ubos_.march.time = time;
+    graphics_.ubos_.march.rayStepSize = uiFeatures.rayStepSize;
     graphics_.ubos_.march.texId = uiFeatures.textureRadioId;
     memcpy(graphics_.uniformBuffers_[currentBuffer_].march.mapped,
            &graphics_.ubos_.march, sizeof(Graphics::RayMarchUBO));
@@ -2431,9 +2435,11 @@ class VulkanExample : public VulkanExampleBase {
                              0.5f);
         overlay->sliderFloat("Smoke Buoyancy Coeff.", &uiFeatures.buoyancyCoeff,
                              0, 0.5f);
-        overlay->sliderInt("Jacobi Iterations",
-                           &uiFeatures.jacobiIterationCount, 1, 60);
+        overlay->sliderInt("Jacobi Iterations", &uiFeatures.jacobiIterations, 1,
+                           60);
         overlay->sliderInt("1 / Time Step", &uiFeatures.timeStep, 1, 360);
+        overlay->sliderFloat("Ray March Step Size", &uiFeatures.rayStepSize,
+                             0.001f, .02f);
 
         overlay->radioButton("Smoke Texture", &uiFeatures.textureRadioId, 4);
         overlay->radioButton("Velocity Texture", &uiFeatures.textureRadioId, 0);

@@ -1,16 +1,15 @@
-Jan 24
+Jan 27
 TODO:
+
+Long term (not ordered):
     - add fast diffuse lighting
         - https://blog.maximeheckel.com/posts/real-time-cloudscapes-with-volumetric-raymarching/
         float diffuse = clamp((scene(p) - scene(p + 0.3 * sunDirection)) / 0.3, 0.0, 1.0 );
-
-Long term:
-    - how to make it interactive with mouse?
-    - texture dimensions in UI?
-	- add to ImGUI
-		- boundary types [+/-x, y, z]
+    - make smoke interactive with mouse
 	- Remove layout transition from raymarchCmd() and call it only once after texture creation
 	- Refactor DescriptorLayouts and PipelineLayouts to reuse (same layouts across most shaders)
     - micro-randomness to smoke plume position
     - use BFECC MacCormack advection
         - needs three passes: forward, backward, maccormack
+    - not happy with perf. 60 fps with 5090
+        - bottleneck is in jacobi iters
