@@ -36,6 +36,7 @@ const float CLOUD_SIZE = .5f;
 const vec3 SMOKE_COLOR = vec3(1.0);
 const vec3 PRESSURE_COLOR = vec3(1.0, 0, 0);
 const float INTENSITY_SCALE = 5.f;
+const vec3 SUN_POSITION = vec3(1.0, 0.0, 0.0);
 
 vec4 permute(vec4 x);
 vec4 taylorInvSqrt(vec4 r);
@@ -48,34 +49,50 @@ bool intersectBox(vec3 rayOrigin, vec3 rayDir, out float tNear, out float tFar);
 vec3 getBlackbodyColor(float t);
 
 void main() {
-    vec4 entry = texture(preMarchFrontTex, inUV);
-    // Ignore if ray is occluded
-    if (entry == vec4(0)) {
-        discard;
+    vec4 cloud = vec4(0);
+    vec3 cubeRayEntry = texture(preMarchFrontTex, inUV).xyz;
+    vec3 rayDir;
+    if (cubeRayEntry == vec3(0)) {
+        // ray misses the cube
+        vec3 exit = vec3(inUV, 1);
+        vec3 entry = vec3(0.5, 0.5, 0);
+        rayDir = normalize(vec3(exit - entry));
+    } else {
+        // ray hits the cube
+        vec3 cubeRayExit = texture(preMarchBackTex, inUV).xyz;
+        rayDir = normalize(vec3(cubeRayExit - cubeRayEntry));
+        if (ubo.toggleView == 0) {
+            // March a texture
+            if (ubo.texId == 0) {
+                cloud = rayMarchVelocity(cubeRayEntry, rayDir);
+            }
+            else {
+                cloud = rayMarchScalar(cubeRayEntry, rayDir);
+            }
+        } else if (ubo.toggleView == 1) {
+            // March Noise
+            cloud = rayMarchSDF(cubeRayEntry, rayDir);
+        }
+        else if (ubo.toggleView == 2) {
+            cloud = vec4(cubeRayEntry, 1);
+        }
+        else if (ubo.toggleView == 3) {
+            cloud = vec4(cubeRayExit, 1);
+        }
     }
-    vec4 exit = texture(preMarchBackTex, inUV);
-    vec3 rayDir = normalize(vec3(exit - entry));
 
-    vec4 color;
-    if (ubo.toggleView == 0) {
-        // March a texture
-        if (ubo.texId == 0) {
-            color = rayMarchVelocity(entry.xyz, rayDir);
-        }
-        else {
-            color = rayMarchScalar(entry.xyz, rayDir);
-        }
-    } else if (ubo.toggleView == 1) {
-        // March Noise
-        color = rayMarchSDF(entry.xyz, rayDir);
-    }
-    else if (ubo.toggleView == 2) {
-        color = entry;
-    }
-    else if (ubo.toggleView == 3) {
-        color = exit;
-    }
-    outFragColor = vec4(color);
+    // Sun and Sky
+    vec3 sunDirection = normalize(SUN_POSITION);
+    float sun = clamp(dot(sunDirection, rayDir), 0.0, 1.0);
+    // Base sky color
+    vec3 color = vec3(0.7, 0.7, 0.90);
+    // Add vertical gradient
+    color -= 0.8 * vec3(0.90, 0.75, 0.90) * rayDir.y;
+    // Add sun color to sky
+    color += 0.5 * vec3(1.0, 0.5, 0.3) * pow(sun, 10.0);
+
+    color = color * (1.0 - cloud.a) + cloud.rgb;
+    outFragColor = vec4(color, 1.f);
 }
 
 vec4 rayMarchVelocity(vec3 rayOrigin, vec3 rayDir) {
@@ -155,7 +172,7 @@ vec4 rayMarchScalar(vec3 rayOrigin, vec3 rayDir) {
                 srcRGB = PRESSURE_COLOR;
             } else {
                 // Smoke density
-                srcRGB = SMOKE_COLOR;
+                srcRGB = mix(vec3(1.0, 1.0, 1.0), vec3(0.0, 0.0, 0.0), scalar);
             }
 
             float weight = 1.0 - final_color.a;

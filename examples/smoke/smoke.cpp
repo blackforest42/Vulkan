@@ -2239,7 +2239,7 @@ class VulkanExample : public VulkanExampleBase {
     colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
+    colorAttachment.clearValue.color = {1, 1, 1};
 
     // A single depth stencil attachment info can be used, but they can also
     // be specified separately. When both are specified separately, the only
