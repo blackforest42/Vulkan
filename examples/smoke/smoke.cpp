@@ -1350,19 +1350,19 @@ class VulkanExample : public VulkanExampleBase {
     cmdBeginLabel(cmdBuffer, "Begin Compute Pipelines", {.5f, 0.2f, 3.f, 1.f});
 
     emissionCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
+    copyTexturesCmd(cmdBuffer);
 
     buoyancyCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
+    copyTexturesCmd(cmdBuffer);
 
     vorticityCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
+    copyTexturesCmd(cmdBuffer);
 
     vortConfinementCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
+    copyTexturesCmd(cmdBuffer);
 
     advectCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
+    copyTexturesCmd(cmdBuffer);
 
     divergenceCmd(cmdBuffer);
 
@@ -1372,12 +1372,12 @@ class VulkanExample : public VulkanExampleBase {
       cmdBeginLabel(cmdBuffer, text_label.c_str(), {.3f, 0.5f, 0.8f, 1.f});
       jacobiCmd(cmdBuffer);
       cmdEndLabel(cmdBuffer);
-      swapTexturesCmd(cmdBuffer);
+      copyTexturesCmd(cmdBuffer);
     }
     cmdEndLabel(cmdBuffer);
 
     gradientCmd(cmdBuffer);
-    swapTexturesCmd(cmdBuffer);
+    copyTexturesCmd(cmdBuffer);
 
     cmdEndLabel(cmdBuffer);
 
@@ -1557,7 +1557,7 @@ class VulkanExample : public VulkanExampleBase {
     cmdEndLabel(cmdBuffer);
   }
 
-  void swapTexturesCmd(const VkCommandBuffer& cmdBuffer) const {
+  void copyTexturesCmd(const VkCommandBuffer& cmdBuffer) const {
     cmdBeginLabel(cmdBuffer, "Swap read/write textures", swapColor_);
 
     for (int i = 0; i < VulkanExample::Compute::COMPUTE_TEXTURE_COUNT; i++) {
