@@ -18,6 +18,10 @@
 
 class VulkanExample : public VulkanExampleBase {
  public:
+  // Enable Vulkan 1.3
+  VkPhysicalDeviceVulkan13Features enabledFeatures13_{
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
+
   const uint32_t JACOBI_ITERATIONS = 100;
   // Inner slab offset (in pixels) for x and y axis
   const uint32_t SLAB_OFFSET = 0;
@@ -222,6 +226,7 @@ class VulkanExample : public VulkanExampleBase {
   bool shouldInitColorField_ = true;
   bool shouldInitVelocityField_ = true;
 
+  // Debug Extension
   std::vector<float> debugColor = {.7f, 0.4f, 0.4f, 1.0f};
   PFN_vkCmdBeginDebugUtilsLabelEXT vkCmdBeginDebugUtilsLabelEXT{nullptr};
   PFN_vkCmdEndDebugUtilsLabelEXT vkCmdEndDebugUtilsLabelEXT{nullptr};
@@ -233,6 +238,13 @@ class VulkanExample : public VulkanExampleBase {
     camera_.setRotation(glm::vec3(0.0f));
     camera_.setRotationSpeed(0.25f);
     camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
+
+    apiVersion_ = VK_API_VERSION_1_3;
+
+    // Dynamic rendering
+    enabledFeatures13_.dynamicRendering = VK_TRUE;
+
+    deviceCreatepNextChain_ = &enabledFeatures13_;
   }
 
   // (Part A)
