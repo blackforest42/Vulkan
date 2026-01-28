@@ -198,29 +198,26 @@ class VulkanExample : public VulkanExampleBase {
     VkPipeline colorPass;
   } pipelines_{};
 
-  struct FrameBufferAttachment {
+  // Structure to hold offscreen velocity buffer
+  struct TextureFieldBuffer {
     VkImage image;
-    VkDeviceMemory mem;
-    VkImageView view;
-  };
-  struct FrameBuffer {
-    int32_t width, height;
-    VkFramebuffer framebuffer;
-    FrameBufferAttachment color;
+    VkDeviceMemory memory;
+    VkImageView imageView;
     VkDescriptorImageInfo descriptor;
+    VkFormat format;
+    VkExtent2D extent;
   };
   struct OffscreenPass {
-    VkRenderPass renderPass{};
     VkSampler sampler{};
   } offscreenPass_;
 
   // 2 framebuffers for each field, index 0 is for reading, 1 is for writing
-  std::array<FrameBuffer, 2> color_field_{};  // Scalar valued color map
-  std::array<FrameBuffer, 2> velocity_field_{};
-  std::array<FrameBuffer, 2> pressure_field_{};
-  FrameBuffer divergence_field_{};  // Scalar valued
+  std::array<TextureFieldBuffer, 2> color_field_{};  // Scalar valued color map
+  std::array<TextureFieldBuffer, 2> velocity_field_{};
+  std::array<TextureFieldBuffer, 2> pressure_field_{};
+  TextureFieldBuffer divergence_field_{};  // Scalar valued
   // texture view switcher FB needs to be offscreen to overlay velocity arrows
-  std::array<FrameBuffer, 2> color_pass_{};
+  std::array<TextureFieldBuffer, 2> color_pass_{};
   // feedback control for mouse click + movement
   bool addImpulse_ = false;
   bool shouldInitColorField_ = true;
@@ -373,75 +370,6 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void prepareOffscreen() {
-    // Create a separate render pass for the offscreen rendering as it may
-    // differ from the one used for scene rendering
-    VkAttachmentDescription attchmentDescriptions;
-    // Color attachment
-    attchmentDescriptions.format = FB_COLOR_FORMAT;
-    attchmentDescriptions.samples = VK_SAMPLE_COUNT_1_BIT;
-    attchmentDescriptions.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-    attchmentDescriptions.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attchmentDescriptions.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attchmentDescriptions.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attchmentDescriptions.initialLayout =
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    attchmentDescriptions.finalLayout =
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    VkAttachmentReference colorReference = {
-        0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-
-    VkSubpassDescription subpassDescription = {};
-    subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpassDescription.colorAttachmentCount = 1;
-    subpassDescription.pColorAttachments = &colorReference;
-
-    // Use subpass dependencies for layout transitions
-    std::array<VkSubpassDependency, 3> dependencies{};
-
-    dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependencies[0].dstSubpass = 0;
-    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-                                   VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-                                   VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-    dependencies[0].srcAccessMask =
-        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    dependencies[0].dstAccessMask =
-        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
-        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
-    dependencies[0].dependencyFlags = 0;
-
-    dependencies[1].srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependencies[1].dstSubpass = 0;
-    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    dependencies[1].dstStageMask =
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependencies[1].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    dependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-
-    dependencies[2].srcSubpass = 0;
-    dependencies[2].dstSubpass = VK_SUBPASS_EXTERNAL;
-    dependencies[2].srcStageMask =
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependencies[2].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    dependencies[2].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    dependencies[2].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    dependencies[2].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-
-    // Create the actual renderpass
-    VkRenderPassCreateInfo renderPassInfo = {};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments = &attchmentDescriptions;
-    renderPassInfo.subpassCount = 1;
-    renderPassInfo.pSubpasses = &subpassDescription;
-    renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
-    renderPassInfo.pDependencies = dependencies.data();
-    VK_CHECK_RESULT(vkCreateRenderPass(device_, &renderPassInfo, nullptr,
-                                       &offscreenPass_.renderPass));
-
     // Create sampler to sample from the color attachments
     VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
     sampler.magFilter = VK_FILTER_LINEAR;
@@ -460,34 +388,24 @@ class VulkanExample : public VulkanExampleBase {
 
     // Color field
     for (auto& fb : color_field_) {
-      fb.width = width_;
-      fb.height = height_;
       prepareOffscreenFramebuffer(&fb, FB_COLOR_FORMAT);
     }
 
     // Velocity field
     for (auto& fb : velocity_field_) {
-      fb.width = width_;
-      fb.height = height_;
       prepareOffscreenFramebuffer(&fb, FB_COLOR_FORMAT);
     }
 
     // Pressure field
     for (auto& fb : pressure_field_) {
-      fb.width = width_;
-      fb.height = height_;
       prepareOffscreenFramebuffer(&fb, FB_COLOR_FORMAT);
     }
 
     // Divergence field
-    divergence_field_.width = width_;
-    divergence_field_.height = height_;
     prepareOffscreenFramebuffer(&divergence_field_, FB_COLOR_FORMAT);
 
     // texture view switcher
     for (auto& fb : color_pass_) {
-      fb.width = width_;
-      fb.height = height_;
       prepareOffscreenFramebuffer(&fb, FB_COLOR_FORMAT);
     }
   }
@@ -1104,6 +1022,18 @@ class VulkanExample : public VulkanExampleBase {
     pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineCI.pStages = shaderStages.data();
 
+    // New create info to define color, depth and stencil attachments at
+    // pipeline create time
+    VkPipelineRenderingCreateInfoKHR pipelineRenderingCreateInfo{};
+    pipelineRenderingCreateInfo.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+    pipelineRenderingCreateInfo.colorAttachmentCount = 1;
+    pipelineRenderingCreateInfo.depthAttachmentFormat = depthFormat_;
+    pipelineRenderingCreateInfo.stencilAttachmentFormat = depthFormat_;
+    // Chain into the pipeline create info
+    pipelineCI.pNext = &pipelineRenderingCreateInfo;
+    pipelineCI.renderPass = VK_NULL_HANDLE;  // No render pass!
+
     // Advection pipeline
     VkPipelineVertexInputStateCreateInfo emptyInputState =
         vks::initializers::pipelineVertexInputStateCreateInfo();
@@ -1114,6 +1044,8 @@ class VulkanExample : public VulkanExampleBase {
     shaderStages[1] =
         loadShader(getShadersPath() + "fluidsim/advection.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
+    pipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &velocity_field_[1].format;
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCI, nullptr,
                                               &pipelines_.advection));
@@ -1123,6 +1055,8 @@ class VulkanExample : public VulkanExampleBase {
     shaderStages[1] =
         loadShader(getShadersPath() + "fluidsim/colorinit.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
+    pipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &color_field_[1].format;
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCI, nullptr,
                                               &pipelines_.colorInit));
@@ -1132,6 +1066,8 @@ class VulkanExample : public VulkanExampleBase {
     shaderStages[1] =
         loadShader(getShadersPath() + "fluidsim/velocityinit.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
+    pipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &velocity_field_[1].format;
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCI, nullptr,
                                               &pipelines_.velocityInit));
@@ -1141,6 +1077,9 @@ class VulkanExample : public VulkanExampleBase {
     shaderStages[1] =
         loadShader(getShadersPath() + "fluidsim/boundary.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
+    // TODO: boundary needs its own vkformat?
+    pipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &velocity_field_[1].format;
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCI, nullptr,
                                               &pipelines_.boundary));
@@ -1149,22 +1088,17 @@ class VulkanExample : public VulkanExampleBase {
     pipelineCI.layout = pipelineLayouts_.impulse;
     shaderStages[1] = loadShader(getShadersPath() + "fluidsim/impulse.frag.spv",
                                  VK_SHADER_STAGE_FRAGMENT_BIT);
+    pipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &velocity_field_[1].format;
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(
         device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.impulse));
-
-    // Boundary pipeline
-    pipelineCI.layout = pipelineLayouts_.boundary;
-    shaderStages[1] =
-        loadShader(getShadersPath() + "fluidsim/boundary.frag.spv",
-                   VK_SHADER_STAGE_FRAGMENT_BIT);
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
-                                              &pipelineCI, nullptr,
-                                              &pipelines_.boundary));
 
     // Jacobi pipeline
     pipelineCI.layout = pipelineLayouts_.jacobi;
     shaderStages[1] = loadShader(getShadersPath() + "fluidsim/jacobi.frag.spv",
                                  VK_SHADER_STAGE_FRAGMENT_BIT);
+    pipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &pressure_field_[1].format;
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(
         device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.jacobi));
 
@@ -1173,6 +1107,8 @@ class VulkanExample : public VulkanExampleBase {
     shaderStages[1] =
         loadShader(getShadersPath() + "fluidsim/divergence.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
+    pipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &divergence_field_.format;
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCI, nullptr,
                                               &pipelines_.divergence));
@@ -1182,6 +1118,8 @@ class VulkanExample : public VulkanExampleBase {
     shaderStages[1] =
         loadShader(getShadersPath() + "fluidsim/gradient.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
+    pipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &velocity_field_[1].format;
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCI, nullptr,
                                               &pipelines_.gradient));
@@ -1191,12 +1129,16 @@ class VulkanExample : public VulkanExampleBase {
     shaderStages[1] =
         loadShader(getShadersPath() + "fluidsim/textureviewswitcher.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
+    pipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &color_pass_[1].format;
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCI, nullptr,
                                               &pipelines_.textureViewSwitcher));
 
     // Color pass pipeline
     pipelineCI.layout = pipelineLayouts_.colorPass;
+    pipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &swapChain_.colorFormat_;
     shaderStages[1] =
         loadShader(getShadersPath() + "fluidsim/colorpass.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -1388,10 +1330,18 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void initColorCmd(const VkCommandBuffer& cmdBuffer) {
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, color_field_[1].image, 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+
     VkRenderingAttachmentInfoKHR colorAttachment{};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    colorAttachment.imageView = color_field_[1].color.view;
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.imageView = color_field_[1].imageView;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -1430,23 +1380,34 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void initVelocityCmd(const VkCommandBuffer& cmdBuffer) {
-    VkClearValue clearValues{};
-    clearValues.color = {0.0f, 0.0f, 0.0f, 0.f};
+    // Transition image to correct layout first
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, velocity_field_[1].image, 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
-    VkRenderPassBeginInfo renderPassBeginInfo =
-        vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
-    renderPassBeginInfo.framebuffer = velocity_field_[1].framebuffer;
-    renderPassBeginInfo.renderArea.offset.x = SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.offset.y = SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.extent.width = width_ - 2 * SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.extent.height = height_ - 2 * SLAB_OFFSET;
-    renderPassBeginInfo.clearValueCount = 1;
-    renderPassBeginInfo.pClearValues = &clearValues;
+    VkRenderingAttachmentInfoKHR colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    colorAttachment.imageView = velocity_field_[1].imageView;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    VkRenderingInfoKHR renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderingInfo.renderArea = {int(SLAB_OFFSET), int(SLAB_OFFSET),
+                                width_ - 2 * SLAB_OFFSET,
+                                height_ - 2 * SLAB_OFFSET};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
 
     cmdBeginLabel(cmdBuffer, "Initialize Velocity Field", debugColor);
-    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
-                         VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 
     VkViewport viewport =
         vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
@@ -1464,31 +1425,18 @@ class VulkanExample : public VulkanExampleBase {
                       pipelines_.velocityInit);
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
 
-    // IMPORTANT: This barrier is to serialize WRITES BEFORE READS
-    {
-      VkMemoryBarrier memBarrier = {};
-      memBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-      memBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-      memBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_HOST_BIT,
-                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                           VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
-                           nullptr, 0, nullptr);
-    }
-
-    vkCmdEndRenderPass(cmdBuffer);
+    vkCmdEndRendering(cmdBuffer);
     cmdEndLabel(cmdBuffer);
   }
 
-  void advectColorCmd(VkCommandBuffer& cmdBuffer) {
+  void advectColorCmd(const VkCommandBuffer& cmdBuffer) {
     cmdBeginLabel(cmdBuffer, "Advecting Color", debugColor);
     advectionCmd(cmdBuffer, color_field_,
                  &descriptorSets_[currentBuffer_].advectColor);
     cmdEndLabel(cmdBuffer);
   }
 
-  void advectVelocityCmd(VkCommandBuffer& cmdBuffer) {
+  void advectVelocityCmd(const VkCommandBuffer& cmdBuffer) {
     cmdBeginLabel(cmdBuffer, "Advecting velocity", debugColor);
     advectionCmd(cmdBuffer, velocity_field_,
                  &descriptorSets_[currentBuffer_].advectVelocity);
@@ -1496,24 +1444,35 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void advectionCmd(const VkCommandBuffer& cmdBuffer,
-                    const std::array<FrameBuffer, 2>& output_field,
+                    const std::array<TextureFieldBuffer, 2>& output_field,
                     const VkDescriptorSet* descriptor_set) const {
-    VkClearValue clearValues{};
-    clearValues.color = {0.0f, 0.0f, 0.0f, 0.f};
+    // Transition image to correct layout first
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, output_field[1].image, 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
-    VkRenderPassBeginInfo renderPassBeginInfo =
-        vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
-    renderPassBeginInfo.framebuffer = output_field[1].framebuffer;
-    renderPassBeginInfo.renderArea.offset.x = SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.offset.y = SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.extent.width = width_ - 2 * SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.extent.height = height_ - 2 * SLAB_OFFSET;
-    renderPassBeginInfo.clearValueCount = 1;
-    renderPassBeginInfo.pClearValues = &clearValues;
+    VkRenderingAttachmentInfoKHR colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    colorAttachment.imageView = output_field[1].imageView;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
 
-    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
-                         VK_SUBPASS_CONTENTS_INLINE);
+    VkRenderingInfoKHR renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderingInfo.renderArea = {int(SLAB_OFFSET), int(SLAB_OFFSET),
+                                width_ - 2 * SLAB_OFFSET,
+                                height_ - 2 * SLAB_OFFSET};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
+
+    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 
     VkViewport viewport =
         vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
@@ -1530,40 +1489,37 @@ class VulkanExample : public VulkanExampleBase {
                       pipelines_.advection);
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
 
-    // IMPORTANT: This barrier is to serialize WRITES BEFORE READS
-    {
-      VkMemoryBarrier memBarrier = {};
-      memBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-      memBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-      memBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_HOST_BIT,
-                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                           VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
-                           nullptr, 0, nullptr);
-    }
-
-    vkCmdEndRenderPass(cmdBuffer);
+    vkCmdEndRendering(cmdBuffer);
   }
 
   void impulseCmd(const VkCommandBuffer& cmdBuffer) {
-    VkClearValue clearValues{};
-    clearValues.color = {0.0f, 0.0f, 0.0f, 0.f};
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, velocity_field_[1].image, 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
-    VkRenderPassBeginInfo renderPassBeginInfo =
-        vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
-    renderPassBeginInfo.framebuffer = velocity_field_[1].framebuffer;
-    renderPassBeginInfo.renderArea.offset.x = SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.offset.y = SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.extent.width = width_ - 2 * SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.extent.height = height_ - 2 * SLAB_OFFSET;
-    renderPassBeginInfo.clearValueCount = 1;
-    renderPassBeginInfo.pClearValues = &clearValues;
+    VkRenderingAttachmentInfoKHR colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    colorAttachment.imageView = velocity_field_[1].imageView;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    VkRenderingInfoKHR renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderingInfo.renderArea = {int(SLAB_OFFSET), int(SLAB_OFFSET),
+                                width_ - 2 * SLAB_OFFSET,
+                                height_ - 2 * SLAB_OFFSET};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
 
     cmdBeginLabel(cmdBuffer, "Adding impulse", debugColor);
-    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
-                         VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 
     VkViewport viewport =
         vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
@@ -1592,11 +1548,11 @@ class VulkanExample : public VulkanExampleBase {
                            VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
                            nullptr, 0, nullptr);
     }
-    vkCmdEndRenderPass(cmdBuffer);
+    vkCmdEndRendering(cmdBuffer);
     cmdEndLabel(cmdBuffer);
   }
 
-  void velocityBoundaryCmd(VkCommandBuffer& cmdBuffer) {
+  void velocityBoundaryCmd(const VkCommandBuffer& cmdBuffer) {
     ubos_.boundary.scale = -1;
     memcpy(uniformBuffers_[currentBuffer_].boundary.mapped, &ubos_.boundary,
            sizeof(BoundaryUBO));
@@ -1612,7 +1568,7 @@ class VulkanExample : public VulkanExampleBase {
                 &descriptorSets_[currentBuffer_].boundaryPressure);
   }
 
-  void colorBoundaryCmd(VkCommandBuffer& cmdBuffer) {
+  void colorBoundaryCmd(const VkCommandBuffer& cmdBuffer) {
     ubos_.boundary.scale = 1;
     memcpy(uniformBuffers_[currentBuffer_].boundary.mapped, &ubos_.boundary,
            sizeof(BoundaryUBO));
@@ -1621,7 +1577,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void boundaryCmd(const VkCommandBuffer& cmdBuffer,
-                   std::array<FrameBuffer, 2>& output_field,
+                   std::array<TextureFieldBuffer, 2>& output_field,
                    VkDescriptorSet* descriptor_set) {
     /*
     VkClearValue clearValues{};
@@ -1638,7 +1594,7 @@ class VulkanExample : public VulkanExampleBase {
     renderPassBeginInfo.clearValueCount = 1;
     renderPassBeginInfo.pClearValues = &clearValues;
 
-    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
+    vkCmdBeginRendering(cmdBuffer, &renderPassBeginInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
 
     VkViewport viewport =
@@ -1668,27 +1624,37 @@ class VulkanExample : public VulkanExampleBase {
                            VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
                            nullptr, 0, nullptr);
     }
-    vkCmdEndRenderPass(cmdBuffer);
+    vkCmdEndRendering(cmdBuffer);
 */
   }
 
   void pressureJacobiCmd(const VkCommandBuffer& cmdBuffer) {
-    VkClearValue clearValues{};
-    clearValues.color = {0.0f, 0.0f, 0.0f, 0.f};
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, pressure_field_[1].image, 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
-    VkRenderPassBeginInfo renderPassBeginInfo =
-        vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
-    renderPassBeginInfo.framebuffer = pressure_field_[1].framebuffer;
-    renderPassBeginInfo.renderArea.offset.x = SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.offset.y = SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.extent.width = width_ - 2 * SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.extent.height = height_ - 2 * SLAB_OFFSET;
-    renderPassBeginInfo.clearValueCount = 1;
-    renderPassBeginInfo.pClearValues = &clearValues;
+    VkRenderingAttachmentInfoKHR colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    colorAttachment.imageView = pressure_field_[1].imageView;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
 
-    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
-                         VK_SUBPASS_CONTENTS_INLINE);
+    VkRenderingInfoKHR renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderingInfo.renderArea = {int(SLAB_OFFSET), int(SLAB_OFFSET),
+                                width_ - 2 * SLAB_OFFSET,
+                                height_ - 2 * SLAB_OFFSET};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
+
+    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 
     VkViewport viewport =
         vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
@@ -1717,27 +1683,37 @@ class VulkanExample : public VulkanExampleBase {
                            VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
                            nullptr, 0, nullptr);
     }
-    vkCmdEndRenderPass(cmdBuffer);
+    vkCmdEndRendering(cmdBuffer);
   }
 
   void divergenceCmd(const VkCommandBuffer& cmdBuffer) {
-    VkClearValue clearValues{};
-    clearValues.color = {0.0f, 0.0f, 0.0f, 0.f};
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, divergence_field_.image, 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
-    VkRenderPassBeginInfo renderPassBeginInfo =
-        vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
-    renderPassBeginInfo.framebuffer = divergence_field_.framebuffer;
-    renderPassBeginInfo.renderArea.offset.x = SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.offset.y = SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.extent.width = width_ - 2 * SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.extent.height = height_ - 2 * SLAB_OFFSET;
-    renderPassBeginInfo.clearValueCount = 1;
-    renderPassBeginInfo.pClearValues = &clearValues;
+    VkRenderingAttachmentInfoKHR colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    colorAttachment.imageView = divergence_field_.imageView;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    VkRenderingInfoKHR renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderingInfo.renderArea = {int(SLAB_OFFSET), int(SLAB_OFFSET),
+                                width_ - 2 * SLAB_OFFSET,
+                                height_ - 2 * SLAB_OFFSET};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
 
     cmdBeginLabel(cmdBuffer, "Divergence", debugColor);
-    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
-                         VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 
     VkViewport viewport =
         vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
@@ -1766,28 +1742,38 @@ class VulkanExample : public VulkanExampleBase {
                            VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
                            nullptr, 0, nullptr);
     }
-    vkCmdEndRenderPass(cmdBuffer);
+    vkCmdEndRendering(cmdBuffer);
     cmdEndLabel(cmdBuffer);
   }
 
   void gradientSubtractionCmd(const VkCommandBuffer& cmdBuffer) {
-    VkClearValue clearValues{};
-    clearValues.color = {0.f, 0.0f, 0.0f, 0.f};
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, velocity_field_[1].image, 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
-    VkRenderPassBeginInfo renderPassBeginInfo =
-        vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
-    renderPassBeginInfo.framebuffer = velocity_field_[1].framebuffer;
-    renderPassBeginInfo.renderArea.offset.x = SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.offset.y = SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.extent.width = width_ - 2 * SLAB_OFFSET;
-    renderPassBeginInfo.renderArea.extent.height = height_ - 2 * SLAB_OFFSET;
-    renderPassBeginInfo.clearValueCount = 1;
-    renderPassBeginInfo.pClearValues = &clearValues;
+    VkRenderingAttachmentInfoKHR colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    colorAttachment.imageView = velocity_field_[1].imageView;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    VkRenderingInfoKHR renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderingInfo.renderArea = {int(SLAB_OFFSET), int(SLAB_OFFSET),
+                                width_ - 2 * SLAB_OFFSET,
+                                height_ - 2 * SLAB_OFFSET};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
 
     cmdBeginLabel(cmdBuffer, "Gradient Subtraction", debugColor);
-    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
-                         VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
     VkViewport viewport =
         vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
@@ -1815,28 +1801,37 @@ class VulkanExample : public VulkanExampleBase {
                            VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
                            nullptr, 0, nullptr);
     }
-    vkCmdEndRenderPass(cmdBuffer);
+    vkCmdEndRendering(cmdBuffer);
     cmdEndLabel(cmdBuffer);
   }
 
   void textureViewSwitcherCmd(const VkCommandBuffer& cmdBuffer) {
-    VkClearValue clearValues{};
-    clearValues.color = {0.f, 0.0f, 0.0f, 0.f};
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, color_pass_[1].image, 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
-    VkRenderPassBeginInfo renderPassBeginInfo =
-        vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
-    renderPassBeginInfo.framebuffer = color_pass_[1].framebuffer;
-    renderPassBeginInfo.renderArea.offset.x = 0;
-    renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.renderArea.extent.width = width_;
-    renderPassBeginInfo.renderArea.extent.height = height_;
-    renderPassBeginInfo.clearValueCount = 1;
-    renderPassBeginInfo.pClearValues = &clearValues;
+    VkRenderingAttachmentInfoKHR colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    colorAttachment.imageView = color_pass_[1].imageView;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    VkRenderingInfoKHR renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderingInfo.renderArea = {0, 0, width_, height_};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
 
     cmdBeginLabel(cmdBuffer, "Texture View Switcher", debugColor);
-    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
-                         VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
+
     VkViewport viewport =
         vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
@@ -1865,28 +1860,36 @@ class VulkanExample : public VulkanExampleBase {
                            VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
                            nullptr, 0, nullptr);
     }
-    vkCmdEndRenderPass(cmdBuffer);
+    vkCmdEndRendering(cmdBuffer);
     cmdEndLabel(cmdBuffer);
   }
 
   void velocityArrowsCmd(const VkCommandBuffer& cmdBuffer) {
-    VkClearValue clearValues{};
-    clearValues.color = {0.f, 0.0f, 0.0f, 0.f};
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, color_pass_[1].image, 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
-    VkRenderPassBeginInfo renderPassBeginInfo =
-        vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
-    renderPassBeginInfo.framebuffer = color_pass_[1].framebuffer;
-    renderPassBeginInfo.renderArea.offset.x = 0;
-    renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.renderArea.extent.width = width_;
-    renderPassBeginInfo.renderArea.extent.height = height_;
-    renderPassBeginInfo.clearValueCount = 1;
-    renderPassBeginInfo.pClearValues = &clearValues;
+    VkRenderingAttachmentInfoKHR colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    colorAttachment.imageView = color_pass_[1].imageView;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    VkRenderingInfoKHR renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderingInfo.renderArea = {0, 0, width_, height_};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
 
     cmdBeginLabel(cmdBuffer, "Velocity Field Arrows", debugColor);
-    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
-                         VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
     VkViewport viewport =
         vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
@@ -1918,7 +1921,7 @@ class VulkanExample : public VulkanExampleBase {
                            VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
                            nullptr, 0, nullptr);
     }
-    vkCmdEndRenderPass(cmdBuffer);
+    vkCmdEndRendering(cmdBuffer);
     cmdEndLabel(cmdBuffer);
   }
 
@@ -1978,7 +1981,7 @@ class VulkanExample : public VulkanExampleBase {
 
   // Copy framebuffer color attachment from source to dest
   void copyImageCmd(const VkCommandBuffer& cmdBuffer,
-                    const std::array<FrameBuffer, 2>& framebuffers) {
+                    const std::array<TextureFieldBuffer, 2>& framebuffers) {
     VkImageCopy copyRegion = {};
 
     copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1999,9 +2002,8 @@ class VulkanExample : public VulkanExampleBase {
 
     cmdBeginLabel(cmdBuffer, "Copying image", {1.0f, 0.78f, 0.05f, 1.0f});
     // Copy output of write to read buffer
-    vkCmdCopyImage(cmdBuffer, framebuffers[1].color.image,
-                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                   framebuffers[0].color.image,
+    vkCmdCopyImage(cmdBuffer, framebuffers[1].image,
+                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, framebuffers[0].image,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
     cmdEndLabel(cmdBuffer);
   }
@@ -2019,61 +2021,53 @@ class VulkanExample : public VulkanExampleBase {
     resized_ = false;
   }
 
-  void destroyVertexBuffer() {
+  void destroyVertexBuffer() const {
     vkDestroyBuffer(device_, vertex_buffer_.buffer, nullptr);
   }
 
-  void destroyOffscreenPass() {
-    vkDestroyRenderPass(device_, offscreenPass_.renderPass, nullptr);
-    // color field
-    for (FrameBuffer fb : color_field_) {
-      vkDestroyFramebuffer(device_, fb.framebuffer, nullptr);
-    }
+  void destroyOffscreenPass() {}
 
-    // velocity field
-    for (FrameBuffer fb : velocity_field_) {
-      vkDestroyFramebuffer(device_, fb.framebuffer, nullptr);
-    }
+  void prepareOffscreenFramebuffer(TextureFieldBuffer* frameBuf,
+                                   const VkFormat colorFormat) const {
+    frameBuf->format = colorFormat;
 
-    // pressure field
-    for (FrameBuffer fb : pressure_field_) {
-      vkDestroyFramebuffer(device_, fb.framebuffer, nullptr);
-    }
-
-    // divergence
-    vkDestroyFramebuffer(device_, divergence_field_.framebuffer, nullptr);
-
-    // color pass field
-    for (FrameBuffer fb : color_pass_) {
-      vkDestroyFramebuffer(device_, fb.framebuffer, nullptr);
-    }
-  }
-
-  void prepareOffscreenFramebuffer(FrameBuffer* frameBuf,
-                                   VkFormat colorFormat) {
     // Color attachment
     VkImageCreateInfo imageCI = vks::initializers::imageCreateInfo();
     imageCI.imageType = VK_IMAGE_TYPE_2D;
     imageCI.format = colorFormat;
-    imageCI.extent.width = frameBuf->width;
-    imageCI.extent.height = frameBuf->height;
+    imageCI.extent.width = width_;
+    imageCI.extent.height = height_;
     imageCI.extent.depth = 1;
     imageCI.mipLevels = 1;
     imageCI.arrayLayers = 1;
     imageCI.samples = VK_SAMPLE_COUNT_1_BIT;
     imageCI.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageCI.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     // We will sample directly from the color attachment
     imageCI.usage =
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
         VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
+    VK_CHECK_RESULT(
+        vkCreateImage(device_, &imageCI, nullptr, &frameBuf->image));
+
     VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
     VkMemoryRequirements memReqs;
+
+    vkGetImageMemoryRequirements(device_, frameBuf->image, &memReqs);
+    memAlloc.allocationSize = memReqs.size;
+    memAlloc.memoryTypeIndex = vulkanDevice_->getMemoryType(
+        memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    VK_CHECK_RESULT(
+        vkAllocateMemory(device_, &memAlloc, nullptr, &frameBuf->memory));
+    VK_CHECK_RESULT(
+        vkBindImageMemory(device_, frameBuf->image, frameBuf->memory, 0));
 
     VkImageViewCreateInfo colorImageView =
         vks::initializers::imageViewCreateInfo();
     colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
     colorImageView.format = colorFormat;
+    colorImageView.image = frameBuf->image;
     colorImageView.flags = 0;
     colorImageView.subresourceRange = {};
     colorImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -2082,38 +2076,12 @@ class VulkanExample : public VulkanExampleBase {
     colorImageView.subresourceRange.baseArrayLayer = 0;
     colorImageView.subresourceRange.layerCount = 1;
 
-    VK_CHECK_RESULT(
-        vkCreateImage(device_, &imageCI, nullptr, &frameBuf->color.image));
-    vkGetImageMemoryRequirements(device_, frameBuf->color.image, &memReqs);
-    memAlloc.allocationSize = memReqs.size;
-    memAlloc.memoryTypeIndex = vulkanDevice_->getMemoryType(
-        memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VK_CHECK_RESULT(
-        vkAllocateMemory(device_, &memAlloc, nullptr, &frameBuf->color.mem));
-    VK_CHECK_RESULT(vkBindImageMemory(device_, frameBuf->color.image,
-                                      frameBuf->color.mem, 0));
-
-    colorImageView.image = frameBuf->color.image;
     VK_CHECK_RESULT(vkCreateImageView(device_, &colorImageView, nullptr,
-                                      &frameBuf->color.view));
-
-    VkImageView attachments[1]{frameBuf->color.view};
-
-    VkFramebufferCreateInfo fbufCreateInfo =
-        vks::initializers::framebufferCreateInfo();
-    fbufCreateInfo.renderPass = offscreenPass_.renderPass;
-    fbufCreateInfo.attachmentCount = 1;
-    fbufCreateInfo.pAttachments = attachments;
-    fbufCreateInfo.width = frameBuf->width;
-    fbufCreateInfo.height = frameBuf->height;
-    fbufCreateInfo.layers = 1;
-
-    VK_CHECK_RESULT(vkCreateFramebuffer(device_, &fbufCreateInfo, nullptr,
-                                        &frameBuf->framebuffer));
+                                      &frameBuf->imageView));
 
     // Fill a descriptor for later use in a descriptor set
     frameBuf->descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    frameBuf->descriptor.imageView = frameBuf->color.view;
+    frameBuf->descriptor.imageView = frameBuf->imageView;
     frameBuf->descriptor.sampler = offscreenPass_.sampler;
   }
   void setupRenderPass() override {

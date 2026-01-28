@@ -349,8 +349,6 @@ class VulkanExample : public VulkanExampleBase {
 
   // Create a 4 channel 16-bit float velocity buffer
   void createVelocityFieldBuffer(Graphics::VelocityFieldBuffer& buffer) const {
-    // Note: VK_FORMAT_R16G16B16_SFLOAT has limited support, so we use RGBA16
-    // The alpha channel will just be unused
     buffer.format = VK_FORMAT_R16G16B16A16_SFLOAT;
     buffer.extent = {width_, height_};
 
