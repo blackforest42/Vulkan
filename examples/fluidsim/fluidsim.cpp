@@ -1226,7 +1226,7 @@ class VulkanExample : public VulkanExampleBase {
             vkGetInstanceProcAddr(instance_, "vkCmdEndDebugUtilsLabelEXT"));
   }
 
-  void cmdBeginLabel(VkCommandBuffer command_buffer,
+  void cmdBeginLabel(const VkCommandBuffer command_buffer,
                      const char* label_name,
                      std::vector<float> color) {
     VkDebugUtilsLabelEXT label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT};
