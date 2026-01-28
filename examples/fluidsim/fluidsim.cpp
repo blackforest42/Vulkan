@@ -6,12 +6,12 @@
  * (http://opensource.org/licenses/MIT)
  */
 
-#include "vulkanexamplebase.h"
-
 #include <ktx.h>
 #include <ktxvulkan.h>
+
 #include "VulkanglTFModel.h"
 #include "stb_image.h"
+#include "vulkanexamplebase.h"
 
 // Offscreen frame buffer properties
 #define FB_COLOR_FORMAT VK_FORMAT_R32G32B32A32_SFLOAT
@@ -25,7 +25,7 @@ class VulkanExample : public VulkanExampleBase {
   // 0 = color field
   // 1 = velocity field
   // 2 = pressure field
-  static const int WHICH_TEXTURE_DISPLAY_AT_START = 0;
+  static constexpr int WHICH_TEXTURE_DISPLAY_AT_START{0};
   static constexpr float IMPULSE_RADIUS{0.004f};
   bool showVelocityArrows_ = false;
   bool advectVelocity_ = true;
@@ -484,12 +484,12 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            /* descriptorCount */ MAX_CONCURRENT_FRAMES *
+            /* descriptorCount */ 13 * MAX_CONCURRENT_FRAMES *
                 /*max number of uniform buffers*/ 1),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             /* descriptorCount */ MAX_CONCURRENT_FRAMES *
-                /*max number of textures*/ 3)};
+                /*max number of textures*/ 18)};
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
             poolSizes,
@@ -811,7 +811,7 @@ class VulkanExample : public VulkanExampleBase {
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
 
-      // Boundary: Velocty
+      // Boundary: Velocity
       allocInfo = vks::initializers::descriptorSetAllocateInfo(
           descriptorPool_, &descriptorSetLayouts_.boundary, 1);
       VK_CHECK_RESULT(vkAllocateDescriptorSets(
@@ -1196,7 +1196,8 @@ class VulkanExample : public VulkanExampleBase {
     // Arrow vector pipeline
     auto bindingDescription = Vertex::getBindingDescription();
     auto attributeDescription = Vertex::getAttributeDescriptions();
-    VkPipelineVertexInputStateCreateInfo vertexInputCI{};
+    VkPipelineVertexInputStateCreateInfo vertexInputCI =
+        vks::initializers::pipelineVertexInputStateCreateInfo();
     vertexInputCI.vertexBindingDescriptionCount = 1;
     vertexInputCI.vertexAttributeDescriptionCount =
         static_cast<uint32_t>(attributeDescription.size());
@@ -1240,8 +1241,9 @@ class VulkanExample : public VulkanExampleBase {
 
   // Part B (rendering)
   void render() override {
-    if (!prepared_)
+    if (!prepared_) {
       return;
+    }
     VulkanExampleBase::prepareFrame();
     updateUniformBuffers();
     buildCommandBuffer();
