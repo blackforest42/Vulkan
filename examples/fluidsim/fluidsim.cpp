@@ -202,6 +202,7 @@ class VulkanExample : public VulkanExampleBase {
   struct TextureFieldBuffer {
     VkImage image;
     VkDeviceMemory memory;
+    VkImageLayout imageLayout{};
     VkImageView imageView;
     VkDescriptorImageInfo descriptor;
     VkFormat format;
@@ -250,10 +251,32 @@ class VulkanExample : public VulkanExampleBase {
     prepareUniformBuffers();
     prepareVertices();
     prepareOffscreen();
+    // clearAllTextures();
     setupDescriptors();
     preparePipelines();
     prepareDebug();
     prepared_ = true;
+  }
+
+  void clearAllTextures() const {
+    // Clear all textures
+    const VkCommandBuffer clearCmd = vulkanDevice_->createCommandBuffer(
+        VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+    constexpr VkClearColorValue clearColor = {{0.0f, 0.0f, 0.0f, 0.0f}};
+    VkImageSubresourceRange range{};
+    range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    range.baseMipLevel = 0;
+    range.levelCount = 1;
+    range.baseArrayLayer = 0;
+    range.layerCount = 1;
+    for (int i = 0; i < 2; i++) {
+      vkCmdClearColorImage(clearCmd, velocity_field_[i].image,
+                           VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
+
+      vkCmdClearColorImage(clearCmd, velocity_field_[i].image,
+                           VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
+    }
+    vulkanDevice_->flushCommandBuffer(clearCmd, queue_, true);
   }
 
   void prepareVertices() {
@@ -1332,16 +1355,15 @@ class VulkanExample : public VulkanExampleBase {
   void initColorCmd(const VkCommandBuffer& cmdBuffer) {
     vks::tools::insertImageMemoryBarrier(
         cmdBuffer, color_field_[1].image, 0,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
     VkRenderingAttachmentInfoKHR colorAttachment{};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
     colorAttachment.imageView = color_field_[1].imageView;
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -1360,8 +1382,8 @@ class VulkanExample : public VulkanExampleBase {
     cmdBeginLabel(cmdBuffer, "Initialize Color Field", debugColor);
     vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 
-    VkViewport viewport =
-        vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+    const VkViewport viewport = vks::initializers::viewport(
+        static_cast<float>(width_), static_cast<float>(height_), 0.0f, 1.0f);
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
     VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
@@ -1380,19 +1402,17 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void initVelocityCmd(const VkCommandBuffer& cmdBuffer) {
-    // Transition image to correct layout first
     vks::tools::insertImageMemoryBarrier(
         cmdBuffer, velocity_field_[1].image, 0,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
     VkRenderingAttachmentInfoKHR colorAttachment{};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
     colorAttachment.imageView = velocity_field_[1].imageView;
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -1449,16 +1469,15 @@ class VulkanExample : public VulkanExampleBase {
     // Transition image to correct layout first
     vks::tools::insertImageMemoryBarrier(
         cmdBuffer, output_field[1].image, 0,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
     VkRenderingAttachmentInfoKHR colorAttachment{};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
     colorAttachment.imageView = output_field[1].imageView;
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -1495,16 +1514,15 @@ class VulkanExample : public VulkanExampleBase {
   void impulseCmd(const VkCommandBuffer& cmdBuffer) {
     vks::tools::insertImageMemoryBarrier(
         cmdBuffer, velocity_field_[1].image, 0,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
     VkRenderingAttachmentInfoKHR colorAttachment{};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
     colorAttachment.imageView = velocity_field_[1].imageView;
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -1536,18 +1554,6 @@ class VulkanExample : public VulkanExampleBase {
                       pipelines_.impulse);
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
 
-    // IMPORTANT: This barrier is to serialize WRITES BEFORE READS
-    {
-      VkMemoryBarrier memBarrier = {};
-      memBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-      memBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-      memBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_HOST_BIT,
-                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                           VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
-                           nullptr, 0, nullptr);
-    }
     vkCmdEndRendering(cmdBuffer);
     cmdEndLabel(cmdBuffer);
   }
@@ -1612,18 +1618,6 @@ class VulkanExample : public VulkanExampleBase {
                       pipelines_.boundary);
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
 
-    // IMPORTANT: This barrier is to serialize WRITES BEFORE READS
-    {
-      VkMemoryBarrier memBarrier = {};
-      memBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-      memBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-      memBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_HOST_BIT,
-                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                           VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
-                           nullptr, 0, nullptr);
-    }
     vkCmdEndRendering(cmdBuffer);
 */
   }
@@ -1631,16 +1625,15 @@ class VulkanExample : public VulkanExampleBase {
   void pressureJacobiCmd(const VkCommandBuffer& cmdBuffer) {
     vks::tools::insertImageMemoryBarrier(
         cmdBuffer, pressure_field_[1].image, 0,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
     VkRenderingAttachmentInfoKHR colorAttachment{};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
     colorAttachment.imageView = pressure_field_[1].imageView;
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -1671,34 +1664,21 @@ class VulkanExample : public VulkanExampleBase {
                       pipelines_.jacobi);
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
 
-    // IMPORTANT: This barrier is to serialize WRITES BEFORE READS
-    {
-      VkMemoryBarrier memBarrier = {};
-      memBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-      memBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-      memBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_HOST_BIT,
-                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                           VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
-                           nullptr, 0, nullptr);
-    }
     vkCmdEndRendering(cmdBuffer);
   }
 
   void divergenceCmd(const VkCommandBuffer& cmdBuffer) {
     vks::tools::insertImageMemoryBarrier(
         cmdBuffer, divergence_field_.image, 0,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
     VkRenderingAttachmentInfoKHR colorAttachment{};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
     colorAttachment.imageView = divergence_field_.imageView;
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -1730,18 +1710,6 @@ class VulkanExample : public VulkanExampleBase {
                       pipelines_.divergence);
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
 
-    // IMPORTANT: This barrier is to serialize WRITES BEFORE READS
-    {
-      VkMemoryBarrier memBarrier = {};
-      memBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-      memBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-      memBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_HOST_BIT,
-                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                           VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
-                           nullptr, 0, nullptr);
-    }
     vkCmdEndRendering(cmdBuffer);
     cmdEndLabel(cmdBuffer);
   }
@@ -1749,16 +1717,15 @@ class VulkanExample : public VulkanExampleBase {
   void gradientSubtractionCmd(const VkCommandBuffer& cmdBuffer) {
     vks::tools::insertImageMemoryBarrier(
         cmdBuffer, velocity_field_[1].image, 0,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
     VkRenderingAttachmentInfoKHR colorAttachment{};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
     colorAttachment.imageView = velocity_field_[1].imageView;
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -1789,18 +1756,6 @@ class VulkanExample : public VulkanExampleBase {
                       pipelines_.gradient);
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
 
-    // IMPORTANT: This barrier is to serialize WRITES BEFORE READS
-    {
-      VkMemoryBarrier memBarrier = {};
-      memBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-      memBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-      memBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_HOST_BIT,
-                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                           VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
-                           nullptr, 0, nullptr);
-    }
     vkCmdEndRendering(cmdBuffer);
     cmdEndLabel(cmdBuffer);
   }
@@ -1808,16 +1763,15 @@ class VulkanExample : public VulkanExampleBase {
   void textureViewSwitcherCmd(const VkCommandBuffer& cmdBuffer) {
     vks::tools::insertImageMemoryBarrier(
         cmdBuffer, color_pass_[1].image, 0,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
     VkRenderingAttachmentInfoKHR colorAttachment{};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
     colorAttachment.imageView = color_pass_[1].imageView;
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -1848,18 +1802,6 @@ class VulkanExample : public VulkanExampleBase {
                       pipelines_.textureViewSwitcher);
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
 
-    // IMPORTANT: This barrier is to serialize WRITES BEFORE READS
-    {
-      VkMemoryBarrier memBarrier = {};
-      memBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-      memBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-      memBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_HOST_BIT,
-                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                           VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
-                           nullptr, 0, nullptr);
-    }
     vkCmdEndRendering(cmdBuffer);
     cmdEndLabel(cmdBuffer);
   }
@@ -1867,16 +1809,15 @@ class VulkanExample : public VulkanExampleBase {
   void velocityArrowsCmd(const VkCommandBuffer& cmdBuffer) {
     vks::tools::insertImageMemoryBarrier(
         cmdBuffer, color_pass_[1].image, 0,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
     VkRenderingAttachmentInfoKHR colorAttachment{};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
     colorAttachment.imageView = color_pass_[1].imageView;
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -1909,23 +1850,19 @@ class VulkanExample : public VulkanExampleBase {
 
     vkCmdDraw(cmdBuffer, static_cast<uint32_t>(triangle_vertices_.size()), 1, 0,
               0);
-    // IMPORTANT: This barrier is to serialize WRITES BEFORE READS
-    {
-      VkMemoryBarrier memBarrier = {};
-      memBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-      memBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-      memBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_HOST_BIT,
-                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                           VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
-                           nullptr, 0, nullptr);
-    }
     vkCmdEndRendering(cmdBuffer);
     cmdEndLabel(cmdBuffer);
   }
 
   void colorPassCmd(const VkCommandBuffer& cmdBuffer) {
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, swapChain_.images_[currentImageIndex_], 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+
     // New structures are used to define the attachments used in dynamic
     // rendering
     VkRenderingAttachmentInfoKHR colorAttachment{};
@@ -1963,18 +1900,6 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
     drawUI(cmdBuffer);
 
-    // IMPORTANT: This barrier is to serialize WRITES BEFORE READS
-    {
-      VkMemoryBarrier memBarrier = {};
-      memBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-      memBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-      memBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_HOST_BIT,
-                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                           VK_DEPENDENCY_BY_REGION_BIT, 1, &memBarrier, 0,
-                           nullptr, 0, nullptr);
-    }
     vkCmdEndRendering(cmdBuffer);
     cmdEndLabel(cmdBuffer);
   }
@@ -1983,7 +1908,6 @@ class VulkanExample : public VulkanExampleBase {
   void copyImageCmd(const VkCommandBuffer& cmdBuffer,
                     const std::array<TextureFieldBuffer, 2>& framebuffers) {
     VkImageCopy copyRegion = {};
-
     copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     copyRegion.srcSubresource.mipLevel = 0;
     copyRegion.srcSubresource.baseArrayLayer = 0;
@@ -2002,9 +1926,10 @@ class VulkanExample : public VulkanExampleBase {
 
     cmdBeginLabel(cmdBuffer, "Copying image", {1.0f, 0.78f, 0.05f, 1.0f});
     // Copy output of write to read buffer
-    vkCmdCopyImage(cmdBuffer, framebuffers[1].image,
-                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, framebuffers[0].image,
-                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+    vkCmdCopyImage(cmdBuffer, framebuffers[1].image, VK_IMAGE_LAYOUT_GENERAL,
+                   framebuffers[0].image, VK_IMAGE_LAYOUT_GENERAL, 1,
+                   &copyRegion);
+
     cmdEndLabel(cmdBuffer);
   }
 
@@ -2063,6 +1988,32 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(
         vkBindImageMemory(device_, frameBuf->image, frameBuf->memory, 0));
 
+    // Transition read textures
+    VkCommandBuffer layoutCmd = vulkanDevice_->createCommandBuffer(
+        VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+    frameBuf->imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    vks::tools::setImageLayout(
+        layoutCmd, frameBuf->image, VK_IMAGE_ASPECT_COLOR_BIT,
+        VK_IMAGE_LAYOUT_UNDEFINED, frameBuf->imageLayout);
+    VkImageMemoryBarrier imageMemoryBarrier = {};
+    imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    imageMemoryBarrier.image = frameBuf->image;
+    imageMemoryBarrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0,
+                                           1};
+    imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    imageMemoryBarrier.dstAccessMask = 0;
+    imageMemoryBarrier.srcQueueFamilyIndex =
+        vulkanDevice_->queueFamilyIndices.graphics;
+    imageMemoryBarrier.dstQueueFamilyIndex =
+        vulkanDevice_->queueFamilyIndices.compute;
+    vkCmdPipelineBarrier(layoutCmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_FLAGS_NONE, 0,
+                         nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+
+    vulkanDevice_->flushCommandBuffer(layoutCmd, queue_, true);
+
     VkImageViewCreateInfo colorImageView =
         vks::initializers::imageViewCreateInfo();
     colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -2080,7 +2031,7 @@ class VulkanExample : public VulkanExampleBase {
                                       &frameBuf->imageView));
 
     // Fill a descriptor for later use in a descriptor set
-    frameBuf->descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    frameBuf->descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     frameBuf->descriptor.imageView = frameBuf->imageView;
     frameBuf->descriptor.sampler = offscreenPass_.sampler;
   }
