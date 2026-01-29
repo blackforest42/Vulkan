@@ -1560,7 +1560,6 @@ class VulkanExample : public VulkanExampleBase {
 
     for (int i = 0; i < VulkanExample::Compute::COMPUTE_TEXTURE_COUNT; i++) {
       VkImageCopy copyRegion = {};
-
       copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
       copyRegion.srcSubresource.mipLevel = 0;
       copyRegion.srcSubresource.baseArrayLayer = 0;

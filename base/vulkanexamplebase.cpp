@@ -832,7 +832,7 @@ VulkanExampleBase::VulkanExampleBase() {
     exit(0);
   }
   if (true) {
-    settings_.validation = true;
+    settings_.validation = false;
   }
   if (commandLineParser.isSet("validationlogfile")) {
     vks::debug::logToFile = true;

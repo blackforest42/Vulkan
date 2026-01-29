@@ -32,7 +32,6 @@ class VulkanExample : public VulkanExampleBase {
   static constexpr int WHICH_TEXTURE_DISPLAY_AT_START{0};
   static constexpr float IMPULSE_RADIUS{0.004f};
   bool showVelocityArrows_ = false;
-  bool advectVelocity_ = true;
   std::vector<std::string> texture_viewer_selection = {"Color", "Velocity",
                                                        "Pressure"};
 
@@ -1292,9 +1291,6 @@ class VulkanExample : public VulkanExampleBase {
                         &ubos_.textureViewSwitcher.chooseDisplayTexture,
                         texture_viewer_selection);
       overlay->checkBox("Show velocity arrows", &showVelocityArrows_);
-      if (overlay->checkBox("Advect velocity", &advectVelocity_)) {
-        windowResized();
-      }
       if (overlay->button("Reset")) {
         windowResized();
       }
@@ -1324,11 +1320,8 @@ class VulkanExample : public VulkanExampleBase {
       shouldInitVelocityField_ = false;
     }
 
-    // Advect Velocity
-    if (advectVelocity_) {
-      advectVelocityCmd(cmdBuffer);
-      copyImageCmd(cmdBuffer, velocity_field_);
-    }
+    advectVelocityCmd(cmdBuffer);
+    copyImageCmd(cmdBuffer, velocity_field_);
 
     // Impulse
     if (addImpulse_) {
