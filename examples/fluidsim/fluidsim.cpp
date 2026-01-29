@@ -137,10 +137,11 @@ class VulkanExample : public VulkanExampleBase {
   };
   std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_{};
 
-  vks::Buffer vertex_buffer_;
+  vks::Buffer vertex_buffer_{};
 
   struct {
     VkDescriptorSetLayout colorInit;
+    VkDescriptorSetLayout velocityInit;
     VkDescriptorSetLayout advection;
     VkDescriptorSetLayout boundary;
     VkDescriptorSetLayout impulse;
@@ -295,7 +296,6 @@ class VulkanExample : public VulkanExampleBase {
       }
     }
 
-    VkBufferCreateInfo bufferInfo{};
     VK_CHECK_RESULT(vulkanDevice_->createBuffer(
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
@@ -457,7 +457,6 @@ class VulkanExample : public VulkanExampleBase {
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT,
             /*binding id*/ 0),
     };
-
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI =
         vks::initializers::descriptorSetLayoutCreateInfo(
             setLayoutBindings.data(),
@@ -478,7 +477,7 @@ class VulkanExample : public VulkanExampleBase {
         static_cast<uint32_t>(setLayoutBindings.size()));
     VK_CHECK_RESULT(
         vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr,
-                                    &descriptorSetLayouts_.colorInit));
+                                    &descriptorSetLayouts_.velocityInit));
 
     // Layout: Advection
     setLayoutBindings = {
@@ -675,7 +674,7 @@ class VulkanExample : public VulkanExampleBase {
       // Color Init
       VkDescriptorSetAllocateInfo allocInfo =
           vks::initializers::descriptorSetAllocateInfo(
-              descriptorPool_, &descriptorSetLayouts_.colorInit, 1);
+              descriptorPool_, &descriptorSetLayouts_.velocityInit, 1);
       VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
                                                &descriptorSets_[i].colorInit));
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
@@ -956,7 +955,7 @@ class VulkanExample : public VulkanExampleBase {
                                            &pipelineLayouts_.colorInit));
 
     pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(
-        &descriptorSetLayouts_.colorInit, 1);
+        &descriptorSetLayouts_.velocityInit, 1);
     VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr,
                                            &pipelineLayouts_.velocityInit));
 
@@ -1585,23 +1584,31 @@ class VulkanExample : public VulkanExampleBase {
   void boundaryCmd(const VkCommandBuffer& cmdBuffer,
                    std::array<TextureFieldBuffer, 2>& output_field,
                    VkDescriptorSet* descriptor_set) {
-    /*
-    VkClearValue clearValues{};
-    clearValues.color = {0.0f, 0.0f, 0.0f, 0.f};
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, velocity_field_[1].image, 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
 
-    VkRenderPassBeginInfo renderPassBeginInfo =
-        vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = offscreenPass_.renderPass;
-    renderPassBeginInfo.framebuffer = output_field[1].framebuffer;
-    renderPassBeginInfo.renderArea.offset.x = 0;
-    renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.renderArea.extent.width = width_;
-    renderPassBeginInfo.renderArea.extent.height = height_;
-    renderPassBeginInfo.clearValueCount = 1;
-    renderPassBeginInfo.pClearValues = &clearValues;
+    VkRenderingAttachmentInfoKHR colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    colorAttachment.imageView = velocity_field_[1].imageView;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
 
-    vkCmdBeginRendering(cmdBuffer, &renderPassBeginInfo,
-                         VK_SUBPASS_CONTENTS_INLINE);
+    VkRenderingInfoKHR renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderingInfo.renderArea = {int(SLAB_OFFSET), int(SLAB_OFFSET),
+                                width_ - 2 * SLAB_OFFSET,
+                                height_ - 2 * SLAB_OFFSET};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
+
+    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 
     VkViewport viewport =
         vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
@@ -1619,7 +1626,6 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
 
     vkCmdEndRendering(cmdBuffer);
-*/
   }
 
   void pressureJacobiCmd(const VkCommandBuffer& cmdBuffer) {
@@ -2066,6 +2072,13 @@ class VulkanExample : public VulkanExampleBase {
       vkDestroyPipeline(device_, pipelines_.divergence, nullptr);
       vkDestroyPipeline(device_, pipelines_.jacobi, nullptr);
       vkDestroyPipeline(device_, pipelines_.textureViewSwitcher, nullptr);
+      vkDestroyPipeline(device_, pipelines_.gradient, nullptr);
+      vkDestroyPipeline(device_, pipelines_.impulse, nullptr);
+      vkDestroyPipeline(device_, pipelines_.velocityArrows, nullptr);
+      vkDestroyPipeline(device_, pipelines_.velocityInit, nullptr);
+      vkDestroyPipeline(device_, pipelines_.colorPass, nullptr);
+
+      // Pipeline Layouts
       vkDestroyPipelineLayout(device_, pipelineLayouts_.colorInit, nullptr);
       vkDestroyPipelineLayout(device_, pipelineLayouts_.advection, nullptr);
       vkDestroyPipelineLayout(device_, pipelineLayouts_.boundary, nullptr);
@@ -2073,25 +2086,73 @@ class VulkanExample : public VulkanExampleBase {
       vkDestroyPipelineLayout(device_, pipelineLayouts_.divergence, nullptr);
       vkDestroyPipelineLayout(device_, pipelineLayouts_.textureViewSwitcher,
                               nullptr);
+      vkDestroyPipelineLayout(device_, pipelineLayouts_.gradient, nullptr);
+      vkDestroyPipelineLayout(device_, pipelineLayouts_.impulse, nullptr);
+      vkDestroyPipelineLayout(device_, pipelineLayouts_.velocityArrows,
+                              nullptr);
+      vkDestroyPipelineLayout(device_, pipelineLayouts_.velocityInit, nullptr);
+      vkDestroyPipelineLayout(device_, pipelineLayouts_.colorPass, nullptr);
+
+      // Descriptor Set Layouts
       vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.colorInit,
+                                   nullptr);
+      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.velocityInit,
                                    nullptr);
       vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.advection,
                                    nullptr);
       vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.boundary,
                                    nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.divergence,
+      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.impulse,
                                    nullptr);
       vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.jacobi,
                                    nullptr);
+      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.divergence,
+                                   nullptr);
+      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.gradient,
+                                   nullptr);
       vkDestroyDescriptorSetLayout(
           device_, descriptorSetLayouts_.textureViewSwitcher, nullptr);
+      vkDestroyDescriptorSetLayout(
+          device_, descriptorSetLayouts_.velocityArrows, nullptr);
+      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.colorPass,
+                                   nullptr);
+
+      vkDestroySampler(device_, offscreenPass_.sampler, nullptr);
+
+      for (int i = 0; i < 2; i++) {
+        vkDestroyImageView(device_, color_field_[i].imageView, nullptr);
+        vkDestroyImage(device_, color_field_[i].image, nullptr);
+        vkFreeMemory(device_, color_field_[i].memory, nullptr);
+
+        vkDestroyImageView(device_, velocity_field_[i].imageView, nullptr);
+        vkDestroyImage(device_, velocity_field_[i].image, nullptr);
+        vkFreeMemory(device_, velocity_field_[i].memory, nullptr);
+
+        vkDestroyImageView(device_, pressure_field_[i].imageView, nullptr);
+        vkDestroyImage(device_, pressure_field_[i].image, nullptr);
+        vkFreeMemory(device_, pressure_field_[i].memory, nullptr);
+
+        vkDestroyImageView(device_, color_pass_[i].imageView, nullptr);
+        vkDestroyImage(device_, color_pass_[i].image, nullptr);
+        vkFreeMemory(device_, color_pass_[i].memory, nullptr);
+      }
+      vkDestroyImageView(device_, divergence_field_.imageView, nullptr);
+      vkDestroyImage(device_, divergence_field_.image, nullptr);
+      vkFreeMemory(device_, divergence_field_.memory, nullptr);
+
       for (auto& buffer : uniformBuffers_) {
         buffer.colorInit.destroy();
         buffer.advection.destroy();
         buffer.boundary.destroy();
         buffer.divergence.destroy();
         buffer.jacobi.destroy();
+        buffer.velocityInit.destroy();
+        buffer.impulse.destroy();
+        buffer.gradient.destroy();
+        buffer.textureViewSwitcher.destroy();
+        buffer.velocityArrows.destroy();
       }
+      vertex_buffer_.destroy();
     }
   }
 };

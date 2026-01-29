@@ -1,5 +1,15 @@
-Jan 27
+Jan 28
 TODO:
+    - remaining validation errors:
+        - vkmemory
+        - vkimage
+        - vkbuffer
+        - vkpipeline
+        - vkpipelinelayout
+        - vkdescriptorsetlayout
+
+    - handle resizing in fluid sim better:
+        - keep texture dimensions fixed, only change rendering dims.
 
 Long term (not ordered):
     - add fast diffuse lighting
