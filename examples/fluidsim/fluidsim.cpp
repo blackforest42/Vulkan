@@ -1939,6 +1939,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void destroyOffscreenPass() {
     vkDestroySampler(device_, offscreenPass_.sampler, nullptr);
+    destroyImages();
   }
 
   void prepareOffscreenFramebuffer(TextureFieldBuffer* frameBuf,
@@ -2047,8 +2048,31 @@ class VulkanExample : public VulkanExampleBase {
     }
   }
 
+  void destroyImages() {
+    for (int i = 0; i < 2; i++) {
+      vkDestroyImageView(device_, color_field_[i].imageView, nullptr);
+      vkDestroyImage(device_, color_field_[i].image, nullptr);
+      vkFreeMemory(device_, color_field_[i].memory, nullptr);
+
+      vkDestroyImageView(device_, velocity_field_[i].imageView, nullptr);
+      vkDestroyImage(device_, velocity_field_[i].image, nullptr);
+      vkFreeMemory(device_, velocity_field_[i].memory, nullptr);
+
+      vkDestroyImageView(device_, pressure_field_[i].imageView, nullptr);
+      vkDestroyImage(device_, pressure_field_[i].image, nullptr);
+      vkFreeMemory(device_, pressure_field_[i].memory, nullptr);
+    }
+    vkDestroyImageView(device_, color_pass_[0].imageView, nullptr);
+    vkDestroyImage(device_, color_pass_[0].image, nullptr);
+    vkFreeMemory(device_, color_pass_[0].memory, nullptr);
+    vkDestroyImageView(device_, divergence_field_.imageView, nullptr);
+    vkDestroyImage(device_, divergence_field_.image, nullptr);
+    vkFreeMemory(device_, divergence_field_.memory, nullptr);
+  }
+
   ~VulkanExample() override {
     if (device_) {
+      // Pipelines
       vkDestroyPipeline(device_, pipelines_.colorInit, nullptr);
       vkDestroyPipeline(device_, pipelines_.advection, nullptr);
       vkDestroyPipeline(device_, pipelines_.boundary, nullptr);
@@ -2100,28 +2124,13 @@ class VulkanExample : public VulkanExampleBase {
       vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.colorPass,
                                    nullptr);
 
+      // Sampler
       vkDestroySampler(device_, offscreenPass_.sampler, nullptr);
 
-      for (int i = 0; i < 2; i++) {
-        vkDestroyImageView(device_, color_field_[i].imageView, nullptr);
-        vkDestroyImage(device_, color_field_[i].image, nullptr);
-        vkFreeMemory(device_, color_field_[i].memory, nullptr);
+      // Images
+      destroyImages();
 
-        vkDestroyImageView(device_, velocity_field_[i].imageView, nullptr);
-        vkDestroyImage(device_, velocity_field_[i].image, nullptr);
-        vkFreeMemory(device_, velocity_field_[i].memory, nullptr);
-
-        vkDestroyImageView(device_, pressure_field_[i].imageView, nullptr);
-        vkDestroyImage(device_, pressure_field_[i].image, nullptr);
-        vkFreeMemory(device_, pressure_field_[i].memory, nullptr);
-      }
-      vkDestroyImageView(device_, color_pass_[0].imageView, nullptr);
-      vkDestroyImage(device_, color_pass_[0].image, nullptr);
-      vkFreeMemory(device_, color_pass_[0].memory, nullptr);
-      vkDestroyImageView(device_, divergence_field_.imageView, nullptr);
-      vkDestroyImage(device_, divergence_field_.image, nullptr);
-      vkFreeMemory(device_, divergence_field_.memory, nullptr);
-
+      // Buffers
       for (auto& buffer : uniformBuffers_) {
         buffer.colorInit.destroy();
         buffer.advection.destroy();
