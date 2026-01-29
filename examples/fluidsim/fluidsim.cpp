@@ -6,7 +6,6 @@
  * (http://opensource.org/licenses/MIT)
  */
 
-#include <ktx.h>
 #include <ktxvulkan.h>
 
 #include "VulkanglTFModel.h"
@@ -22,6 +21,7 @@ class VulkanExample : public VulkanExampleBase {
   VkPhysicalDeviceVulkan13Features enabledFeatures13_{
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
 
+  static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 256;
   const uint32_t JACOBI_ITERATIONS = 100;
   // Inner slab offset (in pixels) for x and y axis
   const uint32_t SLAB_OFFSET = 0;
@@ -218,8 +218,7 @@ class VulkanExample : public VulkanExampleBase {
   std::array<TextureFieldBuffer, 2> velocity_field_{};
   std::array<TextureFieldBuffer, 2> pressure_field_{};
   TextureFieldBuffer divergence_field_{};  // Scalar valued
-  // texture view switcher FB needs to be offscreen to overlay velocity arrows
-  std::array<TextureFieldBuffer, 2> color_pass_{};
+  std::array<TextureFieldBuffer, 1> color_pass_{};
   // feedback control for mouse click + movement
   bool addImpulse_ = false;
   bool shouldInitColorField_ = true;
@@ -286,12 +285,14 @@ class VulkanExample : public VulkanExampleBase {
         glm::vec2(0.0f, 0.2f), glm::vec2(1.0f, 0.f), glm::vec2(0.0f, -.2f)};
 
     int arrow_spacing = 30;
-    for (int y = arrow_spacing / 2.f; y < height_; y += arrow_spacing) {
-      for (int x = arrow_spacing / 2.f; x < width_; x += arrow_spacing) {
+    for (int y = arrow_spacing / 2.f; y < COMPUTE_TEXTURE_DIMENSIONS;
+         y += arrow_spacing) {
+      for (int x = arrow_spacing / 2.f; x < COMPUTE_TEXTURE_DIMENSIONS;
+           x += arrow_spacing) {
         for (int i = 0; i < 3; i++) {
           triangle_vertices_.emplace_back(
-              triangle[i],
-              glm::vec2(2.f * x / width_ - 1, 2.f * y / height_ - 1));
+              triangle[i], glm::vec2(2.f * x / COMPUTE_TEXTURE_DIMENSIONS - 1,
+                                     2.f * y / COMPUTE_TEXTURE_DIMENSIONS - 1));
         }
       }
     }
@@ -1152,23 +1153,13 @@ class VulkanExample : public VulkanExampleBase {
         loadShader(getShadersPath() + "fluidsim/textureviewswitcher.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
     pipelineRenderingCreateInfo.pColorAttachmentFormats =
-        &color_pass_[1].format;
+        &color_pass_[0].format;
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCI, nullptr,
                                               &pipelines_.textureViewSwitcher));
 
-    // Color pass pipeline
-    pipelineCI.layout = pipelineLayouts_.colorPass;
-    pipelineRenderingCreateInfo.pColorAttachmentFormats =
-        &swapChain_.colorFormat_;
-    shaderStages[1] =
-        loadShader(getShadersPath() + "fluidsim/colorpass.frag.spv",
-                   VK_SHADER_STAGE_FRAGMENT_BIT);
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
-                                              &pipelineCI, nullptr,
-                                              &pipelines_.colorPass));
-
     // Arrow vector pipeline
+    pipelineCI.layout = pipelineLayouts_.velocityArrows;
     auto bindingDescription = Vertex::getBindingDescription();
     auto attributeDescription = Vertex::getAttributeDescriptions();
     VkPipelineVertexInputStateCreateInfo vertexInputCI =
@@ -1178,18 +1169,45 @@ class VulkanExample : public VulkanExampleBase {
         static_cast<uint32_t>(attributeDescription.size());
     vertexInputCI.pVertexBindingDescriptions = &bindingDescription;
     vertexInputCI.pVertexAttributeDescriptions = attributeDescription.data();
-
     pipelineCI.pVertexInputState = &vertexInputCI;
+
+    pipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &color_pass_[0].format;
+
+    // Enable Blending
+    blendAttachmentState.colorWriteMask = 0xF;
+    blendAttachmentState.blendEnable = VK_TRUE;
+    blendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+    blendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    blendAttachmentState.dstColorBlendFactor =
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    blendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+    blendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    blendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     shaderStages[0] =
         loadShader(getShadersPath() + "fluidsim/velocityarrows.vert.spv",
                    VK_SHADER_STAGE_VERTEX_BIT);
-    pipelineCI.layout = pipelineLayouts_.velocityArrows;
     shaderStages[1] =
         loadShader(getShadersPath() + "fluidsim/velocityarrows.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
                                               &pipelineCI, nullptr,
                                               &pipelines_.velocityArrows));
+
+    // Color pass pipeline
+    pipelineCI.layout = pipelineLayouts_.colorPass;
+    blendAttachmentState.blendEnable = VK_FALSE;
+    pipelineCI.pVertexInputState = &emptyInputState;
+    pipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &swapChain_.colorFormat_;
+    shaderStages[0] = loadShader(getShadersPath() + "fluidsim/simple.vert.spv",
+                                 VK_SHADER_STAGE_VERTEX_BIT);
+    shaderStages[1] =
+        loadShader(getShadersPath() + "fluidsim/colorpass.frag.spv",
+                   VK_SHADER_STAGE_FRAGMENT_BIT);
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
+                                              &pipelineCI, nullptr,
+                                              &pipelines_.colorPass));
   }
 
   void prepareDebug() {
@@ -1227,34 +1245,37 @@ class VulkanExample : public VulkanExampleBase {
 
   // B.1
   void updateUniformBuffers() {
-    ubos_.colorInit.bufferResolution = glm::vec2(width_, height_);
     memcpy(uniformBuffers_[currentBuffer_].colorInit.mapped, &ubos_.colorInit,
            sizeof(ColorInitUBO));
 
     memcpy(uniformBuffers_[currentBuffer_].velocityInit.mapped,
            &ubos_.colorInit, sizeof(ColorInitUBO));
 
-    ubos_.advection.bufferResolution = glm::vec2(width_, height_);
     memcpy(uniformBuffers_[currentBuffer_].advection.mapped, &ubos_.advection,
            sizeof(AdvectionUBO));
 
-    ubos_.boundary.bufferResolution = glm::vec2(width_, height_);
+    ubos_.boundary.bufferResolution =
+        glm::vec2(COMPUTE_TEXTURE_DIMENSIONS, COMPUTE_TEXTURE_DIMENSIONS);
     memcpy(uniformBuffers_[currentBuffer_].boundary.mapped, &ubos_.boundary,
            sizeof(BoundaryUBO));
 
-    ubos_.jacobi.bufferResolution = glm::vec2(width_, height_);
+    ubos_.jacobi.bufferResolution =
+        glm::vec2(COMPUTE_TEXTURE_DIMENSIONS, COMPUTE_TEXTURE_DIMENSIONS);
     memcpy(uniformBuffers_[currentBuffer_].jacobi.mapped, &ubos_.jacobi,
            sizeof(JacobiUBO));
 
-    ubos_.gradient.bufferResolution = glm::vec2(width_, height_);
+    ubos_.gradient.bufferResolution =
+        glm::vec2(COMPUTE_TEXTURE_DIMENSIONS, COMPUTE_TEXTURE_DIMENSIONS);
     memcpy(uniformBuffers_[currentBuffer_].gradient.mapped, &ubos_.gradient,
            sizeof(GradientUBO));
 
-    ubos_.divergence.bufferResolution = glm::vec2(width_, height_);
+    ubos_.divergence.bufferResolution =
+        glm::vec2(COMPUTE_TEXTURE_DIMENSIONS, COMPUTE_TEXTURE_DIMENSIONS);
     memcpy(uniformBuffers_[currentBuffer_].divergence.mapped, &ubos_.divergence,
            sizeof(DivergenceUBO));
 
-    ubos_.impulse.bufferResolution = glm::vec2(width_, height_);
+    ubos_.impulse.bufferResolution =
+        glm::vec2(COMPUTE_TEXTURE_DIMENSIONS, COMPUTE_TEXTURE_DIMENSIONS);
     memcpy(uniformBuffers_[currentBuffer_].impulse.mapped, &ubos_.impulse,
            sizeof(ImpulseUBO));
 
@@ -1337,13 +1358,6 @@ class VulkanExample : public VulkanExampleBase {
 
     // Select which tex to view
     textureViewSwitcherCmd(cmdBuffer);
-    copyImageCmd(cmdBuffer, color_pass_);
-
-    if (showVelocityArrows_) {
-      // Draw arrows
-      velocityArrowsCmd(cmdBuffer);
-      copyImageCmd(cmdBuffer, color_pass_);
-    }
 
     // Color pass
     colorPassCmd(cmdBuffer);
@@ -1768,7 +1782,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void textureViewSwitcherCmd(const VkCommandBuffer& cmdBuffer) {
     vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, color_pass_[1].image, 0,
+        cmdBuffer, color_pass_[0].image, 0,
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
         VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -1776,7 +1790,7 @@ class VulkanExample : public VulkanExampleBase {
 
     VkRenderingAttachmentInfoKHR colorAttachment{};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    colorAttachment.imageView = color_pass_[1].imageView;
+    colorAttachment.imageView = color_pass_[0].imageView;
     colorAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -1808,54 +1822,21 @@ class VulkanExample : public VulkanExampleBase {
                       pipelines_.textureViewSwitcher);
     vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
 
-    vkCmdEndRendering(cmdBuffer);
-    cmdEndLabel(cmdBuffer);
-  }
+    if (showVelocityArrows_) {
+      vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              pipelineLayouts_.velocityArrows, 0, 1,
+                              &descriptorSets_[currentBuffer_].velocityArrows,
+                              0, nullptr);
 
-  void velocityArrowsCmd(const VkCommandBuffer& cmdBuffer) {
-    vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, color_pass_[1].image, 0,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
-        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+      vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        pipelines_.velocityArrows);
+      VkDeviceSize offsets[] = {0};
+      vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertex_buffer_.buffer, offsets);
 
-    VkRenderingAttachmentInfoKHR colorAttachment{};
-    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    colorAttachment.imageView = color_pass_[1].imageView;
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachment.clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
+      vkCmdDraw(cmdBuffer, static_cast<uint32_t>(triangle_vertices_.size()), 1,
+                0, 0);
+    }
 
-    VkRenderingInfoKHR renderingInfo{};
-    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-    renderingInfo.renderArea = {0, 0, width_, height_};
-    renderingInfo.layerCount = 1;
-    renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachments = &colorAttachment;
-
-    cmdBeginLabel(cmdBuffer, "Velocity Field Arrows", debugColor);
-    vkCmdBeginRendering(cmdBuffer, &renderingInfo);
-    VkViewport viewport =
-        vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
-    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
-
-    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
-    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
-
-    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            pipelineLayouts_.velocityArrows, 0, 1,
-                            &descriptorSets_[currentBuffer_].velocityArrows, 0,
-                            nullptr);
-
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      pipelines_.velocityArrows);
-    VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertex_buffer_.buffer, offsets);
-
-    vkCmdDraw(cmdBuffer, static_cast<uint32_t>(triangle_vertices_.size()), 1, 0,
-              0);
     vkCmdEndRendering(cmdBuffer);
     cmdEndLabel(cmdBuffer);
   }
@@ -1956,7 +1937,9 @@ class VulkanExample : public VulkanExampleBase {
     vkDestroyBuffer(device_, vertex_buffer_.buffer, nullptr);
   }
 
-  void destroyOffscreenPass() {}
+  void destroyOffscreenPass() {
+    vkDestroySampler(device_, offscreenPass_.sampler, nullptr);
+  }
 
   void prepareOffscreenFramebuffer(TextureFieldBuffer* frameBuf,
                                    const VkFormat colorFormat) const {
@@ -2064,7 +2047,7 @@ class VulkanExample : public VulkanExampleBase {
     }
   }
 
-  ~VulkanExample() {
+  ~VulkanExample() override {
     if (device_) {
       vkDestroyPipeline(device_, pipelines_.colorInit, nullptr);
       vkDestroyPipeline(device_, pipelines_.advection, nullptr);
@@ -2131,11 +2114,10 @@ class VulkanExample : public VulkanExampleBase {
         vkDestroyImageView(device_, pressure_field_[i].imageView, nullptr);
         vkDestroyImage(device_, pressure_field_[i].image, nullptr);
         vkFreeMemory(device_, pressure_field_[i].memory, nullptr);
-
-        vkDestroyImageView(device_, color_pass_[i].imageView, nullptr);
-        vkDestroyImage(device_, color_pass_[i].image, nullptr);
-        vkFreeMemory(device_, color_pass_[i].memory, nullptr);
       }
+      vkDestroyImageView(device_, color_pass_[0].imageView, nullptr);
+      vkDestroyImage(device_, color_pass_[0].image, nullptr);
+      vkFreeMemory(device_, color_pass_[0].memory, nullptr);
       vkDestroyImageView(device_, divergence_field_.imageView, nullptr);
       vkDestroyImage(device_, divergence_field_.image, nullptr);
       vkFreeMemory(device_, divergence_field_.memory, nullptr);
