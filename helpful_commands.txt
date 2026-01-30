@@ -1,2 +1,4 @@
 Full ktx script to convert 6 rgb png's to a cubemap:
 toktx --cubemap --assign_oetf srgb --target_type RGBA  --resize 2048x2048 skybox.ktx left.png right.png top.png bottom.png back.png front.png
+
+toktx --cubemap --assign_oetf srgb --target_type RGBA  --resize 2048x2048 skybox.ktx px.png nx.png py.png ny.png pz.png nz.png

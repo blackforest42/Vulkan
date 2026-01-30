@@ -565,22 +565,6 @@ class VulkanExample : public VulkanExampleBase {
     }
   }
 
-  // Enable physical device features required for this example
-  void getEnabledFeatures() override {
-    // Tessellation shader support is required for this example
-    if (deviceFeatures_.tessellationShader) {
-      enabledFeatures_.tessellationShader = VK_TRUE;
-    } else {
-      vks::tools::exitFatal(
-          "Selected GPU does not support tessellation shaders!",
-          VK_ERROR_FEATURE_NOT_PRESENT);
-    }
-    //  Fill mode non solid is required for wireframe display
-    if (deviceFeatures_.fillModeNonSolid) {
-      enabledFeatures_.fillModeNonSolid = VK_TRUE;
-    };
-  }
-
   void loadAssets() {
     // Height data is stored in a one-channel texture
     textures_.heightMap.loadFromFile(
@@ -598,7 +582,7 @@ class VulkanExample : public VulkanExampleBase {
                                 vulkanDevice_, queue_, glTFLoadingFlags);
     // Skybox textures
     textures_.cubeMap.loadFromFile(
-        getExamplesBasePath() + "terraintessellation2/cartoon_sky_cubemap.ktx",
+        getExamplesBasePath() + "terraintessellation2/cartoon_skybox.ktx",
         VK_FORMAT_R8G8B8A8_SRGB, vulkanDevice_, queue_);
   }
 
