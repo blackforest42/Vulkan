@@ -78,15 +78,14 @@ class VulkanExample : public VulkanExampleBase {
     std::string filename =
         getExamplesBasePath() + "terraintessellation2/iceland_heightmap_r8.ktx";
 
-    ktxResult result;
     ktxTexture* ktxTexture;
-    result = ktxTexture_CreateFromNamedFile(
+    ktxResult result = ktxTexture_CreateFromNamedFile(
         filename.c_str(), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &ktxTexture);
     assert(result == KTX_SUCCESS);
     ktx_size_t ktxSize = ktxTexture_GetImageSize(ktxTexture, 0);
     ktx_uint8_t* ktxImage = ktxTexture_GetData(ktxTexture);
-    uint32_t TEXTURE_WIDTH = ktxTexture->baseWidth;
-    uint32_t TEXTURE_HEIGHT = ktxTexture->baseHeight;
+    const uint32_t TEXTURE_WIDTH = ktxTexture->baseWidth;
+    const uint32_t TEXTURE_HEIGHT = ktxTexture->baseHeight;
     ktxTexture_Destroy(ktxTexture);
 
     const uint32_t n_patches{128};
@@ -94,7 +93,7 @@ class VulkanExample : public VulkanExampleBase {
     const float patch_height = (float)TEXTURE_HEIGHT / n_patches;
     // We use the Vertex definition from the glTF model loader, so we can re-use
     // the vertex input state
-    const uint32_t vertexCount = n_patches * n_patches;
+    constexpr uint32_t vertexCount = n_patches * n_patches;
     std::vector<vkglTF::Vertex> vertices(vertexCount);
 
     // Generate a two-dimensional vertex patch
@@ -112,7 +111,7 @@ class VulkanExample : public VulkanExampleBase {
     }
 
     // Generate indices
-    const uint32_t w = (n_patches - 1);
+    constexpr uint32_t w = (n_patches - 1);
     terrain_.indexCount = w * w * 4;
     std::vector<uint32_t> indices(terrain_.indexCount);
     for (auto x = 0; x < w; x++) {
@@ -429,7 +428,7 @@ class VulkanExample : public VulkanExampleBase {
            sizeof(ModelViewPerspectiveUBO));
   }
 
-  void prepare() {
+  void prepare() override {
     VulkanExampleBase::prepare();
     loadAssets();
     generateTerrain();
@@ -453,7 +452,7 @@ class VulkanExample : public VulkanExampleBase {
   void buildCommandBuffer() {
     VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
 
-    VkCommandBufferBeginInfo cmdBufInfo =
+    const VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
@@ -602,7 +601,7 @@ class VulkanExample : public VulkanExampleBase {
     deviceCreatepNextChain_ = &enabledFeatures13_;
   }
 
-  ~VulkanExample() {
+  ~VulkanExample() override {
     if (device_) {
       vkDestroyPipeline(device_, pipelines_.terrain, nullptr);
       if (pipelines_.wireframe != VK_NULL_HANDLE) {
