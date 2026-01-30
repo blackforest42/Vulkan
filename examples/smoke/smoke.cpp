@@ -24,12 +24,13 @@ struct UiFeatures {
   // emission
   float smokeRadius{.25};
   float emissionTemperature{1.f};
+  float emissionRate{4.f};
 
   float smokeDissipation{0.995f};
 
   // buoyancy
   float weightCoeff{0.1f};
-  float buoyancyCoeff{0.1f};
+  float buoyancyCoeff{0.2f};
 
   // Vorticity confinement
   float vorticityStrength{0.12f};
@@ -40,14 +41,13 @@ struct UiFeatures {
   int timeStep{30};
 
   // Ray march
-  float rayStepSize{0.01};
-
   // Texture index mappings
   // 0 velocity
   // 1 pressure
   // 4 density
   // 5 temperature
   int textureRadioId{4};
+  float colorIntensity{1.7f};
 
   bool toggleRotation{false};
 } uiFeatures;
@@ -128,6 +128,7 @@ class VulkanExample : public VulkanExampleBase {
       alignas(4) float sourceRadius{uiFeatures.smokeRadius};
       alignas(4) float ambientTemp{0.f};
       alignas(4) float emissionTemp{uiFeatures.emissionTemperature};
+      alignas(4) float emissionRate{uiFeatures.emissionRate};
       alignas(4) float deltaTime{1.f / uiFeatures.timeStep};
       alignas(4) float time{0};
     };
@@ -292,7 +293,7 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 cameraPos;
       alignas(8) glm::vec2 screenRes;
       alignas(4) float time{0};
-      alignas(4) float rayStepSize{uiFeatures.rayStepSize};
+      alignas(4) float colorIntensity{uiFeatures.colorIntensity};
       alignas(4) int toggleView{0};
       alignas(4) uint32_t texId{};
     };
@@ -1965,13 +1966,14 @@ class VulkanExample : public VulkanExampleBase {
     graphics_.ubos_.march.perspective = camera_.matrices_.perspective;
     graphics_.ubos_.march.cameraPos = camera_.position_;
     graphics_.ubos_.march.time = time;
-    graphics_.ubos_.march.rayStepSize = uiFeatures.rayStepSize;
+    graphics_.ubos_.march.colorIntensity = uiFeatures.colorIntensity;
     graphics_.ubos_.march.texId = uiFeatures.textureRadioId;
     memcpy(graphics_.uniformBuffers_[currentBuffer_].march.mapped,
            &graphics_.ubos_.march, sizeof(Graphics::RayMarchUBO));
 
     // Emission
     compute_.ubos_.emission.time = time;
+    compute_.ubos_.emission.emissionRate = uiFeatures.emissionRate;
     compute_.ubos_.emission.emissionTemp = uiFeatures.emissionTemperature;
     compute_.ubos_.emission.sourceRadius =
         VulkanExample::Compute::COMPUTE_TEXTURE_DIMENSIONS / 2.f *
@@ -2424,8 +2426,12 @@ class VulkanExample : public VulkanExampleBase {
                         graphics_.viewNames);
       if (graphics_.ubos_.march.toggleView == 0) {
         overlay->sliderFloat("Smoke Radius", &uiFeatures.smokeRadius, 0, 1);
+        overlay->sliderFloat("Smoke Color Intensity",
+                             &uiFeatures.colorIntensity, 0.01f, 5.f);
         overlay->sliderFloat("Smoke Dissipation", &uiFeatures.smokeDissipation,
                              0, 1);
+        overlay->sliderFloat("Smoke Emission Rate", &uiFeatures.emissionRate,
+                             0.00f, 20.f);
         overlay->sliderFloat("Smoke Emission Temp",
                              &uiFeatures.emissionTemperature, 0, 1.5f);
         overlay->sliderFloat("Smoke Weight Coeff.", &uiFeatures.weightCoeff, 0,
@@ -2435,14 +2441,10 @@ class VulkanExample : public VulkanExampleBase {
         overlay->sliderInt("Jacobi Iterations", &uiFeatures.jacobiIterations, 1,
                            60);
         overlay->sliderInt("1 / Time Step", &uiFeatures.timeStep, 1, 360);
-        overlay->sliderFloat("Ray March Step Size", &uiFeatures.rayStepSize,
-                             0.001f, .02f);
-
         overlay->radioButton("Smoke Texture", &uiFeatures.textureRadioId, 4);
         overlay->radioButton("Velocity Texture", &uiFeatures.textureRadioId, 0);
         overlay->radioButton("Temperature Texture", &uiFeatures.textureRadioId,
                              5);
-        overlay->radioButton("Pressure Texture", &uiFeatures.textureRadioId, 1);
       }
 
       overlay->checkBox("Toggle Rotation", &uiFeatures.toggleRotation);

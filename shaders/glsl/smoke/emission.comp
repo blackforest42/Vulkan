@@ -19,6 +19,7 @@ layout(binding = 2) uniform EmissionUBO {
     float sourceRadius;
     float ambientTemp;
     float emissionTemp;
+    float emissionRate;
     float timeStep;
     float time;
 } ubo;
@@ -41,7 +42,7 @@ void main() {
         // Add density (accumulate)
         float saturation = 0.78f;
         // Creates a time varying "pulse"
-        float density = 1.5f * (((sin(ubo.time / 2.f)* 0.5f + 0.5f))
+        float density = 1.5f * (((sin(ubo.time * ubo.emissionRate)* 0.5f + 0.4f))
         * saturation + (1.0f - saturation));
         imageStore(writeOnlyTexs[4], coord, vec4(density));
 

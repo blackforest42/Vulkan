@@ -24,19 +24,16 @@ layout(binding = 0) uniform RayMarchUBO {
     vec3 cameraPos;
     vec2 screenRes;
     float time;
-    float rayStepSize;
+    float colorIntensity;
     int toggleView;
     uint texId;
 }
 ubo;
-
-float MAX_STEPS = 1 / ubo.rayStepSize;
+const float STEP_SIZE = 0.001;
+const float MAX_STEPS = 1 / STEP_SIZE;
 const float SMOKE_DENSITY = 1.0f;
 const float CLOUD_SIZE = .5f;
 const vec3 SMOKE_COLOR = vec3(1.0);
-const vec3 PRESSURE_COLOR = vec3(1.0, 0, 0);
-const float INTENSITY_SCALE = 5.f;
-const vec3 SUN_POSITION = vec3(1.0, 0.0, 0.0);
 
 vec4 permute(vec4 x);
 vec4 taylorInvSqrt(vec4 r);
@@ -83,9 +80,6 @@ void main() {
         }
     }
 
-    // Sun and Sky
-    vec3 sunDirection = normalize(SUN_POSITION);
-    float sun = clamp(dot(sunDirection, rayDir), 0.0, 1.0);
     // Base sky color
     vec3 skyColor = vec3(0.7, 0.7, 0.90);
     // Add vertical gradient
@@ -116,7 +110,7 @@ vec4 rayMarchVelocity(vec3 rayOrigin, vec3 rayDir) {
 
         if (magnitude > 0.001) {
             // 1. Calculate opacity based on velocity magnitude
-            float srcA = clamp(magnitude * INTENSITY_SCALE * ubo.rayStepSize, 0.0, 1.0);
+            float srcA = clamp(magnitude * ubo.colorIntensity * STEP_SIZE, 0.0, 1.0);
 
             // 2. Map velocity direction to color
             // Option A: Use the absolute direction for RGB (X=R, Y=G, Z=B)
@@ -131,7 +125,7 @@ vec4 rayMarchVelocity(vec3 rayOrigin, vec3 rayDir) {
             if (final_color.a >= 0.95) break;
         }
 
-        t += ubo.rayStepSize;
+        t += STEP_SIZE;
         pos = rayOrigin + rayDir * t;
     }
 
@@ -158,18 +152,13 @@ vec4 rayMarchScalar(vec3 rayOrigin, vec3 rayDir) {
         float scalar = texture(readOnlyTexs[ubo.texId], vec3(pos.x, 1.0 - pos.y, pos.z)).r;
 
         if (scalar > 0.001) {
-            float srcA = clamp(scalar * INTENSITY_SCALE * ubo.rayStepSize, 0.0, 1.0);
+            float srcA = clamp(scalar * ubo.colorIntensity * STEP_SIZE, 0.0, 1.0);
 
             vec3 srcRGB;
             if (ubo.texId == 5) {
                 // Temperature
                 // Map the normalized scalar to a thermal color palette
-                srcRGB = INTENSITY_SCALE * getBlackbodyColor(clamp(scalar, 0.0, 1.0));
-            } else if (ubo.texId == 1) {
-                // Pressure
-                float pScalar = abs(scalar);
-                srcA = clamp(pScalar * INTENSITY_SCALE * ubo.rayStepSize, 0.0, 1.0);
-                srcRGB = PRESSURE_COLOR;
+                srcRGB = ubo.colorIntensity * getBlackbodyColor(clamp(scalar, 0.0, 1.0));
             } else {
                 // Smoke density
                 srcRGB = mix(vec3(1.0, 1.0, 1.0), vec3(0.0, 0.0, 0.0), scalar);
@@ -182,7 +171,7 @@ vec4 rayMarchScalar(vec3 rayOrigin, vec3 rayDir) {
             if (final_color.a >= 0.95) break;
         }
 
-        t += ubo.rayStepSize;
+        t += STEP_SIZE;
         pos = rayOrigin + rayDir * t;
 
     }
@@ -260,7 +249,7 @@ vec4 rayMarchSDF(vec3 rayOrigin, vec3 rayDir) {
             res += color*(1.0-res.a);
         }
 
-        t += ubo.rayStepSize;
+        t += STEP_SIZE;
         pos = rayOrigin + t * rayDir;
     }
 
