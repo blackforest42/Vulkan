@@ -22,7 +22,7 @@ class VulkanExample : public VulkanExampleBase {
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
 
   static constexpr int COMPUTE_TEXTURE_DIMENSIONS = 256;
-  const uint32_t JACOBI_ITERATIONS = 100;
+  const uint32_t JACOBI_ITERATIONS = 20;
   // Inner slab offset (in pixels) for x and y axis
   const uint32_t SLAB_OFFSET = 0;
   static constexpr float TIME_STEP{1.f / 360};
