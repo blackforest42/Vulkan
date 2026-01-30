@@ -64,9 +64,11 @@ void main() {
         if (ubo.toggleView == 0) {
             // March a texture
             if (ubo.texId == 0) {
+                // March velocity smoke texture
                 cloud = rayMarchVelocity(cubeRayEntry, rayDir);
             }
             else {
+                // March scalar texture (e.g. smoke)
                 cloud = rayMarchScalar(cubeRayEntry, rayDir);
             }
         } else if (ubo.toggleView == 1) {
@@ -85,14 +87,12 @@ void main() {
     vec3 sunDirection = normalize(SUN_POSITION);
     float sun = clamp(dot(sunDirection, rayDir), 0.0, 1.0);
     // Base sky color
-    vec3 color = vec3(0.7, 0.7, 0.90);
+    vec3 skyColor = vec3(0.7, 0.7, 0.90);
     // Add vertical gradient
-    color -= 0.8 * vec3(0.90, 0.75, 0.90) * rayDir.y;
-    // Add sun color to sky
-    color += 0.5 * vec3(1.0, 0.5, 0.3) * pow(sun, 10.0);
+    skyColor -= 0.5 * vec3(0.90, 0.75, 0.90) * rayDir.y;
 
-    color = color * (1.0 - cloud.a) + cloud.rgb;
-    outFragColor = vec4(color, 1.f);
+    skyColor = skyColor * (1.0 - cloud.a) + cloud.rgb;
+    outFragColor = vec4(skyColor, 1.f);
 }
 
 vec4 rayMarchVelocity(vec3 rayOrigin, vec3 rayDir) {
