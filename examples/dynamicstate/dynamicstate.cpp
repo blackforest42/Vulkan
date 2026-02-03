@@ -24,14 +24,14 @@ class VulkanExample : public VulkanExampleBase {
     glm::mat4 modelView;
     glm::vec4 lightPos{0.0f, 2.0f, 1.0f, 0.0f};
   } uniformData_;
-  std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+  std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers_;
 
   float clearColor[4] = {0.0f, 0.0f, 0.2f, 1.0f};
 
   VkPipelineLayout pipelineLayout{VK_NULL_HANDLE};
   VkPipeline pipeline{VK_NULL_HANDLE};
   VkDescriptorSetLayout descriptorSetLayout{VK_NULL_HANDLE};
-  std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+  std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets_{};
 
   // This sample demonstrates different dynamic states, so we check and store
   // what extension is available
@@ -75,24 +75,24 @@ class VulkanExample : public VulkanExampleBase {
   } dynamicState3;
 
   VulkanExample() : VulkanExampleBase() {
-    title_ = "Dynamic state";
-    camera_.type_ = Camera::CameraType::lookat;
-    camera_.setPosition(glm::vec3(0.0f, 0.0f, -10.5f));
-    camera_.setRotation(glm::vec3(-25.0f, 15.0f, 0.0f));
-    camera_.setRotationSpeed(0.5f);
-    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
+    title = "Dynamic state";
+    camera.type_ = Camera::CameraType::lookat;
+    camera.setPosition(glm::vec3(0.0f, 0.0f, -10.5f));
+    camera.setRotation(glm::vec3(-25.0f, 15.0f, 0.0f));
+    camera.setRotationSpeed(0.5f);
+    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
 
     // Note: We enable the dynamic state extensions dynamically, based on which
     // ones the device supports see getEnabledExtensions
-    enabledInstanceExtensions_.push_back(
+    enabledInstanceExtensions.push_back(
         VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
   }
 
   ~VulkanExample() {
-    if (device_) {
-      vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
-      vkDestroyPipeline(device_, pipeline, nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
+    if (device) {
+      vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+      vkDestroyPipeline(device, pipeline, nullptr);
+      vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
       for (auto& buffer : uniformBuffers_) {
         buffer.destroy();
       }
@@ -116,58 +116,58 @@ class VulkanExample : public VulkanExampleBase {
     physicalDeviceFeatures2.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     physicalDeviceFeatures2.pNext = &extendedDynamicStateFeaturesEXT;
-    vkGetPhysicalDeviceFeatures2(physicalDevice_, &physicalDeviceFeatures2);
+    vkGetPhysicalDeviceFeatures2(physicalDevice, &physicalDeviceFeatures2);
 
     // Check what dynamic states are supported by the current implementation
     // Checking for available features is probably sufficient, but retained
     // redundant extension checks for clarity and consistency
-    hasDynamicState = vulkanDevice_->extensionSupported(
+    hasDynamicState = vulkanDevice->extensionSupported(
                           VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME) &&
                       extendedDynamicStateFeaturesEXT.extendedDynamicState;
-    hasDynamicState2 = vulkanDevice_->extensionSupported(
+    hasDynamicState2 = vulkanDevice->extensionSupported(
                            VK_EXT_EXTENDED_DYNAMIC_STATE_2_EXTENSION_NAME) &&
                        extendedDynamicState2FeaturesEXT.extendedDynamicState2;
-    hasDynamicState3 = vulkanDevice_->extensionSupported(
+    hasDynamicState3 = vulkanDevice->extensionSupported(
                            VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME) &&
                        extendedDynamicState3FeaturesEXT
                            .extendedDynamicState3ColorBlendEnable &&
                        extendedDynamicState3FeaturesEXT
                            .extendedDynamicState3ColorBlendEquation;
-    hasDynamicVertexState = vulkanDevice_->extensionSupported(
+    hasDynamicVertexState = vulkanDevice->extensionSupported(
         VK_EXT_VERTEX_INPUT_DYNAMIC_STATE_EXTENSION_NAME);
 
     // Enable dynamic state extensions if present. This function is called after
     // physical and before logical device creation, so we can enabled extensions
     // based on a list of supported extensions
     if (hasDynamicState) {
-      enabledDeviceExtensions_.push_back(
+      enabledDeviceExtensions.push_back(
           VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME);
       extendedDynamicStateFeaturesEXT.pNext = nullptr;
-      deviceCreatepNextChain_ = &extendedDynamicStateFeaturesEXT;
+      deviceCreatepNextChain = &extendedDynamicStateFeaturesEXT;
     }
     if (hasDynamicState2) {
-      enabledDeviceExtensions_.push_back(
+      enabledDeviceExtensions.push_back(
           VK_EXT_EXTENDED_DYNAMIC_STATE_2_EXTENSION_NAME);
       extendedDynamicState2FeaturesEXT.pNext = nullptr;
       if (hasDynamicState) {
         extendedDynamicStateFeaturesEXT.pNext =
             &extendedDynamicState2FeaturesEXT;
       } else {
-        deviceCreatepNextChain_ = &extendedDynamicState2FeaturesEXT;
+        deviceCreatepNextChain = &extendedDynamicState2FeaturesEXT;
       }
     }
     if (hasDynamicState3) {
-      enabledDeviceExtensions_.push_back(
+      enabledDeviceExtensions.push_back(
           VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME);
       if (hasDynamicState2) {
         extendedDynamicState2FeaturesEXT.pNext =
             &extendedDynamicState3FeaturesEXT;
       } else {
-        deviceCreatepNextChain_ = &extendedDynamicState3FeaturesEXT;
+        deviceCreatepNextChain = &extendedDynamicState3FeaturesEXT;
       }
     }
     if (hasDynamicVertexState) {
-      enabledDeviceExtensions_.push_back(
+      enabledDeviceExtensions.push_back(
           VK_EXT_VERTEX_INPUT_DYNAMIC_STATE_EXTENSION_NAME);
     }
   }
@@ -178,19 +178,19 @@ class VulkanExample : public VulkanExampleBase {
         vkglTF::FileLoadingFlags::PreMultiplyVertexColors |
         vkglTF::FileLoadingFlags::FlipY;
     scene.loadFromFile(getAssetPath() + "models/treasure_smooth.gltf",
-                       vulkanDevice_, queue_, glTFLoadingFlags);
+                       vulkanDevice, queue, glTFLoadingFlags);
   }
 
   void setupDescriptors() {
     // Pool
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                              MAX_CONCURRENT_FRAMES)};
+                                              maxConcurrentFrames)};
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(poolSizes,
-                                                    MAX_CONCURRENT_FRAMES);
-    VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
-                                           nullptr, &descriptorPool_));
+                                                    maxConcurrentFrames);
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo,
+                                           nullptr, &descriptorPool));
 
     // Layout
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -199,22 +199,22 @@ class VulkanExample : public VulkanExampleBase {
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0)};
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout,
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout,
                                                 nullptr, &descriptorSetLayout));
 
     // Sets per frame, just like the buffers themselves
     VkDescriptorSetAllocateInfo allocInfo =
-        vks::initializers::descriptorSetAllocateInfo(descriptorPool_,
+        vks::initializers::descriptorSetAllocateInfo(descriptorPool,
                                                      &descriptorSetLayout, 1);
     for (auto i = 0; i < uniformBuffers_.size(); i++) {
       VK_CHECK_RESULT(
-          vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
+          vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets_[i]));
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
               &uniformBuffers_[i].descriptor),
       };
-      vkUpdateDescriptorSets(device_,
+      vkUpdateDescriptorSets(device,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
     }
@@ -224,7 +224,7 @@ class VulkanExample : public VulkanExampleBase {
     // Layout
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
         vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo,
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo,
                                            nullptr, &pipelineLayout));
 
     // Pipeline
@@ -278,7 +278,7 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
 
     VkGraphicsPipelineCreateInfo pipelineCI =
-        vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_);
+        vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass);
     pipelineCI.pInputAssemblyState = &inputAssemblyState;
     pipelineCI.pRasterizationState = &rasterizationState;
     pipelineCI.pColorBlendState = &colorBlendState;
@@ -298,14 +298,14 @@ class VulkanExample : public VulkanExampleBase {
                                  VK_SHADER_STAGE_VERTEX_BIT);
     shaderStages[1] = loadShader(getShadersPath() + "pipelines/phong.frag.spv",
                                  VK_SHADER_STAGE_FRAGMENT_BIT);
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1,
                                               &pipelineCI, nullptr, &pipeline));
   }
 
   // Prepare and initialize uniform buffer containing shader uniforms
   void prepareUniformBuffers() {
     for (auto& buffer : uniformBuffers_) {
-      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+      VK_CHECK_RESULT(vulkanDevice->createBuffer(
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -315,9 +315,9 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    uniformData_.projection = camera_.matrices_.perspective;
-    uniformData_.modelView = camera_.matrices_.view;
-    memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_,
+    uniformData_.projection = camera.matrices.perspective;
+    uniformData_.modelView = camera.matrices.view;
+    memcpy(uniformBuffers_[currentBuffer].mapped, &uniformData_,
            sizeof(uniformData_));
   }
 
@@ -328,42 +328,42 @@ class VulkanExample : public VulkanExampleBase {
     // need to load the function pointers depending on extension supports
     if (hasDynamicState) {
       vkCmdSetCullModeEXT = reinterpret_cast<PFN_vkCmdSetCullModeEXT>(
-          vkGetDeviceProcAddr(device_, "vkCmdSetCullModeEXT"));
+          vkGetDeviceProcAddr(device, "vkCmdSetCullModeEXT"));
       vkCmdSetFrontFaceEXT = reinterpret_cast<PFN_vkCmdSetFrontFaceEXT>(
-          vkGetDeviceProcAddr(device_, "vkCmdSetFrontFaceEXT"));
+          vkGetDeviceProcAddr(device, "vkCmdSetFrontFaceEXT"));
       vkCmdSetDepthWriteEnableEXT =
           reinterpret_cast<PFN_vkCmdSetDepthWriteEnableEXT>(
-              vkGetDeviceProcAddr(device_, "vkCmdSetDepthWriteEnableEXT"));
+              vkGetDeviceProcAddr(device, "vkCmdSetDepthWriteEnableEXT"));
       vkCmdSetDepthTestEnableEXT =
           reinterpret_cast<PFN_vkCmdSetDepthTestEnable>(
-              vkGetDeviceProcAddr(device_, "vkCmdSetDepthTestEnableEXT"));
+              vkGetDeviceProcAddr(device, "vkCmdSetDepthTestEnableEXT"));
     }
 
     if (hasDynamicState2) {
       vkCmdSetRasterizerDiscardEnableEXT =
           reinterpret_cast<PFN_vkCmdSetRasterizerDiscardEnableEXT>(
-              vkGetDeviceProcAddr(device_,
+              vkGetDeviceProcAddr(device,
                                   "vkCmdSetRasterizerDiscardEnableEXT"));
     }
 
     if (hasDynamicState3) {
       vkCmdSetColorBlendEnableEXT =
           reinterpret_cast<PFN_vkCmdSetColorBlendEnableEXT>(
-              vkGetDeviceProcAddr(device_, "vkCmdSetColorBlendEnableEXT"));
+              vkGetDeviceProcAddr(device, "vkCmdSetColorBlendEnableEXT"));
       vkCmdSetColorBlendEquationEXT =
           reinterpret_cast<PFN_vkCmdSetColorBlendEquationEXT>(
-              vkGetDeviceProcAddr(device_, "vkCmdSetColorBlendEquationEXT"));
+              vkGetDeviceProcAddr(device, "vkCmdSetColorBlendEquationEXT"));
     }
 
     loadAssets();
     prepareUniformBuffers();
     setupDescriptors();
     preparePipelines();
-    prepared_ = true;
+    prepared = true;
   }
 
   void buildCommandBuffer() {
-    VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
+    VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
 
     VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
@@ -375,14 +375,14 @@ class VulkanExample : public VulkanExampleBase {
 
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = renderPass_;
+    renderPassBeginInfo.renderPass = renderPass;
     renderPassBeginInfo.renderArea.offset.x = 0;
     renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.renderArea.extent.width = width_;
-    renderPassBeginInfo.renderArea.extent.height = height_;
+    renderPassBeginInfo.renderArea.extent.width = width;
+    renderPassBeginInfo.renderArea.extent.height = height;
     renderPassBeginInfo.clearValueCount = 2;
     renderPassBeginInfo.pClearValues = clearValues;
-    renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+    renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
 
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
@@ -390,10 +390,10 @@ class VulkanExample : public VulkanExampleBase {
                          VK_SUBPASS_CONTENTS_INLINE);
 
     VkViewport viewport =
-        vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+        vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
     // Apply dynamic states
@@ -440,7 +440,7 @@ class VulkanExample : public VulkanExampleBase {
 
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             pipelineLayout, 0, 1,
-                            &descriptorSets_[currentBuffer_], 0, nullptr);
+                            &descriptorSets_[currentBuffer], 0, nullptr);
     scene.bindBuffers(cmdBuffer);
 
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
@@ -454,7 +454,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   virtual void render() {
-    if (!prepared_)
+    if (!prepared)
       return;
     VulkanExampleBase::prepareFrame();
     updateUniformBuffers();

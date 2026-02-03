@@ -40,7 +40,7 @@ public:
 		VkCommandBuffer background{ VK_NULL_HANDLE };
 		VkCommandBuffer ui{ VK_NULL_HANDLE };
 	};
-	std::array<SecondaryCommandBuffers, MAX_CONCURRENT_FRAMES> secondaryCommandBuffers{};
+	std::array<SecondaryCommandBuffers, maxConcurrentFrames> secondaryCommandBuffers{};
 
 	// Number of animated objects to be renderer
 	// by using threads and secondary command buffers
@@ -72,7 +72,7 @@ public:
 	struct ThreadData {
 		VkCommandPool commandPool{ VK_NULL_HANDLE };
 		// One command buffer per render object per max. frames in flight
-		std::array<std::vector<VkCommandBuffer>, MAX_CONCURRENT_FRAMES> commandBuffer;
+		std::array<std::vector<VkCommandBuffer>, maxConcurrentFrames> commandBuffer;
 		// One push constant block per render object
 		std::vector<ThreadPushConstantBlock> pushConstBlock;
 		// Per object information (position, rotation, etc.)
@@ -89,12 +89,12 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title_ = "Multi threaded command buffer";
-		camera_.type_ = Camera::CameraType::lookat;
-		camera_.setPosition(glm::vec3(0.0f, -0.0f, -32.5f));
-		camera_.setRotation(glm::vec3(0.0f));
-		camera_.setRotationSpeed(0.5f);
-		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
+		title = "Multi threaded command buffer";
+		camera.type_ = Camera::CameraType::lookat;
+		camera.setPosition(glm::vec3(0.0f, -0.0f, -32.5f));
+		camera.setRotation(glm::vec3(0.0f));
+		camera.setRotationSpeed(0.5f);
+		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
 		// Get number of max. concurrent threads
 		numThreads = std::thread::hardware_concurrency();
 		assert(numThreads > 0);
@@ -110,15 +110,15 @@ public:
 
 	~VulkanExample()
 	{
-		if (device_) {
-			vkDestroyPipeline(device_, pipelines_.phong, nullptr);
-			vkDestroyPipeline(device_, pipelines_.starsphere, nullptr);
-			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
+		if (device) {
+			vkDestroyPipeline(device, pipelines_.phong, nullptr);
+			vkDestroyPipeline(device, pipelines_.starsphere, nullptr);
+			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 			for (auto& thread : threadData) {
 				for (auto& cmdBuffers : thread.commandBuffer) {
-					vkFreeCommandBuffers(device_, thread.commandPool, static_cast<uint32_t>(cmdBuffers.size()), cmdBuffers.data());
+					vkFreeCommandBuffers(device, thread.commandPool, static_cast<uint32_t>(cmdBuffers.size()), cmdBuffers.data());
 				}
-				vkDestroyCommandPool(device_, thread.commandPool, nullptr);
+				vkDestroyCommandPool(device, thread.commandPool, nullptr);
 			}
 		}
 	}
@@ -133,10 +133,10 @@ public:
 	void prepareMultiThreadedRenderer()
 	{
 		// The actual commands are issued in secondary command buffers, this also applies to the background and the user interface
-		for (uint32_t i = 0; i < MAX_CONCURRENT_FRAMES; i++) {
-			VkCommandBufferAllocateInfo cmdBufAllocateInfo = vks::initializers::commandBufferAllocateInfo(cmdPool_, VK_COMMAND_BUFFER_LEVEL_SECONDARY, 1);
-			VK_CHECK_RESULT(vkAllocateCommandBuffers(device_, &cmdBufAllocateInfo, &secondaryCommandBuffers[i].background));
-			VK_CHECK_RESULT(vkAllocateCommandBuffers(device_, &cmdBufAllocateInfo, &secondaryCommandBuffers[i].ui));
+		for (uint32_t i = 0; i < maxConcurrentFrames; i++) {
+			VkCommandBufferAllocateInfo cmdBufAllocateInfo = vks::initializers::commandBufferAllocateInfo(cmdPool, VK_COMMAND_BUFFER_LEVEL_SECONDARY, 1);
+			VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &secondaryCommandBuffers[i].background));
+			VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &secondaryCommandBuffers[i].ui));
 		}
 
 		threadData.resize(numThreads);
@@ -146,9 +146,9 @@ public:
 
 			// Command pools need to be per thread
 			VkCommandPoolCreateInfo cmdPoolInfo = vks::initializers::commandPoolCreateInfo();
-			cmdPoolInfo.queueFamilyIndex = swapChain_.queueNodeIndex_;
+			cmdPoolInfo.queueFamilyIndex = swapChain.queueNodeIndex;
 			cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-			VK_CHECK_RESULT(vkCreateCommandPool(device_, &cmdPoolInfo, nullptr, &thread->commandPool));
+			VK_CHECK_RESULT(vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &thread->commandPool));
 
 			// One secondary command buffer per object that is updated by this thread
 			// We also duplicate the command buffers per max. frames in flight
@@ -156,7 +156,7 @@ public:
 				commandBuffers.resize(numObjectsPerThread);
 				// Generate secondary command buffers for each thread
 				VkCommandBufferAllocateInfo secondaryCmdBufAllocateInfo = vks::initializers::commandBufferAllocateInfo(thread->commandPool, VK_COMMAND_BUFFER_LEVEL_SECONDARY, static_cast<uint32_t>(commandBuffers.size()));
-				VK_CHECK_RESULT(vkAllocateCommandBuffers(device_, &secondaryCmdBufAllocateInfo, commandBuffers.data()));
+				VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &secondaryCmdBufAllocateInfo, commandBuffers.data()));
 			}
 
 			thread->pushConstBlock.resize(numObjectsPerThread);
@@ -194,14 +194,14 @@ public:
 		commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
 		commandBufferBeginInfo.pInheritanceInfo = &inheritanceInfo;
 
-		VkCommandBuffer cmdBuffer = thread->commandBuffer[currentBuffer_][cmdBufferIndex];
+		VkCommandBuffer cmdBuffer = thread->commandBuffer[currentBuffer][cmdBufferIndex];
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &commandBufferBeginInfo));
 
-		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.phong);
@@ -251,35 +251,35 @@ public:
 		commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
 		commandBufferBeginInfo.pInheritanceInfo = &inheritanceInfo;
 
-		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
-		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
 
 		/*
 			Background
 		*/
 
-		VK_CHECK_RESULT(vkBeginCommandBuffer(secondaryCommandBuffers[currentBuffer_].background, &commandBufferBeginInfo));
+		VK_CHECK_RESULT(vkBeginCommandBuffer(secondaryCommandBuffers[currentBuffer].background, &commandBufferBeginInfo));
 
-		vkCmdSetViewport(secondaryCommandBuffers[currentBuffer_].background, 0, 1, &viewport);
-		vkCmdSetScissor(secondaryCommandBuffers[currentBuffer_].background, 0, 1, &scissor);
+		vkCmdSetViewport(secondaryCommandBuffers[currentBuffer].background, 0, 1, &viewport);
+		vkCmdSetScissor(secondaryCommandBuffers[currentBuffer].background, 0, 1, &scissor);
 
-		vkCmdBindPipeline(secondaryCommandBuffers[currentBuffer_].background, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.starsphere);
+		vkCmdBindPipeline(secondaryCommandBuffers[currentBuffer].background, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.starsphere);
 
 		glm::mat4 mvp = matrices.projection * matrices.view;
 		mvp[3] = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
 		mvp = glm::scale(mvp, glm::vec3(2.0f));
 
 		vkCmdPushConstants(
-			secondaryCommandBuffers[currentBuffer_].background,
+			secondaryCommandBuffers[currentBuffer].background,
 			pipelineLayout,
 			VK_SHADER_STAGE_VERTEX_BIT,
 			0,
 			sizeof(mvp),
 			&mvp);
 
-		models_.starSphere.draw(secondaryCommandBuffers[currentBuffer_].background);
+		models_.starSphere.draw(secondaryCommandBuffers[currentBuffer].background);
 		
-		VK_CHECK_RESULT(vkEndCommandBuffer(secondaryCommandBuffers[currentBuffer_].background));
+		VK_CHECK_RESULT(vkEndCommandBuffer(secondaryCommandBuffers[currentBuffer].background));
 
 		/*
 			User interface
@@ -288,23 +288,23 @@ public:
 			by secondary command buffers, which also applies to the UI overlay command buffer
 		*/
 
-		VK_CHECK_RESULT(vkBeginCommandBuffer(secondaryCommandBuffers[currentBuffer_].ui, &commandBufferBeginInfo));
+		VK_CHECK_RESULT(vkBeginCommandBuffer(secondaryCommandBuffers[currentBuffer].ui, &commandBufferBeginInfo));
 
-		vkCmdSetViewport(secondaryCommandBuffers[currentBuffer_].ui, 0, 1, &viewport);
-		vkCmdSetScissor(secondaryCommandBuffers[currentBuffer_].ui, 0, 1, &scissor);
+		vkCmdSetViewport(secondaryCommandBuffers[currentBuffer].ui, 0, 1, &viewport);
+		vkCmdSetScissor(secondaryCommandBuffers[currentBuffer].ui, 0, 1, &scissor);
 
-		vkCmdBindPipeline(secondaryCommandBuffers[currentBuffer_].ui, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.starsphere);
+		vkCmdBindPipeline(secondaryCommandBuffers[currentBuffer].ui, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.starsphere);
 
-		drawUI(secondaryCommandBuffers[currentBuffer_].ui);
+		drawUI(secondaryCommandBuffers[currentBuffer].ui);
 
-		VK_CHECK_RESULT(vkEndCommandBuffer(secondaryCommandBuffers[currentBuffer_].ui));
+		VK_CHECK_RESULT(vkEndCommandBuffer(secondaryCommandBuffers[currentBuffer].ui));
 	}
 
 	void loadAssets()
 	{
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
-		models_.ufo.loadFromFile(getAssetPath() + "models/retroufo_red_lowpoly.gltf",vulkanDevice_, queue_,glTFLoadingFlags);
-		models_.starSphere.loadFromFile(getAssetPath() + "models/sphere.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
+		models_.ufo.loadFromFile(getAssetPath() + "models/retroufo_red_lowpoly.gltf",vulkanDevice, queue,glTFLoadingFlags);
+		models_.starSphere.loadFromFile(getAssetPath() + "models/sphere.gltf", vulkanDevice, queue, glTFLoadingFlags);
 	}
 
 	void preparePipelines()
@@ -316,7 +316,7 @@ public:
 		// Push constant ranges are part of the pipeline layout
 		pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
 		pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 
 		// Pipelines
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -330,7 +330,7 @@ public:
 		VkPipelineDynamicStateCreateInfo dynamicState = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
 		std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{};
 
-		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_, 0);
+		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
 		pipelineCI.pInputAssemblyState = &inputAssemblyState;
 		pipelineCI.pRasterizationState = &rasterizationState;
 		pipelineCI.pColorBlendState = &colorBlendState;
@@ -345,20 +345,20 @@ public:
 		// Object rendering pipeline
 		shaderStages[0] = loadShader(getShadersPath() + "multithreading/phong.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "multithreading/phong.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.phong));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.phong));
 
 		// Star sphere rendering pipeline
 		rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
 		depthStencilState.depthWriteEnable = VK_FALSE;
 		shaderStages[0] = loadShader(getShadersPath() + "multithreading/starsphere.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "multithreading/starsphere.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.starsphere));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.starsphere));
 	}
 
 	void updateMatrices()
 	{
-		matrices.projection = camera_.matrices_.perspective;
-		matrices.view = camera_.matrices_.view;
+		matrices.projection = camera.matrices.perspective;
+		matrices.view = camera.matrices.view;
 		frustum.update(matrices.projection * matrices.view);
 	}
 
@@ -369,7 +369,7 @@ public:
 		preparePipelines();
 		prepareMultiThreadedRenderer();
 		updateMatrices();
-		prepared_ = true;
+		prepared = true;
 	}
 
 	// Updates the secondary command buffers using a thread pool
@@ -377,7 +377,7 @@ public:
 	// lat submitted to the queue for rendering
 	void updateCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
 		
 		// Contains the list of secondary command buffers to be submitted
 		std::vector<VkCommandBuffer> commandBuffers;
@@ -389,20 +389,20 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass_;
+		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width_;
-		renderPassBeginInfo.renderArea.extent.height = height_;
+		renderPassBeginInfo.renderArea.extent.width = width;
+		renderPassBeginInfo.renderArea.extent.height = height;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
 
-		VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers_[currentBuffer_], &cmdBufInfo));
+		VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[currentBuffer], &cmdBufInfo));
 
 		// The primary command buffer does not contain any rendering commands
 		// These are stored (and retrieved) from the secondary command buffers
-		vkCmdBeginRenderPass(drawCmdBuffers_[currentBuffer_], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+		vkCmdBeginRenderPass(drawCmdBuffers[currentBuffer], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 
 		// Inheritance info for the secondary command buffers
 		VkCommandBufferInheritanceInfo inheritanceInfo = vks::initializers::commandBufferInheritanceInfo();
@@ -414,7 +414,7 @@ public:
 		updateSecondaryCommandBuffers(inheritanceInfo);
 
 		if (displayStarSphere) {
-			commandBuffers.push_back(secondaryCommandBuffers[currentBuffer_].background);
+			commandBuffers.push_back(secondaryCommandBuffers[currentBuffer].background);
 		}
 
 		// Add a job to the thread's queue for each object to be rendered
@@ -430,28 +430,28 @@ public:
 		for (uint32_t t = 0; t < numThreads; t++) {
 			for (uint32_t i = 0; i < numObjectsPerThread; i++) {
 				if (threadData[t].objectData[i].visible) {
-					commandBuffers.push_back(threadData[t].commandBuffer[currentBuffer_][i]);
+					commandBuffers.push_back(threadData[t].commandBuffer[currentBuffer][i]);
 				}
 			}
 		}
 
 		// Render ui last
-		if (ui_.visible) {
-			commandBuffers.push_back(secondaryCommandBuffers[currentBuffer_].ui);
+		if (ui.visible) {
+			commandBuffers.push_back(secondaryCommandBuffers[currentBuffer].ui);
 		}
 
 		// Execute render commands from the secondary command buffer
-		vkCmdExecuteCommands(drawCmdBuffers_[currentBuffer_], static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+		vkCmdExecuteCommands(drawCmdBuffers[currentBuffer], static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
-		vkCmdEndRenderPass(drawCmdBuffers_[currentBuffer_]);
+		vkCmdEndRenderPass(drawCmdBuffers[currentBuffer]);
 
-		VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers_[currentBuffer_]));
+		VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[currentBuffer]));
 	}
 
 
 	virtual void render()
 	{
-		if (!prepared_)
+		if (!prepared)
 			return;
 		VulkanExampleBase::prepareFrame();
 		updateCommandBuffer();

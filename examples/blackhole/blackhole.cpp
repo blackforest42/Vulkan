@@ -105,7 +105,7 @@ class VulkanExample : public VulkanExampleBase {
     vks::Buffer blend;
   };
 
-  std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_{};
+  std::array<UniformBuffers, maxConcurrentFrames> uniformBuffers_{};
 
   struct {
     VkPipelineLayout blackhole;
@@ -139,7 +139,7 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorSet blend;
   };
 
-  std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+  std::array<DescriptorSets, maxConcurrentFrames> descriptorSets_{};
 
   // Framebuffer for offscreen rendering
   struct FrameBufferAttachment {
@@ -172,7 +172,7 @@ class VulkanExample : public VulkanExampleBase {
   void prepareUniformBuffers() {
     for (auto& buffer : uniformBuffers_) {
       // Blackhole
-      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+      VK_CHECK_RESULT(vulkanDevice->createBuffer(
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -180,7 +180,7 @@ class VulkanExample : public VulkanExampleBase {
       VK_CHECK_RESULT(buffer.blackhole.map());
 
       // Brightness
-      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+      VK_CHECK_RESULT(vulkanDevice->createBuffer(
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -189,7 +189,7 @@ class VulkanExample : public VulkanExampleBase {
 
       // Downsample
       for (int i = 0; i < NUM_SAMPLE_SIZES; i++) {
-        VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+        VK_CHECK_RESULT(vulkanDevice->createBuffer(
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -199,7 +199,7 @@ class VulkanExample : public VulkanExampleBase {
 
       // Upsample
       for (int i = 0; i < NUM_SAMPLE_SIZES; i++) {
-        VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+        VK_CHECK_RESULT(vulkanDevice->createBuffer(
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -208,7 +208,7 @@ class VulkanExample : public VulkanExampleBase {
       }
 
       // Blend
-      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+      VK_CHECK_RESULT(vulkanDevice->createBuffer(
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -284,7 +284,7 @@ class VulkanExample : public VulkanExampleBase {
     renderPassInfo.pSubpasses = &subpassDescription;
     renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
     renderPassInfo.pDependencies = dependencies.data();
-    VK_CHECK_RESULT(vkCreateRenderPass(device_, &renderPassInfo, nullptr,
+    VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr,
                                        &offscreenPass_.renderPass));
 
     // Create sampler to sample from the color attachments
@@ -301,28 +301,28 @@ class VulkanExample : public VulkanExampleBase {
     sampler.maxLod = 1.0f;
     sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     VK_CHECK_RESULT(
-        vkCreateSampler(device_, &sampler, nullptr, &offscreenPass_.sampler));
+        vkCreateSampler(device, &sampler, nullptr, &offscreenPass_.sampler));
 
     // Generate framebuffer for first renderpass
-    offscreenPass_.original.height = height_;
-    offscreenPass_.original.width = width_;
+    offscreenPass_.original.height = height;
+    offscreenPass_.original.width = width;
     prepareOffscreenFramebuffer(&offscreenPass_.original, FB_COLOR_FORMAT);
 
     // Generate framebuffer for brightness pass
-    offscreenPass_.brightness.height = height_;
-    offscreenPass_.brightness.width = width_;
+    offscreenPass_.brightness.height = height;
+    offscreenPass_.brightness.width = width;
     prepareOffscreenFramebuffer(&offscreenPass_.brightness, FB_COLOR_FORMAT);
     // Generate fb's for each down sample using mipmap scaling (1/2).
     for (int i = 0; i < NUM_SAMPLE_SIZES; i++) {
       offscreenPass_.down_samples[i].height =
-          static_cast<uint32_t>(height_ >> (i + 1));
+          static_cast<uint32_t>(height >> (i + 1));
       offscreenPass_.down_samples[i].width =
-          static_cast<uint32_t>(width_ >> (i + 1));
+          static_cast<uint32_t>(width >> (i + 1));
       prepareOffscreenFramebuffer(&offscreenPass_.down_samples[i],
                                   FB_COLOR_FORMAT);
 
-      offscreenPass_.up_samples[i].height = static_cast<uint32_t>(height_ >> i);
-      offscreenPass_.up_samples[i].width = static_cast<uint32_t>(width_ >> i);
+      offscreenPass_.up_samples[i].height = static_cast<uint32_t>(height >> i);
+      offscreenPass_.up_samples[i].width = static_cast<uint32_t>(width >> i);
       prepareOffscreenFramebuffer(&offscreenPass_.up_samples[i],
                                   FB_COLOR_FORMAT);
     }
@@ -361,18 +361,18 @@ class VulkanExample : public VulkanExampleBase {
     colorImageView.subresourceRange.layerCount = 1;
 
     VK_CHECK_RESULT(
-        vkCreateImage(device_, &imageCI, nullptr, &frameBuf->color.image));
-    vkGetImageMemoryRequirements(device_, frameBuf->color.image, &memReqs);
+        vkCreateImage(device, &imageCI, nullptr, &frameBuf->color.image));
+    vkGetImageMemoryRequirements(device, frameBuf->color.image, &memReqs);
     memAlloc.allocationSize = memReqs.size;
-    memAlloc.memoryTypeIndex = vulkanDevice_->getMemoryType(
+    memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(
         memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     VK_CHECK_RESULT(
-        vkAllocateMemory(device_, &memAlloc, nullptr, &frameBuf->color.mem));
-    VK_CHECK_RESULT(vkBindImageMemory(device_, frameBuf->color.image,
+        vkAllocateMemory(device, &memAlloc, nullptr, &frameBuf->color.mem));
+    VK_CHECK_RESULT(vkBindImageMemory(device, frameBuf->color.image,
                                       frameBuf->color.mem, 0));
 
     colorImageView.image = frameBuf->color.image;
-    VK_CHECK_RESULT(vkCreateImageView(device_, &colorImageView, nullptr,
+    VK_CHECK_RESULT(vkCreateImageView(device, &colorImageView, nullptr,
                                       &frameBuf->color.view));
 
     VkImageView attachments[1]{frameBuf->color.view};
@@ -386,7 +386,7 @@ class VulkanExample : public VulkanExampleBase {
     fbufCreateInfo.height = frameBuf->height;
     fbufCreateInfo.layers = 1;
 
-    VK_CHECK_RESULT(vkCreateFramebuffer(device_, &fbufCreateInfo, nullptr,
+    VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbufCreateInfo, nullptr,
                                         &frameBuf->framebuffer));
 
     // Fill a descriptor for later use in a descriptor set
@@ -401,16 +401,15 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            /* descriptorCount */ MAX_CONCURRENT_FRAMES * 5 * NUM_SAMPLE_SIZES),
+            /* descriptorCount */ maxConcurrentFrames * 5 * NUM_SAMPLE_SIZES),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            /* descriptorCount */ MAX_CONCURRENT_FRAMES * 5 *
-                NUM_SAMPLE_SIZES)};
+            /* descriptorCount */ maxConcurrentFrames * 5 * NUM_SAMPLE_SIZES)};
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
-            poolSizes, MAX_CONCURRENT_FRAMES * 5 * NUM_SAMPLE_SIZES);
-    VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
-                                           nullptr, &descriptorPool_));
+            poolSizes, maxConcurrentFrames * 5 * NUM_SAMPLE_SIZES);
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr,
+                                           &descriptorPool));
 
     // Layout: Blackhole
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -436,7 +435,7 @@ class VulkanExample : public VulkanExampleBase {
             setLayoutBindings.data(),
             static_cast<uint32_t>(setLayoutBindings.size()));
     VK_CHECK_RESULT(
-        vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr,
+        vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr,
                                     &descriptorSetLayouts_.blackhole));
 
     // Layout: Brightness
@@ -457,7 +456,7 @@ class VulkanExample : public VulkanExampleBase {
         setLayoutBindings.data(),
         static_cast<uint32_t>(setLayoutBindings.size()));
     VK_CHECK_RESULT(
-        vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr,
+        vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr,
                                     &descriptorSetLayouts_.brightness));
 
     // Layout: Downsample
@@ -474,7 +473,7 @@ class VulkanExample : public VulkanExampleBase {
     descriptorSetLayoutCI =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
     VK_CHECK_RESULT(
-        vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr,
+        vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr,
                                     &descriptorSetLayouts_.downsample));
 
     // Layout: Upsample
@@ -496,7 +495,7 @@ class VulkanExample : public VulkanExampleBase {
     descriptorSetLayoutCI =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
     VK_CHECK_RESULT(
-        vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr,
+        vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr,
                                     &descriptorSetLayouts_.upsample));
     // Layout: Blend
     setLayoutBindings = {
@@ -522,9 +521,8 @@ class VulkanExample : public VulkanExampleBase {
 
     descriptorSetLayoutCI =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI,
-                                                nullptr,
-                                                &descriptorSetLayouts_.blend));
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
+        device, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts_.blend));
 
     // Image descriptor for the blackhole color texture
     VkDescriptorImageInfo accretionDiskTextureMap =
@@ -536,8 +534,8 @@ class VulkanExample : public VulkanExampleBase {
       // Descriptor for blackhole
       VkDescriptorSetAllocateInfo allocInfo =
           vks::initializers::descriptorSetAllocateInfo(
-              descriptorPool_, &descriptorSetLayouts_.blackhole, 1);
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
+              descriptorPool, &descriptorSetLayouts_.blackhole, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo,
                                                &descriptorSets_[i].blackhole));
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
           vks::initializers::writeDescriptorSet(
@@ -552,14 +550,14 @@ class VulkanExample : public VulkanExampleBase {
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, /*binding id*/ 2,
               &accretionDiskTextureMap),
       };
-      vkUpdateDescriptorSets(device_,
+      vkUpdateDescriptorSets(device,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
 
       // Descriptor for brightness pass
       allocInfo = vks::initializers::descriptorSetAllocateInfo(
-          descriptorPool_, &descriptorSetLayouts_.brightness, 1);
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
+          descriptorPool, &descriptorSetLayouts_.brightness, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo,
                                                &descriptorSets_[i].brightness));
       writeDescriptorSets = {
           vks::initializers::writeDescriptorSet(
@@ -569,7 +567,7 @@ class VulkanExample : public VulkanExampleBase {
               descriptorSets_[i].brightness,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, /*binding id*/ 1,
               &offscreenPass_.original.descriptor)};
-      vkUpdateDescriptorSets(device_,
+      vkUpdateDescriptorSets(device,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
 
@@ -577,10 +575,9 @@ class VulkanExample : public VulkanExampleBase {
       for (int sample_level = 0; sample_level < NUM_SAMPLE_SIZES;
            sample_level++) {
         allocInfo = vks::initializers::descriptorSetAllocateInfo(
-            descriptorPool_, &descriptorSetLayouts_.downsample, 1);
+            descriptorPool, &descriptorSetLayouts_.downsample, 1);
         VK_CHECK_RESULT(vkAllocateDescriptorSets(
-            device_, &allocInfo,
-            &descriptorSets_[i].downsamples[sample_level]));
+            device, &allocInfo, &descriptorSets_[i].downsamples[sample_level]));
         writeDescriptorSets = {
             vks::initializers::writeDescriptorSet(
                 descriptorSets_[i].downsamples[sample_level],
@@ -595,7 +592,7 @@ class VulkanExample : public VulkanExampleBase {
                     : &offscreenPass_.down_samples[sample_level - 1]
                            .descriptor)};
         vkUpdateDescriptorSets(
-            device_, static_cast<uint32_t>(writeDescriptorSets.size()),
+            device, static_cast<uint32_t>(writeDescriptorSets.size()),
             writeDescriptorSets.data(), 0, nullptr);
       }
 
@@ -603,9 +600,9 @@ class VulkanExample : public VulkanExampleBase {
       for (int sample_level = NUM_SAMPLE_SIZES - 1; sample_level >= 0;
            sample_level--) {
         allocInfo = vks::initializers::descriptorSetAllocateInfo(
-            descriptorPool_, &descriptorSetLayouts_.upsample, 1);
+            descriptorPool, &descriptorSetLayouts_.upsample, 1);
         VK_CHECK_RESULT(vkAllocateDescriptorSets(
-            device_, &allocInfo, &descriptorSets_[i].upsamples[sample_level]));
+            device, &allocInfo, &descriptorSets_[i].upsamples[sample_level]));
         writeDescriptorSets = {
             vks::initializers::writeDescriptorSet(
                 descriptorSets_[i].upsamples[sample_level],
@@ -629,14 +626,14 @@ class VulkanExample : public VulkanExampleBase {
                            .descriptor),
         };
         vkUpdateDescriptorSets(
-            device_, static_cast<uint32_t>(writeDescriptorSets.size()),
+            device, static_cast<uint32_t>(writeDescriptorSets.size()),
             writeDescriptorSets.data(), 0, nullptr);
       }
 
       // Descriptor for blend
       allocInfo = vks::initializers::descriptorSetAllocateInfo(
-          descriptorPool_, &descriptorSetLayouts_.blend, 1);
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
+          descriptorPool, &descriptorSetLayouts_.blend, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo,
                                                &descriptorSets_[i].blend));
       writeDescriptorSets = {
           vks::initializers::writeDescriptorSet(
@@ -657,7 +654,7 @@ class VulkanExample : public VulkanExampleBase {
               /*binding id*/ 3,
               &offscreenPass_.down_samples[DEBUG_IDX].descriptor)};
 
-      vkUpdateDescriptorSets(device_,
+      vkUpdateDescriptorSets(device,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
     }
@@ -669,23 +666,23 @@ class VulkanExample : public VulkanExampleBase {
     VkPipelineLayoutCreateInfo pipelineLayoutCI =
         vks::initializers::pipelineLayoutCreateInfo(
             &descriptorSetLayouts_.blackhole, 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr,
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr,
                                            &pipelineLayouts_.blackhole));
     pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(
         &descriptorSetLayouts_.brightness, 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr,
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr,
                                            &pipelineLayouts_.brightness));
     pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(
         &descriptorSetLayouts_.downsample, 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr,
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr,
                                            &pipelineLayouts_.downsample));
     pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(
         &descriptorSetLayouts_.upsample, 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr,
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr,
                                            &pipelineLayouts_.upsample));
     pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(
         &descriptorSetLayouts_.blend, 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr,
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr,
                                            &pipelineLayouts_.blend));
 
     // Pipeline
@@ -717,7 +714,7 @@ class VulkanExample : public VulkanExampleBase {
 
     VkGraphicsPipelineCreateInfo pipelineCI =
         vks::initializers::pipelineCreateInfo(pipelineLayouts_.blend,
-                                              renderPass_, 0);
+                                              renderPass, 0);
     pipelineCI.pInputAssemblyState = &inputAssemblyState;
     pipelineCI.pRasterizationState = &rasterizationState;
     pipelineCI.pColorBlendState = &colorBlendState;
@@ -739,7 +736,7 @@ class VulkanExample : public VulkanExampleBase {
     shaderStages[1] = loadShader(getShadersPath() + "blackhole/blend.frag.spv",
                                  VK_SHADER_STAGE_FRAGMENT_BIT);
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-        device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.blend));
+        device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.blend));
 
     // Blackhole pipeline
     pipelineCI.layout = pipelineLayouts_.blackhole;
@@ -748,9 +745,8 @@ class VulkanExample : public VulkanExampleBase {
         loadShader(getShadersPath() + "blackhole/blackhole.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
     rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
-                                              &pipelineCI, nullptr,
-                                              &pipelines_.blackhole));
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
+        device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.blackhole));
     // Brightness pipeline
     pipelineCI.layout = pipelineLayouts_.brightness;
     pipelineCI.renderPass = offscreenPass_.renderPass;
@@ -758,7 +754,7 @@ class VulkanExample : public VulkanExampleBase {
         loadShader(getShadersPath() + "blackhole/brightness.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
     rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1,
                                               &pipelineCI, nullptr,
                                               &pipelines_.brightness));
 
@@ -769,7 +765,7 @@ class VulkanExample : public VulkanExampleBase {
         loadShader(getShadersPath() + "blackhole/downsample.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
     rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1,
                                               &pipelineCI, nullptr,
                                               &pipelines_.downsample));
 
@@ -791,14 +787,13 @@ class VulkanExample : public VulkanExampleBase {
         loadShader(getShadersPath() + "blackhole/upsample.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
     rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
-                                              &pipelineCI, nullptr,
-                                              &pipelines_.upsample));
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
+        device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.upsample));
   }
 
   // (B) Called in VulkanExampleBase::renderLoop()
   void render() override {
-    if (!prepared_) {
+    if (!prepared) {
       return;
     }
     VulkanExampleBase::prepareFrame();
@@ -809,8 +804,8 @@ class VulkanExample : public VulkanExampleBase {
 
   // (B.1)
   void updateUniformBuffers() {
-    ubos_.blackhole.cameraView = camera_.matrices_.view;
-    ubos_.blackhole.cameraPos = camera_.position_;
+    ubos_.blackhole.cameraView = camera.matrices.view;
+    ubos_.blackhole.cameraPos = camera.position;
     ubos_.blackhole.time =
         std::chrono::duration<float>(
             std::chrono::high_resolution_clock::now().time_since_epoch())
@@ -821,23 +816,23 @@ class VulkanExample : public VulkanExampleBase {
     ubos_.blackhole.gravatationalLensingEnabled = gravatationalLensingEnabled;
     ubos_.blackhole.accDiskEnabled = accDiskEnabled;
     ubos_.blackhole.accDiskParticleEnabled = accDiskParticleEnabled;
-    memcpy(uniformBuffers_[currentBuffer_].blackhole.mapped, &ubos_.blackhole,
+    memcpy(uniformBuffers_[currentBuffer].blackhole.mapped, &ubos_.blackhole,
            sizeof(BlackholeUBO));
 
     ubos_.brightness.viewportResolution = glm::vec2(
         offscreenPass_.brightness.width, offscreenPass_.brightness.height);
-    memcpy(uniformBuffers_[currentBuffer_].brightness.mapped, &ubos_.brightness,
+    memcpy(uniformBuffers_[currentBuffer].brightness.mapped, &ubos_.brightness,
            sizeof(BrightnessUBO));
 
     ubos_.blend.tonemappingEnabled = toneMappingEnabled;
     ubos_.blend.debug = DEBUG_BLACKHOLE;
-    memcpy(uniformBuffers_[currentBuffer_].blend.mapped, &ubos_.blend,
+    memcpy(uniformBuffers_[currentBuffer].blend.mapped, &ubos_.blend,
            sizeof(BlendUBO));
   }
 
   // (B.2)
   void buildCommandBuffer() {
-    VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
+    VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
 
     VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
@@ -890,7 +885,7 @@ class VulkanExample : public VulkanExampleBase {
 
     vkCmdBindDescriptorSets(
         cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.blackhole,
-        0, 1, &descriptorSets_[currentBuffer_].blackhole, 0, nullptr);
+        0, 1, &descriptorSets_[currentBuffer].blackhole, 0, nullptr);
 
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       pipelines_.blackhole);
@@ -926,7 +921,7 @@ class VulkanExample : public VulkanExampleBase {
 
     vkCmdBindDescriptorSets(
         cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.brightness,
-        0, 1, &descriptorSets_[currentBuffer_].brightness, 0, nullptr);
+        0, 1, &descriptorSets_[currentBuffer].brightness, 0, nullptr);
 
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       pipelines_.brightness);
@@ -949,7 +944,7 @@ class VulkanExample : public VulkanExampleBase {
       ubos_.downsample.dstResolution =
           glm::vec2(offscreenPass_.down_samples[sample_level].width,
                     offscreenPass_.down_samples[sample_level].height);
-      memcpy(uniformBuffers_[currentBuffer_].downsample[sample_level].mapped,
+      memcpy(uniformBuffers_[currentBuffer].downsample[sample_level].mapped,
              &ubos_.downsample, sizeof(DownsampleUBO));
 
       // (2) Set render fb target
@@ -975,7 +970,7 @@ class VulkanExample : public VulkanExampleBase {
       vkCmdBindDescriptorSets(
           cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
           pipelineLayouts_.downsample, 0, 1,
-          &descriptorSets_[currentBuffer_].downsamples[sample_level], 0,
+          &descriptorSets_[currentBuffer].downsamples[sample_level], 0,
           nullptr);
 
       vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -1012,7 +1007,7 @@ class VulkanExample : public VulkanExampleBase {
       ubos_.upsample.dstResolution =
           glm::vec2(offscreenPass_.up_samples[sample_level].width,
                     offscreenPass_.up_samples[sample_level].height);
-      memcpy(uniformBuffers_[currentBuffer_].upsample[sample_level].mapped,
+      memcpy(uniformBuffers_[currentBuffer].upsample[sample_level].mapped,
              &ubos_.upsample, sizeof(DownsampleUBO));
 
       // Set render fb target
@@ -1037,7 +1032,7 @@ class VulkanExample : public VulkanExampleBase {
 
       vkCmdBindDescriptorSets(
           cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.upsample,
-          0, 1, &descriptorSets_[currentBuffer_].upsamples[sample_level], 0,
+          0, 1, &descriptorSets_[currentBuffer].upsamples[sample_level], 0,
           nullptr);
 
       vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -1067,27 +1062,27 @@ class VulkanExample : public VulkanExampleBase {
 
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = renderPass_;
-    renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+    renderPassBeginInfo.renderPass = renderPass;
+    renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
     renderPassBeginInfo.renderArea.offset.x = 0;
     renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.renderArea.extent.width = width_;
-    renderPassBeginInfo.renderArea.extent.height = height_;
+    renderPassBeginInfo.renderArea.extent.width = width;
+    renderPassBeginInfo.renderArea.extent.height = height;
     renderPassBeginInfo.clearValueCount = 2;
     renderPassBeginInfo.pClearValues = clearValues;
 
     vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
     VkViewport viewport =
-        vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+        vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             pipelineLayouts_.blend, 0, 1,
-                            &descriptorSets_[currentBuffer_].blend, 0, nullptr);
+                            &descriptorSets_[currentBuffer].blend, 0, nullptr);
 
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       pipelines_.blend);
@@ -1173,27 +1168,27 @@ class VulkanExample : public VulkanExampleBase {
     bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     VK_CHECK_RESULT(
-        vkCreateBuffer(device_, &bufferCreateInfo, nullptr, &stagingBuffer));
+        vkCreateBuffer(device, &bufferCreateInfo, nullptr, &stagingBuffer));
 
     // Get memory requirements for the staging buffer (alignment, memory
     // type bits)
-    vkGetBufferMemoryRequirements(device_, stagingBuffer, &memReqs);
+    vkGetBufferMemoryRequirements(device, stagingBuffer, &memReqs);
     memAllocInfo.allocationSize = memReqs.size;
     // Get memory type index for a host visible buffer
-    memAllocInfo.memoryTypeIndex = vulkanDevice_->getMemoryType(
+    memAllocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(
         memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     VK_CHECK_RESULT(
-        vkAllocateMemory(device_, &memAllocInfo, nullptr, &stagingMemory));
+        vkAllocateMemory(device, &memAllocInfo, nullptr, &stagingMemory));
     VK_CHECK_RESULT(
-        vkBindBufferMemory(device_, stagingBuffer, stagingMemory, 0));
+        vkBindBufferMemory(device, stagingBuffer, stagingMemory, 0));
 
     // Copy texture data into host local staging buffer
     uint8_t* data;
     VK_CHECK_RESULT(
-        vkMapMemory(device_, stagingMemory, 0, memReqs.size, 0, (void**)&data));
+        vkMapMemory(device, stagingMemory, 0, memReqs.size, 0, (void**)&data));
     memcpy(data, ktxTextureData, ktxTextureSize);
-    vkUnmapMemory(device_, stagingMemory);
+    vkUnmapMemory(device, stagingMemory);
 
     // Setup buffer copy regions for each mip level
     std::vector<VkBufferImageCopy> bufferCopyRegions;
@@ -1231,21 +1226,21 @@ class VulkanExample : public VulkanExampleBase {
                               accretionDiskTextureMap_.height, 1};
     imageCreateInfo.usage =
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-    VK_CHECK_RESULT(vkCreateImage(device_, &imageCreateInfo, nullptr,
+    VK_CHECK_RESULT(vkCreateImage(device, &imageCreateInfo, nullptr,
                                   &accretionDiskTextureMap_.image));
 
-    vkGetImageMemoryRequirements(device_, accretionDiskTextureMap_.image,
+    vkGetImageMemoryRequirements(device, accretionDiskTextureMap_.image,
                                  &memReqs);
     memAllocInfo.allocationSize = memReqs.size;
-    memAllocInfo.memoryTypeIndex = vulkanDevice_->getMemoryType(
+    memAllocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(
         memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VK_CHECK_RESULT(vkAllocateMemory(device_, &memAllocInfo, nullptr,
+    VK_CHECK_RESULT(vkAllocateMemory(device, &memAllocInfo, nullptr,
                                      &accretionDiskTextureMap_.deviceMemory));
-    VK_CHECK_RESULT(vkBindImageMemory(device_, accretionDiskTextureMap_.image,
+    VK_CHECK_RESULT(vkBindImageMemory(device, accretionDiskTextureMap_.image,
                                       accretionDiskTextureMap_.deviceMemory,
                                       0));
 
-    VkCommandBuffer copyCmd = vulkanDevice_->createCommandBuffer(
+    VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(
         VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 
     // Image memory barriers for the texture image
@@ -1309,11 +1304,11 @@ class VulkanExample : public VulkanExampleBase {
     accretionDiskTextureMap_.imageLayout =
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    vulkanDevice_->flushCommandBuffer(copyCmd, queue_, true);
+    vulkanDevice->flushCommandBuffer(copyCmd, queue, true);
 
     // Clean up staging resources
-    vkFreeMemory(device_, stagingMemory, nullptr);
-    vkDestroyBuffer(device_, stagingBuffer, nullptr);
+    vkFreeMemory(device, stagingMemory, nullptr);
+    vkDestroyBuffer(device, stagingBuffer, nullptr);
     ktxTexture_Destroy(ktxTexture);
 
     // Create a texture sampler
@@ -1337,10 +1332,10 @@ class VulkanExample : public VulkanExampleBase {
     // Enable anisotropic filtering
     // This feature is optional, so we must check if it's supported on the
     // device
-    if (vulkanDevice_->features.samplerAnisotropy) {
+    if (vulkanDevice->features.samplerAnisotropy) {
       // Use max. level of anisotropy for this example
       sampler.maxAnisotropy =
-          vulkanDevice_->properties.limits.maxSamplerAnisotropy;
+          vulkanDevice->properties.limits.maxSamplerAnisotropy;
       sampler.anisotropyEnable = VK_TRUE;
     } else {
       // The device does not support anisotropic filtering
@@ -1348,7 +1343,7 @@ class VulkanExample : public VulkanExampleBase {
       sampler.anisotropyEnable = VK_FALSE;
     }
     sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-    VK_CHECK_RESULT(vkCreateSampler(device_, &sampler, nullptr,
+    VK_CHECK_RESULT(vkCreateSampler(device, &sampler, nullptr,
                                     &accretionDiskTextureMap_.sampler));
 
     // Create image view
@@ -1371,42 +1366,42 @@ class VulkanExample : public VulkanExampleBase {
     view.subresourceRange.levelCount = accretionDiskTextureMap_.mipLevels;
     // The view will be based on the texture's image
     view.image = accretionDiskTextureMap_.image;
-    VK_CHECK_RESULT(vkCreateImageView(device_, &view, nullptr,
+    VK_CHECK_RESULT(vkCreateImageView(device, &view, nullptr,
                                       &accretionDiskTextureMap_.view));
   }
 
   // Enable physical device features required for this example
   void getEnabledFeatures() override {
-    if (deviceFeatures_.samplerAnisotropy) {
-      enabledFeatures_.samplerAnisotropy = VK_TRUE;
+    if (deviceFeatures.samplerAnisotropy) {
+      enabledFeatures.samplerAnisotropy = VK_TRUE;
     }
   }
 
   void destroyOffscreenPass() {
-    vkDestroyRenderPass(device_, offscreenPass_.renderPass, nullptr);
-    vkDestroyFramebuffer(device_, offscreenPass_.original.framebuffer, nullptr);
-    vkDestroyFramebuffer(device_, offscreenPass_.brightness.framebuffer,
+    vkDestroyRenderPass(device, offscreenPass_.renderPass, nullptr);
+    vkDestroyFramebuffer(device, offscreenPass_.original.framebuffer, nullptr);
+    vkDestroyFramebuffer(device, offscreenPass_.brightness.framebuffer,
                          nullptr);
     for (FrameBuffer sample : offscreenPass_.down_samples) {
-      vkDestroyFramebuffer(device_, sample.framebuffer, nullptr);
+      vkDestroyFramebuffer(device, sample.framebuffer, nullptr);
     }
   }
 
   void windowResized() override {
     destroyOffscreenPass();
     prepareOffscreen();
-    vkResetDescriptorPool(device_, descriptorPool_, 0);
+    vkResetDescriptorPool(device, descriptorPool, 0);
     setupDescriptors();
-    resized_ = false;
+    resized = false;
   }
 
   VulkanExample() : VulkanExampleBase() {
-    title_ = "Blackhole";
-    camera_.type_ = Camera::CameraType::lookat;
-    camera_.setPosition(glm::vec3(0.0f, 0.0f, -10.0f));
-    camera_.setRotation(glm::vec3(0.0f));
-    camera_.setRotationSpeed(0.25f);
-    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
+    title = "Blackhole";
+    camera.type_ = Camera::CameraType::lookat;
+    camera.setPosition(glm::vec3(0.0f, 0.0f, -10.0f));
+    camera.setRotation(glm::vec3(0.0f));
+    camera.setRotationSpeed(0.25f);
+    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
   }
 
   // (Part A.0) Called once in main() before renderLoop()
@@ -1417,7 +1412,7 @@ class VulkanExample : public VulkanExampleBase {
     prepareOffscreen();
     setupDescriptors();
     preparePipelines();
-    prepared_ = true;
+    prepared = true;
   }
 
   // (A.1)
@@ -1425,45 +1420,44 @@ class VulkanExample : public VulkanExampleBase {
     // Cubemap texture
     cubeMap_.loadFromFile(
         getExamplesBasePath() + "blackhole/textures/skybox/skybox.ktx",
-        VK_FORMAT_B8G8R8A8_SRGB, vulkanDevice_, queue_);
+        VK_FORMAT_B8G8R8A8_SRGB, vulkanDevice, queue);
     loadTexture(getExamplesBasePath() +
                 "blackhole/textures/accretion_disk.ktx");
   }
 
   ~VulkanExample() {
-    if (device_) {
-      vkDestroyImageView(device_, cubeMap_.view, nullptr);
-      vkDestroyImage(device_, cubeMap_.image, nullptr);
-      vkDestroySampler(device_, cubeMap_.sampler, nullptr);
-      vkFreeMemory(device_, cubeMap_.deviceMemory, nullptr);
-      vkDestroyPipeline(device_, pipelines_.blackhole, nullptr);
-      vkDestroyPipeline(device_, pipelines_.blend, nullptr);
-      vkDestroyPipelineLayout(device_, pipelineLayouts_.blackhole, nullptr);
-      vkDestroyPipelineLayout(device_, pipelineLayouts_.blend, nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.blackhole,
+    if (device) {
+      vkDestroyImageView(device, cubeMap_.view, nullptr);
+      vkDestroyImage(device, cubeMap_.image, nullptr);
+      vkDestroySampler(device, cubeMap_.sampler, nullptr);
+      vkFreeMemory(device, cubeMap_.deviceMemory, nullptr);
+      vkDestroyPipeline(device, pipelines_.blackhole, nullptr);
+      vkDestroyPipeline(device, pipelines_.blend, nullptr);
+      vkDestroyPipelineLayout(device, pipelineLayouts_.blackhole, nullptr);
+      vkDestroyPipelineLayout(device, pipelineLayouts_.blend, nullptr);
+      vkDestroyDescriptorSetLayout(device, descriptorSetLayouts_.blackhole,
                                    nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.downsample,
+      vkDestroyDescriptorSetLayout(device, descriptorSetLayouts_.downsample,
                                    nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.upsample,
+      vkDestroyDescriptorSetLayout(device, descriptorSetLayouts_.upsample,
                                    nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.blend,
+      vkDestroyDescriptorSetLayout(device, descriptorSetLayouts_.blend,
                                    nullptr);
-      vkDestroyImageView(device_, offscreenPass_.original.color.view, nullptr);
-      vkDestroyImage(device_, offscreenPass_.original.color.image, nullptr);
-      vkFreeMemory(device_, offscreenPass_.original.color.mem, nullptr);
-      vkDestroyFramebuffer(device_, offscreenPass_.original.framebuffer,
+      vkDestroyImageView(device, offscreenPass_.original.color.view, nullptr);
+      vkDestroyImage(device, offscreenPass_.original.color.image, nullptr);
+      vkFreeMemory(device, offscreenPass_.original.color.mem, nullptr);
+      vkDestroyFramebuffer(device, offscreenPass_.original.framebuffer,
                            nullptr);
-      vkDestroyImageView(device_, offscreenPass_.brightness.color.view,
-                         nullptr);
-      vkDestroyImage(device_, offscreenPass_.brightness.color.image, nullptr);
-      vkFreeMemory(device_, offscreenPass_.brightness.color.mem, nullptr);
-      vkDestroyFramebuffer(device_, offscreenPass_.brightness.framebuffer,
+      vkDestroyImageView(device, offscreenPass_.brightness.color.view, nullptr);
+      vkDestroyImage(device, offscreenPass_.brightness.color.image, nullptr);
+      vkFreeMemory(device, offscreenPass_.brightness.color.mem, nullptr);
+      vkDestroyFramebuffer(device, offscreenPass_.brightness.framebuffer,
                            nullptr);
       for (auto& sample : offscreenPass_.down_samples) {
-        vkDestroyImageView(device_, sample.color.view, nullptr);
-        vkDestroyImage(device_, sample.color.image, nullptr);
-        vkFreeMemory(device_, sample.color.mem, nullptr);
-        vkDestroyFramebuffer(device_, sample.framebuffer, nullptr);
+        vkDestroyImageView(device, sample.color.view, nullptr);
+        vkDestroyImage(device, sample.color.image, nullptr);
+        vkFreeMemory(device, sample.color.mem, nullptr);
+        vkDestroyFramebuffer(device, sample.framebuffer, nullptr);
       }
       for (auto& buffer : uniformBuffers_) {
         buffer.blackhole.destroy();

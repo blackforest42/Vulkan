@@ -23,11 +23,11 @@ public:
 		glm::mat4 modelView;
 		glm::vec4 lightPos = glm::vec4(0.0f, -2.0f, 1.0f, 0.0f);
 	} uniformData_;
-	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers_;
 
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
-	std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+	std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets_{};
 
 	VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT graphicsPipelineLibraryFeatures{};
 
@@ -58,38 +58,38 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title_ = "Graphics pipeline library";
-		camera_.type_ = Camera::CameraType::lookat;
-		camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.0f));
-		camera_.setRotation(glm::vec3(-25.0f, 15.0f, 0.0f));
-		camera_.setRotationSpeed(0.5f);
+		title = "Graphics pipeline library";
+		camera.type_ = Camera::CameraType::lookat;
+		camera.setPosition(glm::vec3(0.0f, 0.0f, -2.0f));
+		camera.setRotation(glm::vec3(-25.0f, 15.0f, 0.0f));
+		camera.setRotationSpeed(0.5f);
 
 		// Enable required extensions
-		enabledInstanceExtensions_.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-		enabledDeviceExtensions_.push_back(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
-		enabledDeviceExtensions_.push_back(VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME);
+		enabledInstanceExtensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+		enabledDeviceExtensions.push_back(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
+		enabledDeviceExtensions.push_back(VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME);
 
 		// Enable required extension features
 		graphicsPipelineLibraryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT;
 		graphicsPipelineLibraryFeatures.graphicsPipelineLibrary = VK_TRUE;
-		deviceCreatepNextChain_ = &graphicsPipelineLibraryFeatures;
+		deviceCreatepNextChain = &graphicsPipelineLibraryFeatures;
 	}
 
 	~VulkanExample()
 	{
-		if (device_) {
+		if (device) {
 			for (auto pipeline : pipelines_) {
-				vkDestroyPipeline(device_, pipeline, nullptr);
+				vkDestroyPipeline(device, pipeline, nullptr);
 			}
 			for (auto pipeline : pipelineLibrary.fragmentShaders) {
-				vkDestroyPipeline(device_, pipeline, nullptr);
+				vkDestroyPipeline(device, pipeline, nullptr);
 			}
-			vkDestroyPipeline(device_, pipelineLibrary.fragmentOutputInterface, nullptr);
-			vkDestroyPipeline(device_, pipelineLibrary.preRasterizationShaders, nullptr);
-			vkDestroyPipeline(device_, pipelineLibrary.vertexInputInterface, nullptr);
-			vkDestroyPipelineCache(device_, threadPipelineCache, nullptr);
-			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
+			vkDestroyPipeline(device, pipelineLibrary.fragmentOutputInterface, nullptr);
+			vkDestroyPipeline(device, pipelineLibrary.preRasterizationShaders, nullptr);
+			vkDestroyPipeline(device, pipelineLibrary.vertexInputInterface, nullptr);
+			vkDestroyPipelineCache(device, threadPipelineCache, nullptr);
+			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 			for (auto& buffer : uniformBuffers_) {
 				buffer.destroy();
 			}
@@ -99,33 +99,33 @@ public:
 	void loadAssets()
 	{
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
-		scene.loadFromFile(getAssetPath() + "models/color_teapot_spheres.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
+		scene.loadFromFile(getAssetPath() + "models/color_teapot_spheres.gltf", vulkanDevice, queue, glTFLoadingFlags);
 	}
 
 	void setupDescriptors()
 	{
 		// Pool
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES)
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames)
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, MAX_CONCURRENT_FRAMES);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
+		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxConcurrentFrames);
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 
 		// Layout
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0)
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr, &descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
 
 		// Sets per frame, just like the buffers themselves
-		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayout, 1);
+		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
 		for (auto i = 0; i < uniformBuffers_.size(); i++) {
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets_[i]));
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].descriptor),
 			};
-			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		};
 	}
 
@@ -169,7 +169,7 @@ public:
 	{
 		// Shared layout
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 
 		// Create a pipeline library for the vertex input interface
 		{
@@ -187,7 +187,7 @@ public:
 			pipelineLibraryCI.pNext = &libraryInfo;
 			pipelineLibraryCI.pInputAssemblyState = &inputAssemblyState;
 			pipelineLibraryCI.pVertexInputState = &vertexInputState;
-			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &pipelineLibraryCI, nullptr, &pipelineLibrary.vertexInputInterface));
+			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineLibraryCI, nullptr, &pipelineLibrary.vertexInputInterface));
 		}
 
 		// Creata a pipeline library for the vertex shader stage
@@ -229,7 +229,7 @@ public:
 			VkGraphicsPipelineCreateInfo pipelineLibraryCI{};
 			pipelineLibraryCI.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 			pipelineLibraryCI.pNext = &libraryInfo;
-			pipelineLibraryCI.renderPass = renderPass_;
+			pipelineLibraryCI.renderPass = renderPass;
 			pipelineLibraryCI.flags = VK_PIPELINE_CREATE_LIBRARY_BIT_KHR | VK_PIPELINE_CREATE_RETAIN_LINK_TIME_OPTIMIZATION_INFO_BIT_EXT;
 			pipelineLibraryCI.stageCount = 1;
 			pipelineLibraryCI.pStages = &shaderStageCI;
@@ -237,7 +237,7 @@ public:
 			pipelineLibraryCI.pDynamicState = &dynamicInfo;
 			pipelineLibraryCI.pViewportState = &viewportState;
 			pipelineLibraryCI.pRasterizationState = &rasterizationState;
-			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &pipelineLibraryCI, nullptr, &pipelineLibrary.preRasterizationShaders));
+			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineLibraryCI, nullptr, &pipelineLibrary.preRasterizationShaders));
 
 			delete[] shaderInfo.code;
 		}
@@ -256,11 +256,11 @@ public:
 			pipelineLibraryCI.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 			pipelineLibraryCI.pNext = &libraryInfo;
 			pipelineLibraryCI.layout = pipelineLayout;
-			pipelineLibraryCI.renderPass = renderPass_;
+			pipelineLibraryCI.renderPass = renderPass;
 			pipelineLibraryCI.flags = VK_PIPELINE_CREATE_LIBRARY_BIT_KHR | VK_PIPELINE_CREATE_RETAIN_LINK_TIME_OPTIMIZATION_INFO_BIT_EXT;
 			pipelineLibraryCI.pColorBlendState = &colorBlendState;
 			pipelineLibraryCI.pMultisampleState = &multisampleState;
-			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &pipelineLibraryCI, nullptr, &pipelineLibrary.fragmentOutputInterface));
+			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineLibraryCI, nullptr, &pipelineLibrary.fragmentOutputInterface));
 		}
 	}
 
@@ -334,11 +334,11 @@ public:
 		pipelineCI.stageCount = 1;
 		pipelineCI.pStages = &shaderStageCI;
 		pipelineCI.layout = pipelineLayout;
-		pipelineCI.renderPass = renderPass_;
+		pipelineCI.renderPass = renderPass;
 		pipelineCI.pDepthStencilState = &depthStencilState;
 		pipelineCI.pMultisampleState = &multisampleState;
 		VkPipeline fragmentShader = VK_NULL_HANDLE;
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, threadPipelineCache, 1, &pipelineCI, nullptr, &fragmentShader));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, threadPipelineCache, 1, &pipelineCI, nullptr, &fragmentShader));
 
 		// Create the pipeline using the pre-built pipeline library parts
 		// Except for above fragment shader part all parts have been pre-built and will be re-used
@@ -370,7 +370,7 @@ public:
 		}
 
 		VkPipeline executable = VK_NULL_HANDLE;
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, threadPipelineCache, 1, &executablePipelineCI, nullptr, &executable));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, threadPipelineCache, 1, &executablePipelineCI, nullptr, &executable));
 
 		pipelines_.push_back(executable);
 		// Push fragment shader to list for deletion in the sample's destructor
@@ -383,7 +383,7 @@ public:
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
@@ -393,10 +393,10 @@ public:
 		if (!paused) {
 			rotation += frameTimer * 0.1f;
 		}
-		camera_.setPerspective(45.0f, ((float)width_ / (float)splitX) / ((float)height_ / (float)splitY), 0.1f, 256.0f);
-		uniformData_.projection = camera_.matrices_.perspective;
-		uniformData_.modelView = camera_.matrices_.view * glm::rotate(glm::mat4(1.0f), glm::radians(rotation * 360.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
+		camera.setPerspective(45.0f, ((float)width / (float)splitX) / ((float)height / (float)splitY), 0.1f, 256.0f);
+		uniformData_.projection = camera.matrices.perspective;
+		uniformData_.modelView = camera.matrices.view * glm::rotate(glm::mat4(1.0f), glm::radians(rotation * 360.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		memcpy(uniformBuffers_[currentBuffer].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void prepare()
@@ -410,18 +410,18 @@ public:
 		// Create a separate pipeline cache for the pipeline creation thread
 		VkPipelineCacheCreateInfo pipelineCachCI = {};
 		pipelineCachCI.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-		vkCreatePipelineCache(device_, &pipelineCachCI, nullptr, &threadPipelineCache);
+		vkCreatePipelineCache(device, &pipelineCachCI, nullptr, &threadPipelineCache);
 
 		// Create first pipeline using a background thread
 		std::thread pipelineGenerationThread(&VulkanExample::threadFn, this);
 		pipelineGenerationThread.detach();
 
-		prepared_ = true;
+		prepared = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -430,25 +430,25 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass_;
+		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width_;
-		renderPassBeginInfo.renderArea.extent.height = height_;
+		renderPassBeginInfo.renderArea.extent.width = width;
+		renderPassBeginInfo.renderArea.extent.height = height;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_], 0, nullptr);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer], 0, nullptr);
 		scene.bindBuffers(cmdBuffer);
 
 		// Render a viewport for each pipeline
-		float w = (float)width_ / (float)splitX;
-		float h = (float)height_ / (float)splitY;
+		float w = (float)width / (float)splitX;
+		float h = (float)height / (float)splitY;
 		uint32_t idx = 0;
 		for (uint32_t y = 0; y < splitX; y++) {
 			for (uint32_t x = 0; x < splitY; x++) {
@@ -487,13 +487,13 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared_)
+		if (!prepared)
 			return;
 		VulkanExampleBase::prepareFrame();
 		updateUniformBuffers();
 		if (newPipelineCreated) {
 			// Make sure no work is pending before using the newly created pipeline
-			vkQueueWaitIdle(queue_);
+			vkQueueWaitIdle(queue);
 			newPipelineCreated = false;
 		}
 		buildCommandBuffer();

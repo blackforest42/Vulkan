@@ -31,7 +31,7 @@ public:
 		glm::vec4 viewPos;
 		int32_t colorShadingRate;
 	} uniformData_;
-	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers_;
 
 	struct Pipelines {
 		VkPipeline opaque{ VK_NULL_HANDLE };
@@ -40,7 +40,7 @@ public:
 
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
-	std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+	std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets_{};
 
 	VkPhysicalDeviceFragmentShadingRatePropertiesKHR physicalDeviceShadingRateImageProperties{};
 	VkPhysicalDeviceFragmentShadingRateFeaturesKHR enabledPhysicalDeviceShadingRateImageFeaturesKHR{};

@@ -15,10 +15,11 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <vulkan/vulkan.h>
+
 #include <string>
 #include <vector>
 
-#include <vulkan/vulkan.h>
 #include "VulkanTools.h"
 
 #ifdef __ANDROID__
@@ -37,13 +38,13 @@ class VulkanSwapChain {
   VkSurfaceKHR surface{VK_NULL_HANDLE};
 
  public:
-  VkFormat colorFormat_{};
-  VkColorSpaceKHR colorSpace_{};
-  VkSwapchainKHR swapChain_{VK_NULL_HANDLE};
-  std::vector<VkImage> images_{};
-  std::vector<VkImageView> imageViews_{};
-  uint32_t queueNodeIndex_{UINT32_MAX};
-  uint32_t imageCount_{0};
+  VkFormat colorFormat{};
+  VkColorSpaceKHR colorSpace{};
+  VkSwapchainKHR swapChain{VK_NULL_HANDLE};
+  std::vector<VkImage> images{};
+  std::vector<VkImageView> imageViews{};
+  uint32_t queueNodeIndex{UINT32_MAX};
+  uint32_t imageCount{0};
 
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
   void initSurface(void* platformHandle, void* platformWindow);

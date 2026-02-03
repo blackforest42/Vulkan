@@ -22,7 +22,7 @@ private:
 		int32_t vertexCount = 0;
 		int32_t indexCount = 0;
 	};
-	std::array<Buffers, MAX_CONCURRENT_FRAMES> buffers{};
+	std::array<Buffers, maxConcurrentFrames> buffers{};
 	VkSampler sampler{ VK_NULL_HANDLE };
 	VkDeviceMemory fontMemory{ VK_NULL_HANDLE };
 	VkImage fontImage{ VK_NULL_HANDLE };
@@ -59,13 +59,13 @@ public:
 
 	ImGUI(VulkanExampleBase *example) : example(example)
 	{
-		device = example->vulkanDevice_;
+		device = example->vulkanDevice;
 		ImGui::CreateContext();
 		// Set ImGui font and style scale factors to handle retina and other HiDPI displays
 		ImGuiIO& io = ImGui::GetIO();
-		io.FontGlobalScale = example->ui_.scale;
+		io.FontGlobalScale = example->ui.scale;
 		ImGuiStyle& style = ImGui::GetStyle();
-		style.ScaleAllSizes(example->ui_.scale);
+		style.ScaleAllSizes(example->ui.scale);
 	};
 
 	~ImGUI()
@@ -344,7 +344,7 @@ public:
 	// Starts a new imGui frame and sets up windows and ui elements
 	void newFrame(VulkanExampleBase *example, bool updateFpsPlot)
 	{
-		const float uiScale = example->ui_.scale;
+		const float uiScale = example->ui.scale;
 
 		// Being an intermediate mode UI, we generate a new UI frame on each draw
 		ImGui::NewFrame();
@@ -513,29 +513,29 @@ public:
 		glm::mat4 modelview;
 		glm::vec4 lightPos;
 	} uniformData_;
-	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers_;
 
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	VkPipeline pipeline{ VK_NULL_HANDLE };
 	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
-	std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+	std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets_{};
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title_ = "User interfaces with ImGui";
-		camera_.type_ = Camera::CameraType::lookat;
-		camera_.setPosition(glm::vec3(-1.0f, 0.0f, -4.8f));
-		camera_.setRotation(glm::vec3(4.5f, -380.0f, 0.0f));
-		camera_.setPerspective(45.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
+		title = "User interfaces with ImGui";
+		camera.type_ = Camera::CameraType::lookat;
+		camera.setPosition(glm::vec3(-1.0f, 0.0f, -4.8f));
+		camera.setRotation(glm::vec3(4.5f, -380.0f, 0.0f));
+		camera.setPerspective(45.0f, (float)width / (float)height, 0.1f, 256.0f);
 		// Don't use the ImGui overlay of the base framework in this sample
-		settings_.overlay = false;
+		settings.overlay = false;
 	}
 
 	~VulkanExample()
 	{
-		vkDestroyPipeline(device_, pipeline, nullptr);
-		vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
+		vkDestroyPipeline(device, pipeline, nullptr);
+		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 		for (auto& buffer : uniformBuffers_) {
 			buffer.destroy();
 		}
@@ -550,7 +550,7 @@ public:
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)
 		};
 		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, 2);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 
 		// Set layout
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -558,17 +558,17 @@ public:
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayout =
 			vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr, &descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
 
 		// Sets per frame, just like the buffers themselves
 		// Images do not need to be duplicated per frame, we reuse the same one for each frame
 		for (auto i = 0; i < uniformBuffers_.size(); i++) {
-			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayout, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
+			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets_[i]));
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].descriptor),
 			};
-			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}
 	}
 
@@ -576,7 +576,7 @@ public:
 	{
 		// Layout
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 
 		// Pipeline for the 3D scene object
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0,	VK_FALSE);
@@ -590,7 +590,7 @@ public:
 		VkPipelineDynamicStateCreateInfo dynamicState = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
 		std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{};
 
-		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_);
+		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass);
 		pipelineCI.pInputAssemblyState = &inputAssemblyState;
 		pipelineCI.pRasterizationState = &rasterizationState;
 		pipelineCI.pColorBlendState = &colorBlendState;
@@ -604,14 +604,14 @@ public:
 
 		shaderStages[0] = loadShader(getShadersPath() + "imgui/scene.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "imgui/scene.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipeline));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
 	}
 
 	// Prepare and initialize uniform buffer containing shader uniforms
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData)));
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData)));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
@@ -619,32 +619,32 @@ public:
 	void updateUniformBuffers()
 	{
 		// Vertex shader
-		uniformData_.projection = camera_.matrices_.perspective;
-		uniformData_.modelview = camera_.matrices_.view * glm::mat4(1.0f);
+		uniformData_.projection = camera.matrices.perspective;
+		uniformData_.modelview = camera.matrices.view * glm::mat4(1.0f);
 		// Light source
 		if (imGui->animateLight) {
 			imGui->lightTimer += frameTimer * imGui->lightSpeed;
 			uniformData_.lightPos.x = sin(glm::radians(imGui->lightTimer * 360.0f)) * 15.0f;
 			uniformData_.lightPos.z = cos(glm::radians(imGui->lightTimer * 360.0f)) * 15.0f;
 		};
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
+		memcpy(uniformBuffers_[currentBuffer].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void loadAssets()
 	{
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
-		models_.models.loadFromFile(getAssetPath() + "models/vulkanscenemodels.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
-		models_.background.loadFromFile(getAssetPath() + "models/vulkanscenebackground.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
-		models_.logos.loadFromFile(getAssetPath() + "models/vulkanscenelogos.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
+		models_.models.loadFromFile(getAssetPath() + "models/vulkanscenemodels.gltf", vulkanDevice, queue, glTFLoadingFlags);
+		models_.background.loadFromFile(getAssetPath() + "models/vulkanscenebackground.gltf", vulkanDevice, queue, glTFLoadingFlags);
+		models_.logos.loadFromFile(getAssetPath() + "models/vulkanscenelogos.gltf", vulkanDevice, queue, glTFLoadingFlags);
 	}
 
 	void prepareImGui()
 	{
 		imGui = new ImGUI(this);
-		imGui->init((float)width_, (float)height_);
-		imGui->initResources(renderPass_, queue_, getShadersPath());
-		imGui->sampleName = title_;
-		imGui->deviceName = deviceProperties_.deviceName;
+		imGui->init((float)width, (float)height);
+		imGui->initResources(renderPass, queue, getShadersPath());
+		imGui->sampleName = title;
+		imGui->deviceName = deviceProperties.deviceName;
 	}
 
 	void prepare()
@@ -655,12 +655,12 @@ public:
 		setupDescriptors();
 		preparePipelines();
 		prepareImGui();
-		prepared_ = true;
+		prepared = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -669,32 +669,32 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass_;
+		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width_;
-		renderPassBeginInfo.renderArea.extent.height = height_;
+		renderPassBeginInfo.renderArea.extent.width = width;
+		renderPassBeginInfo.renderArea.extent.height = height;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
 
 		// Update fps plot once a second
-		bool updateFpsPlot = (frameCounter_ == 0);
+		bool updateFpsPlot = (frameCounter == 0);
 		imGui->newFrame(this, updateFpsPlot);
-		imGui->updateBuffers(currentBuffer_);
+		imGui->updateBuffers(currentBuffer);
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 		// Render scene
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_], 0, nullptr);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer], 0, nullptr);
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
 		VkDeviceSize offsets[1] = { 0 };
@@ -711,8 +711,8 @@ public:
 		}
 
 		// Render imGui
-		if (ui_.visible) {
-			imGui->drawFrame(cmdBuffer, currentBuffer_);
+		if (ui.visible) {
+			imGui->drawFrame(cmdBuffer, currentBuffer);
 		}
 
 		vkCmdEndRenderPass(cmdBuffer);
@@ -722,17 +722,17 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared_)
+		if (!prepared)
 			return;
 
 		// Update imGui
 		ImGuiIO& io = ImGui::GetIO();
-		io.DisplaySize = ImVec2((float)width_, (float)height_);
+		io.DisplaySize = ImVec2((float)width, (float)height);
 		io.DeltaTime = frameTimer;
 		io.MousePos = ImVec2(mouseState.position.x, mouseState.position.y);
-		io.MouseDown[0] = mouseState.buttons.left && ui_.visible;
-		io.MouseDown[1] = mouseState.buttons.right && ui_.visible;
-		io.MouseDown[2] = mouseState.buttons.middle && ui_.visible;
+		io.MouseDown[0] = mouseState.buttons.left && ui.visible;
+		io.MouseDown[1] = mouseState.buttons.right && ui.visible;
+		io.MouseDown[2] = mouseState.buttons.middle && ui.visible;
 		// Pass values to be displayed in imGui
 		imGui->lastFps = static_cast<float>(lastFPS);
 
@@ -745,7 +745,7 @@ public:
 	virtual void mouseMoved(double x, double y, bool &handled)
 	{
 		ImGuiIO& io = ImGui::GetIO();
-		handled = io.WantCaptureMouse && ui_.visible;
+		handled = io.WantCaptureMouse && ui.visible;
 	}
 
 // Input handling is platform specific, to show how it's basically done this sample implements it for Windows

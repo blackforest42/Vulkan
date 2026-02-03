@@ -31,7 +31,7 @@ struct TextOverlay
 	VkImageView view;
 	VkDeviceMemory imageMemory;
 	// Stores the characters
-	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> vertexBuffers;
+	std::array<vks::Buffer, maxConcurrentFrames> vertexBuffers;
 	VkDescriptorPool descriptorPool;
 	VkDescriptorSet descriptorSet;
 	VkDescriptorSetLayout descriptorSetLayout;
@@ -381,29 +381,29 @@ public:
 		glm::mat4 modelView;
 		glm::vec4 lightPos = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	} uniformData_;
-	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers_;
 
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	VkPipeline pipeline{ VK_NULL_HANDLE };
 	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
-	std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+	std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets_{};
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title_ = "Text overlay";
-		camera_.type_ = Camera::CameraType::lookat;
-		camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.5f));
-		camera_.setRotation(glm::vec3(-25.0f, -0.0f, 0.0f));
-		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
-		settings_.overlay = false;
+		title = "Text overlay";
+		camera.type_ = Camera::CameraType::lookat;
+		camera.setPosition(glm::vec3(0.0f, 0.0f, -2.5f));
+		camera.setRotation(glm::vec3(-25.0f, -0.0f, 0.0f));
+		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
+		settings.overlay = false;
 	}
 
 	~VulkanExample()
 	{
-		if (device_) {
-			vkDestroyPipeline(device_, pipeline, nullptr);
-			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
+		if (device) {
+			vkDestroyPipeline(device, pipeline, nullptr);
+			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 			for (auto& buffer : uniformBuffers_) {
 				buffer.destroy();
 			}
@@ -414,17 +414,17 @@ public:
 	void loadAssets()
 	{
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
-		model.loadFromFile(getAssetPath() + "models/torusknot.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
+		model.loadFromFile(getAssetPath() + "models/torusknot.gltf", vulkanDevice, queue, glTFLoadingFlags);
 	}
 
 	void setupDescriptors()
 	{
 		// Pool
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames),
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, MAX_CONCURRENT_FRAMES);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
+		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxConcurrentFrames);
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 
 		// Layout
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -432,17 +432,17 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0),
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr, &descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
 		
 		// Sets per frame, just like the buffers themselves
 		for (auto i = 0; i < uniformBuffers_.size(); i++) {
-			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayout, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
+			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets_[i]));
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 				// Binding 0: Vertex shader uniform buffer
 				vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].descriptor),
 			};
-			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}
 	}
 
@@ -450,7 +450,7 @@ public:
 	{
 		// Layout
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 
 		// Pipeline
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -464,7 +464,7 @@ public:
 		VkPipelineDynamicStateCreateInfo dynamicState = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
 		std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{};
 
-		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_);
+		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass);
 		pipelineCI.pInputAssemblyState = &inputAssemblyState;
 		pipelineCI.pRasterizationState = &rasterizationState;
 		pipelineCI.pColorBlendState = &colorBlendState;
@@ -478,7 +478,7 @@ public:
 
 		shaderStages[0] = loadShader(getShadersPath() + "textoverlay/mesh.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "textoverlay/mesh.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipeline));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
 	}
 
 	// Prepare and initialize uniform buffer containing shader uniforms
@@ -486,53 +486,53 @@ public:
 	{
 		for (auto& buffer : uniformBuffers_) {
 			// Scene matrices uniform buffer
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData)));
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData)));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projection = camera_.matrices_.perspective;
-		uniformData_.modelView = camera_.matrices_.view;
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
+		uniformData_.projection = camera.matrices.perspective;
+		uniformData_.modelView = camera.matrices.view;
+		memcpy(uniformBuffers_[currentBuffer].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	// Update the text buffer displayed by the text overlay
 	void updateTextOverlay(void)
 	{
-		textOverlay->currentBuffer = currentBuffer_;
+		textOverlay->currentBuffer = currentBuffer;
 		textOverlay->numLetters = 0;
 		// textOverlay->addText writes to the vertex buffer for the current frame, so we need to it point at that
-		textOverlay->mapped = static_cast<glm::vec4*>(textOverlay->vertexBuffers[currentBuffer_].mapped);
+		textOverlay->mapped = static_cast<glm::vec4*>(textOverlay->vertexBuffers[currentBuffer].mapped);
 
 		// textOverlay->addText writes to the vertex buffer for the current frame
 		//VK_CHECK_RESULT(vkMapMemory(vulkanDevice->logicalDevice, textOverlay->vertexBuffers[currentBuffer].memory, 0, VK_WHOLE_SIZE, 0, (void**)&textOverlay->mapped));
 
-		textOverlay->addText(title_, 5.0f * ui_.scale, 5.0f * ui_.scale, TextOverlay::alignLeft);
+		textOverlay->addText(title, 5.0f * ui.scale, 5.0f * ui.scale, TextOverlay::alignLeft);
 
 		std::stringstream ss;
 		ss << std::fixed << std::setprecision(2) << (frameTimer * 1000.0f) << "ms (" << lastFPS << " fps)";
-		textOverlay->addText(ss.str(), 5.0f * ui_.scale, 25.0f * ui_.scale, TextOverlay::alignLeft);
+		textOverlay->addText(ss.str(), 5.0f * ui.scale, 25.0f * ui.scale, TextOverlay::alignLeft);
 
-		textOverlay->addText(deviceProperties_.deviceName, 5.0f * ui_.scale, 45.0f * ui_.scale, TextOverlay::alignLeft);
+		textOverlay->addText(deviceProperties.deviceName, 5.0f * ui.scale, 45.0f * ui.scale, TextOverlay::alignLeft);
 
 		// Display current model view matrix
-		textOverlay->addText("model view matrix", (float)width_ - 5.0f * ui_.scale, 5.0f * ui_.scale, TextOverlay::alignRight);
+		textOverlay->addText("model view matrix", (float)width - 5.0f * ui.scale, 5.0f * ui.scale, TextOverlay::alignRight);
 		for (uint32_t i = 0; i < 4; i++) {
 			ss.str("");
 			ss << std::fixed << std::setprecision(2) << std::showpos;
 			ss << uniformData_.modelView[0][i] << " " << uniformData_.modelView[1][i] << " " << uniformData_.modelView[2][i] << " " << uniformData_.modelView[3][i];
-			textOverlay->addText(ss.str(), (float)width_ - 5.0f * ui_.scale, (25.0f + (float)i * 20.0f) * ui_.scale, TextOverlay::alignRight);
+			textOverlay->addText(ss.str(), (float)width - 5.0f * ui.scale, (25.0f + (float)i * 20.0f) * ui.scale, TextOverlay::alignRight);
 		}
 
-		glm::vec3 projected = glm::project(glm::vec3(0.0f), uniformData_.modelView, uniformData_.projection, glm::vec4(0, 0, (float)width_, (float)height_));
+		glm::vec3 projected = glm::project(glm::vec3(0.0f), uniformData_.modelView, uniformData_.projection, glm::vec4(0, 0, (float)width, (float)height));
 		textOverlay->addText("A torus knot", projected.x, projected.y, TextOverlay::alignCenter);
 
 #if defined(__ANDROID__)
 #else
-		textOverlay->addText("Press \"space\" to toggle text overlay", 5.0f * ui_.scale, 65.0f * ui_.scale, TextOverlay::alignLeft);
-		textOverlay->addText("Hold middle mouse button and drag to move", 5.0f * ui_.scale, 85.0f * ui_.scale, TextOverlay::alignLeft);
+		textOverlay->addText("Press \"space\" to toggle text overlay", 5.0f * ui.scale, 65.0f * ui.scale, TextOverlay::alignLeft);
+		textOverlay->addText("Hold middle mouse button and drag to move", 5.0f * ui.scale, 85.0f * ui.scale, TextOverlay::alignLeft);
 #endif
 
 		//vkUnmapMemory(vulkanDevice->logicalDevice, textOverlay->vertexBuffers[currentBuffer].memory);
@@ -545,12 +545,12 @@ public:
 		shaderStages.push_back(loadShader(getShadersPath() + "textoverlay/text.vert.spv", VK_SHADER_STAGE_VERTEX_BIT));
 		shaderStages.push_back(loadShader(getShadersPath() + "textoverlay/text.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT));
 		textOverlay = new TextOverlay(
-			vulkanDevice_,
-			queue_,
-			renderPass_,
-			&width_,
-			&height_,
-			ui_.scale,
+			vulkanDevice,
+			queue,
+			renderPass,
+			&width,
+			&height,
+			ui.scale,
 			shaderStages
 		);
 	}
@@ -563,12 +563,12 @@ public:
 		setupDescriptors();
 		preparePipelines();
 		prepareTextOverlay();
-		prepared_ = true;
+		prepared = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -577,25 +577,25 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass_;
-		renderPassBeginInfo.renderArea.extent.width = width_;
-		renderPassBeginInfo.renderArea.extent.height = height_;
+		renderPassBeginInfo.renderPass = renderPass;
+		renderPassBeginInfo.renderArea.extent.width = width;
+		renderPassBeginInfo.renderArea.extent.height = height;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_], 0, nullptr);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer], 0, nullptr);
 		model.draw(cmdBuffer);
 
 		if (textOverlay->visible) {
@@ -609,7 +609,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared_)
+		if (!prepared)
 			return;
 		VulkanExampleBase::prepareFrame();
 		updateTextOverlay();

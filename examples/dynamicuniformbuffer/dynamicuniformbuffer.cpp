@@ -62,7 +62,7 @@ class VulkanExample : public VulkanExampleBase {
     vks::Buffer view;
     vks::Buffer dynamic;
   };
-  std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+  std::array<UniformBuffers, maxConcurrentFrames> uniformBuffers_;
 
   struct {
     glm::mat4 projection;
@@ -88,21 +88,21 @@ class VulkanExample : public VulkanExampleBase {
   size_t dynamicAlignment{0};
 
   VulkanExample() : VulkanExampleBase() {
-    title_ = "Dynamic uniform buffers";
-    camera_.type_ = Camera::CameraType::lookat;
-    camera_.setPosition(glm::vec3(0.0f, 0.0f, -30.0f));
-    camera_.setRotation(glm::vec3(0.0f));
-    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
+    title = "Dynamic uniform buffers";
+    camera.type_ = Camera::CameraType::lookat;
+    camera.setPosition(glm::vec3(0.0f, 0.0f, -30.0f));
+    camera.setRotation(glm::vec3(0.0f));
+    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
   }
 
   ~VulkanExample() {
-    if (device_) {
+    if (device) {
       if (uboDataDynamic.model) {
         alignedFree(uboDataDynamic.model);
       }
-      vkDestroyPipeline(device_, pipeline, nullptr);
-      vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
+      vkDestroyPipeline(device, pipeline, nullptr);
+      vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+      vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
       vertexBuffer.destroy();
       indexBuffer.destroy();
       for (auto& buffer : uniformBuffers_) {
@@ -135,13 +135,13 @@ class VulkanExample : public VulkanExampleBase {
     // Create buffers
     // For the sake of simplicity we won't stage the vertex data to the gpu
     // memory Vertex buffer
-    VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+    VK_CHECK_RESULT(vulkanDevice->createBuffer(
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         &vertexBuffer, vertices.size() * sizeof(Vertex), vertices.data()));
     // Index buffer
-    VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+    VK_CHECK_RESULT(vulkanDevice->createBuffer(
         VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -152,16 +152,16 @@ class VulkanExample : public VulkanExampleBase {
     // Pool
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                              MAX_CONCURRENT_FRAMES),
+                                              maxConcurrentFrames),
         // Dynamic uniform buffers require a different descriptor type
         vks::initializers::descriptorPoolSize(
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, MAX_CONCURRENT_FRAMES)};
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, maxConcurrentFrames)};
 
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(poolSizes,
-                                                    MAX_CONCURRENT_FRAMES);
-    VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
-                                           nullptr, &descriptorPool_));
+                                                    maxConcurrentFrames);
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo,
+                                           nullptr, &descriptorPool));
 
     // Layout
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -174,32 +174,32 @@ class VulkanExample : public VulkanExampleBase {
 
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout,
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout,
                                                 nullptr, &descriptorSetLayout));
 
     // Sets per frame, just like the buffers themselves
     // Images do not need to be duplicated per frame, we reuse the same one for
     // each frame
     VkDescriptorSetAllocateInfo allocInfo =
-        vks::initializers::descriptorSetAllocateInfo(descriptorPool_,
+        vks::initializers::descriptorSetAllocateInfo(descriptorPool,
                                                      &descriptorSetLayout, 1);
     for (auto i = 0; i < uniformBuffers_.size(); i++) {
       VkDescriptorSetAllocateInfo allocInfo =
-          vks::initializers::descriptorSetAllocateInfo(descriptorPool_,
+          vks::initializers::descriptorSetAllocateInfo(descriptorPool,
                                                        &descriptorSetLayout, 1);
       VK_CHECK_RESULT(
-          vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSet));
+          vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
           // Binding 0 : Projection/View matrix as uniform buffer
           vks::initializers::writeDescriptorSet(
               descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
-              &uniformBuffers_[currentBuffer_].view.descriptor),
+              &uniformBuffers_[currentBuffer].view.descriptor),
           // Binding 1 : Instance matrix as dynamic uniform buffer
           vks::initializers::writeDescriptorSet(
               descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1,
-              &uniformBuffers_[currentBuffer_].dynamic.descriptor),
+              &uniformBuffers_[currentBuffer].dynamic.descriptor),
       };
-      vkUpdateDescriptorSets(device_,
+      vkUpdateDescriptorSets(device,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
     }
@@ -209,7 +209,7 @@ class VulkanExample : public VulkanExampleBase {
     // Layout
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
         vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo,
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo,
                                            nullptr, &pipelineLayout));
 
     // Pipeline
@@ -268,7 +268,7 @@ class VulkanExample : public VulkanExampleBase {
                    VK_SHADER_STAGE_FRAGMENT_BIT);
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo =
-        vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_, 0);
+        vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
     pipelineCreateInfo.pVertexInputState = &vertexInputStateCI;
     pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
     pipelineCreateInfo.pRasterizationState = &rasterizationState;
@@ -280,7 +280,7 @@ class VulkanExample : public VulkanExampleBase {
     pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineCreateInfo.pStages = shaderStages.data();
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-        device_, pipelineCache_, 1, &pipelineCreateInfo, nullptr, &pipeline));
+        device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipeline));
   }
 
   // Prepare and initialize uniform buffer containing shader uniforms
@@ -291,7 +291,7 @@ class VulkanExample : public VulkanExampleBase {
 
     // Calculate required alignment based on minimum device offset alignment
     size_t minUboAlignment =
-        vulkanDevice_->properties.limits.minUniformBufferOffsetAlignment;
+        vulkanDevice->properties.limits.minUniformBufferOffsetAlignment;
     dynamicAlignment = sizeof(glm::mat4);
     if (minUboAlignment > 0) {
       dynamicAlignment =
@@ -311,13 +311,13 @@ class VulkanExample : public VulkanExampleBase {
     for (auto& buffer : uniformBuffers_) {
       // Static shared uniform buffer object with projection and view matrix
       VK_CHECK_RESULT(
-          vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                                       &buffer.view, sizeof(uboVS)));
 
       // Uniform buffer object with per-object matrices
-      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+      VK_CHECK_RESULT(vulkanDevice->createBuffer(
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &buffer.dynamic, bufferSize));
 
@@ -344,9 +344,9 @@ class VulkanExample : public VulkanExampleBase {
 
   void updateUniformBuffers() {
     // Fixed ubo with projection and view matrices
-    uboVS.projection = camera_.matrices_.perspective;
-    uboVS.view = camera_.matrices_.view;
-    memcpy(uniformBuffers_[currentBuffer_].view.mapped, &uboVS, sizeof(uboVS));
+    uboVS.projection = camera.matrices.perspective;
+    uboVS.view = camera.matrices.view;
+    memcpy(uniformBuffers_[currentBuffer].view.mapped, &uboVS, sizeof(uboVS));
   }
 
   void updateDynamicUniformBuffer() {
@@ -381,13 +381,13 @@ class VulkanExample : public VulkanExampleBase {
         }
       }
     }
-    memcpy(uniformBuffers_[currentBuffer_].dynamic.mapped, uboDataDynamic.model,
-           uniformBuffers_[currentBuffer_].dynamic.size);
+    memcpy(uniformBuffers_[currentBuffer].dynamic.mapped, uboDataDynamic.model,
+           uniformBuffers_[currentBuffer].dynamic.size);
     // Flush to make changes visible to the host
     VkMappedMemoryRange memoryRange = vks::initializers::mappedMemoryRange();
-    memoryRange.memory = uniformBuffers_[currentBuffer_].dynamic.memory;
-    memoryRange.size = uniformBuffers_[currentBuffer_].dynamic.size;
-    vkFlushMappedMemoryRanges(device_, 1, &memoryRange);
+    memoryRange.memory = uniformBuffers_[currentBuffer].dynamic.memory;
+    memoryRange.size = uniformBuffers_[currentBuffer].dynamic.size;
+    vkFlushMappedMemoryRanges(device, 1, &memoryRange);
   }
 
   void prepare() {
@@ -396,11 +396,11 @@ class VulkanExample : public VulkanExampleBase {
     prepareUniformBuffers();
     setupDescriptors();
     preparePipelines();
-    prepared_ = true;
+    prepared = true;
   }
 
   void buildCommandBuffer() {
-    VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
+    VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
 
     VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
@@ -411,14 +411,14 @@ class VulkanExample : public VulkanExampleBase {
 
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = renderPass_;
+    renderPassBeginInfo.renderPass = renderPass;
     renderPassBeginInfo.renderArea.offset.x = 0;
     renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.renderArea.extent.width = width_;
-    renderPassBeginInfo.renderArea.extent.height = height_;
+    renderPassBeginInfo.renderArea.extent.width = width;
+    renderPassBeginInfo.renderArea.extent.height = height;
     renderPassBeginInfo.clearValueCount = 2;
     renderPassBeginInfo.pClearValues = clearValues;
-    renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+    renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
 
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
@@ -426,10 +426,10 @@ class VulkanExample : public VulkanExampleBase {
                          VK_SUBPASS_CONTENTS_INLINE);
 
     VkViewport viewport =
-        vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+        vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
@@ -461,7 +461,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   virtual void render() {
-    if (!prepared_)
+    if (!prepared)
       return;
     VulkanExampleBase::prepareFrame();
     updateUniformBuffers();

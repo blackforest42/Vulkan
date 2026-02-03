@@ -151,28 +151,28 @@ class VulkanExample : public VulkanExampleBase {
     // This is animated
     float depth = 0.0f;
   } uniformData_;
-  std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+  std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers_;
 
   VkPipeline pipeline{VK_NULL_HANDLE};
   VkPipelineLayout pipelineLayout{VK_NULL_HANDLE};
   VkDescriptorSetLayout descriptorSetLayout{VK_NULL_HANDLE};
-  std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+  std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets_{};
 
   VulkanExample() : VulkanExampleBase() {
-    title_ = "3D textures";
-    camera_.type_ = Camera::CameraType::lookat;
-    camera_.setPosition(glm::vec3(0.0f, 0.0f, -2.5f));
-    camera_.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
-    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
+    title = "3D textures";
+    camera.type_ = Camera::CameraType::lookat;
+    camera.setPosition(glm::vec3(0.0f, 0.0f, -2.5f));
+    camera.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
+    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
     srand(benchmark.active ? 0 : (unsigned int)time(NULL));
   }
 
   ~VulkanExample() {
-    if (device_) {
+    if (device) {
       destroyTextureImage(texture_);
-      vkDestroyPipeline(device_, pipeline, nullptr);
-      vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
+      vkDestroyPipeline(device, pipeline, nullptr);
+      vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+      vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
       vertexBuffer.destroy();
       indexBuffer.destroy();
       for (auto& buffer : uniformBuffers_) {
@@ -195,7 +195,7 @@ class VulkanExample : public VulkanExampleBase {
     // 3D texture support in Vulkan is mandatory (in contrast to OpenGL) so no
     // need to check if it's supported
     VkFormatProperties formatProperties;
-    vkGetPhysicalDeviceFormatProperties(physicalDevice_, texture_.format,
+    vkGetPhysicalDeviceFormatProperties(physicalDevice, texture_.format,
                                         &formatProperties);
     // Check if format supports transfer
     if (!(formatProperties.optimalTilingFeatures &
@@ -207,7 +207,7 @@ class VulkanExample : public VulkanExampleBase {
     }
     // Check if GPU supports requested 3D texture dimensions
     uint32_t maxImageDimension3D(
-        vulkanDevice_->properties.limits.maxImageDimension3D);
+        vulkanDevice->properties.limits.maxImageDimension3D);
     if (width > maxImageDimension3D || height > maxImageDimension3D ||
         depth > maxImageDimension3D) {
       std::cout << "Error: Requested texture dimensions is greater than "
@@ -233,19 +233,19 @@ class VulkanExample : public VulkanExampleBase {
     imageCreateInfo.usage =
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     VK_CHECK_RESULT(
-        vkCreateImage(device_, &imageCreateInfo, nullptr, &texture_.image));
+        vkCreateImage(device, &imageCreateInfo, nullptr, &texture_.image));
 
     // Device local memory to back up image
     VkMemoryAllocateInfo memAllocInfo = vks::initializers::memoryAllocateInfo();
     VkMemoryRequirements memReqs = {};
-    vkGetImageMemoryRequirements(device_, texture_.image, &memReqs);
+    vkGetImageMemoryRequirements(device, texture_.image, &memReqs);
     memAllocInfo.allocationSize = memReqs.size;
-    memAllocInfo.memoryTypeIndex = vulkanDevice_->getMemoryType(
+    memAllocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(
         memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VK_CHECK_RESULT(vkAllocateMemory(device_, &memAllocInfo, nullptr,
+    VK_CHECK_RESULT(vkAllocateMemory(device, &memAllocInfo, nullptr,
                                      &texture_.deviceMemory));
     VK_CHECK_RESULT(
-        vkBindImageMemory(device_, texture_.image, texture_.deviceMemory, 0));
+        vkBindImageMemory(device, texture_.image, texture_.deviceMemory, 0));
 
     // Create sampler
     VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
@@ -263,7 +263,7 @@ class VulkanExample : public VulkanExampleBase {
     sampler.anisotropyEnable = VK_FALSE;
     sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     VK_CHECK_RESULT(
-        vkCreateSampler(device_, &sampler, nullptr, &texture_.sampler));
+        vkCreateSampler(device, &sampler, nullptr, &texture_.sampler));
 
     // Create image view
     VkImageViewCreateInfo view = vks::initializers::imageViewCreateInfo();
@@ -275,7 +275,7 @@ class VulkanExample : public VulkanExampleBase {
     view.subresourceRange.baseArrayLayer = 0;
     view.subresourceRange.layerCount = 1;
     view.subresourceRange.levelCount = 1;
-    VK_CHECK_RESULT(vkCreateImageView(device_, &view, nullptr, &texture_.view));
+    VK_CHECK_RESULT(vkCreateImageView(device, &view, nullptr, &texture_.view));
 
     // Fill image descriptor image info to be used descriptor set setup
     texture_.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -336,29 +336,29 @@ class VulkanExample : public VulkanExampleBase {
     bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     VK_CHECK_RESULT(
-        vkCreateBuffer(device_, &bufferCreateInfo, nullptr, &stagingBuffer));
+        vkCreateBuffer(device, &bufferCreateInfo, nullptr, &stagingBuffer));
 
     // Allocate host visible memory for data upload
     VkMemoryAllocateInfo memAllocInfo = vks::initializers::memoryAllocateInfo();
     VkMemoryRequirements memReqs = {};
-    vkGetBufferMemoryRequirements(device_, stagingBuffer, &memReqs);
+    vkGetBufferMemoryRequirements(device, stagingBuffer, &memReqs);
     memAllocInfo.allocationSize = memReqs.size;
-    memAllocInfo.memoryTypeIndex = vulkanDevice_->getMemoryType(
+    memAllocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(
         memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     VK_CHECK_RESULT(
-        vkAllocateMemory(device_, &memAllocInfo, nullptr, &stagingMemory));
+        vkAllocateMemory(device, &memAllocInfo, nullptr, &stagingMemory));
     VK_CHECK_RESULT(
-        vkBindBufferMemory(device_, stagingBuffer, stagingMemory, 0));
+        vkBindBufferMemory(device, stagingBuffer, stagingMemory, 0));
 
     // Copy texture data into staging buffer
     uint8_t* mapped;
-    VK_CHECK_RESULT(vkMapMemory(device_, stagingMemory, 0, memReqs.size, 0,
+    VK_CHECK_RESULT(vkMapMemory(device, stagingMemory, 0, memReqs.size, 0,
                                 (void**)&mapped));
     memcpy(mapped, data, texMemSize);
-    vkUnmapMemory(device_, stagingMemory);
+    vkUnmapMemory(device, stagingMemory);
 
-    VkCommandBuffer copyCmd = vulkanDevice_->createCommandBuffer(
+    VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(
         VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 
     // The sub resource range describes the regions of the image we will be
@@ -399,24 +399,24 @@ class VulkanExample : public VulkanExampleBase {
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                texture_.imageLayout, subresourceRange);
 
-    vulkanDevice_->flushCommandBuffer(copyCmd, queue_, true);
+    vulkanDevice->flushCommandBuffer(copyCmd, queue, true);
 
     // Clean up staging resources
     delete[] data;
-    vkFreeMemory(device_, stagingMemory, nullptr);
-    vkDestroyBuffer(device_, stagingBuffer, nullptr);
+    vkFreeMemory(device, stagingMemory, nullptr);
+    vkDestroyBuffer(device, stagingBuffer, nullptr);
   }
 
   // Free all Vulkan resources used a texture object
   void destroyTextureImage(Texture texture) {
     if (texture.view != VK_NULL_HANDLE)
-      vkDestroyImageView(device_, texture.view, nullptr);
+      vkDestroyImageView(device, texture.view, nullptr);
     if (texture.image != VK_NULL_HANDLE)
-      vkDestroyImage(device_, texture.image, nullptr);
+      vkDestroyImage(device, texture.image, nullptr);
     if (texture.sampler != VK_NULL_HANDLE)
-      vkDestroySampler(device_, texture.sampler, nullptr);
+      vkDestroySampler(device, texture.sampler, nullptr);
     if (texture.deviceMemory != VK_NULL_HANDLE)
-      vkFreeMemory(device_, texture.deviceMemory, nullptr);
+      vkFreeMemory(device, texture.deviceMemory, nullptr);
   }
 
   // Creates a vertex and index buffer for a quad made of two triangles
@@ -440,13 +440,13 @@ class VulkanExample : public VulkanExampleBase {
     } stagingBuffers;
 
     // Host visible source buffers (staging)
-    VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+    VK_CHECK_RESULT(vulkanDevice->createBuffer(
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         &stagingBuffers.vertices, vertices.size() * sizeof(Vertex),
         vertices.data()));
-    VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+    VK_CHECK_RESULT(vulkanDevice->createBuffer(
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -454,18 +454,18 @@ class VulkanExample : public VulkanExampleBase {
         indices.data()));
 
     // Device local destination buffers
-    VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+    VK_CHECK_RESULT(vulkanDevice->createBuffer(
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &vertexBuffer,
         vertices.size() * sizeof(Vertex)));
-    VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+    VK_CHECK_RESULT(vulkanDevice->createBuffer(
         VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &indexBuffer,
         indices.size() * sizeof(uint32_t)));
 
     // Copy from host do device
-    vulkanDevice_->copyBuffer(&stagingBuffers.vertices, &vertexBuffer, queue_);
-    vulkanDevice_->copyBuffer(&stagingBuffers.indices, &indexBuffer, queue_);
+    vulkanDevice->copyBuffer(&stagingBuffers.vertices, &vertexBuffer, queue);
+    vulkanDevice->copyBuffer(&stagingBuffers.indices, &indexBuffer, queue);
 
     // Clean up
     stagingBuffers.vertices.destroy();
@@ -476,14 +476,14 @@ class VulkanExample : public VulkanExampleBase {
     // Pool
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                              MAX_CONCURRENT_FRAMES),
+                                              maxConcurrentFrames),
         vks::initializers::descriptorPoolSize(
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_CONCURRENT_FRAMES)};
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, maxConcurrentFrames)};
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(poolSizes,
-                                                    MAX_CONCURRENT_FRAMES);
-    VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
-                                           nullptr, &descriptorPool_));
+                                                    maxConcurrentFrames);
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo,
+                                           nullptr, &descriptorPool));
 
     // Layout
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -496,7 +496,7 @@ class VulkanExample : public VulkanExampleBase {
             VK_SHADER_STAGE_FRAGMENT_BIT, 1)};
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout,
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout,
                                                 nullptr, &descriptorSetLayout));
 
     // Image descriptor for the 3D texture
@@ -508,11 +508,11 @@ class VulkanExample : public VulkanExampleBase {
     // Images do not need to be duplicated per frame, we reuse the same one for
     // each frame
     VkDescriptorSetAllocateInfo allocInfo =
-        vks::initializers::descriptorSetAllocateInfo(descriptorPool_,
+        vks::initializers::descriptorSetAllocateInfo(descriptorPool,
                                                      &descriptorSetLayout, 1);
     for (auto i = 0; i < uniformBuffers_.size(); i++) {
       VK_CHECK_RESULT(
-          vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
+          vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets_[i]));
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
@@ -521,7 +521,7 @@ class VulkanExample : public VulkanExampleBase {
               descriptorSets_[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1,
               &textureDescriptor),
       };
-      vkUpdateDescriptorSets(device_,
+      vkUpdateDescriptorSets(device,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
     }
@@ -531,7 +531,7 @@ class VulkanExample : public VulkanExampleBase {
     // Layout
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
         vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo,
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo,
                                            nullptr, &pipelineLayout));
 
     // Pipeline
@@ -592,7 +592,7 @@ class VulkanExample : public VulkanExampleBase {
         vertexInputAttributes.data();
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo =
-        vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_, 0);
+        vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
     pipelineCreateInfo.pVertexInputState = &vertexInputState;
     pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
     pipelineCreateInfo.pRasterizationState = &rasterizationState;
@@ -604,13 +604,13 @@ class VulkanExample : public VulkanExampleBase {
     pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineCreateInfo.pStages = shaderStages.data();
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-        device_, pipelineCache_, 1, &pipelineCreateInfo, nullptr, &pipeline));
+        device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipeline));
   }
 
   // Prepare and initialize uniform buffer containing shader uniforms
   void prepareUniformBuffers() {
     for (auto& buffer : uniformBuffers_) {
-      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+      VK_CHECK_RESULT(vulkanDevice->createBuffer(
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -620,9 +620,9 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    uniformData_.projection = camera_.matrices_.perspective;
-    uniformData_.modelView = camera_.matrices_.view;
-    uniformData_.viewPos = camera_.viewPos_;
+    uniformData_.projection = camera.matrices.perspective;
+    uniformData_.modelView = camera.matrices.view;
+    uniformData_.viewPos = camera.viewPos;
     if (!paused) {
       // Animate depth
       uniformData_.depth += frameTimer * 0.15f;
@@ -630,7 +630,7 @@ class VulkanExample : public VulkanExampleBase {
         uniformData_.depth = uniformData_.depth - 1.0f;
       }
     }
-    memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_,
+    memcpy(uniformBuffers_[currentBuffer].mapped, &uniformData_,
            sizeof(UniformData));
   }
 
@@ -641,11 +641,11 @@ class VulkanExample : public VulkanExampleBase {
     prepareNoiseTexture(128, 128, 128);
     setupDescriptors();
     preparePipelines();
-    prepared_ = true;
+    prepared = true;
   }
 
   void buildCommandBuffer() {
-    VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
+    VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
 
     VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
@@ -656,14 +656,14 @@ class VulkanExample : public VulkanExampleBase {
 
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = renderPass_;
+    renderPassBeginInfo.renderPass = renderPass;
     renderPassBeginInfo.renderArea.offset.x = 0;
     renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.renderArea.extent.width = width_;
-    renderPassBeginInfo.renderArea.extent.height = height_;
+    renderPassBeginInfo.renderArea.extent.width = width;
+    renderPassBeginInfo.renderArea.extent.height = height;
     renderPassBeginInfo.clearValueCount = 2;
     renderPassBeginInfo.pClearValues = clearValues;
-    renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+    renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
 
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
@@ -671,15 +671,15 @@ class VulkanExample : public VulkanExampleBase {
                          VK_SUBPASS_CONTENTS_INLINE);
 
     VkViewport viewport =
-        vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+        vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             pipelineLayout, 0, 1,
-                            &descriptorSets_[currentBuffer_], 0, nullptr);
+                            &descriptorSets_[currentBuffer], 0, nullptr);
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
     VkDeviceSize offsets[1] = {0};
@@ -696,7 +696,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   virtual void render() {
-    if (!prepared_)
+    if (!prepared)
       return;
     VulkanExampleBase::prepareFrame();
     updateUniformBuffers();

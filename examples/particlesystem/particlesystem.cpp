@@ -64,7 +64,7 @@ public:
 		// Size of the particle buffer in bytes
 		size_t size{ 0 };
 	};
-	std::array<ParticleBuffer, MAX_CONCURRENT_FRAMES> particleBuffers;
+	std::array<ParticleBuffer, maxConcurrentFrames> particleBuffers;
 
 	struct UniformBuffers {
 		vks::Buffer particles;
@@ -72,7 +72,7 @@ public:
 		VkDescriptorSet particlesDescriptor{ VK_NULL_HANDLE };
 		VkDescriptorSet environmentDescriptor{ VK_NULL_HANDLE };
 	};
-	std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+	std::array<UniformBuffers, maxConcurrentFrames> uniformBuffers_;
 
 	struct UniformDataParticles {
 		glm::mat4 projection;
@@ -105,44 +105,44 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title_ = "CPU based particle system";
-		camera_.type_ = Camera::CameraType::lookat;
-		camera_.setPosition(glm::vec3(0.0f, 0.0f, -75.0f));
-		camera_.setRotation(glm::vec3(-15.0f, 45.0f, 0.0f));
-		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 1.0f, 256.0f);
+		title = "CPU based particle system";
+		camera.type_ = Camera::CameraType::lookat;
+		camera.setPosition(glm::vec3(0.0f, 0.0f, -75.0f));
+		camera.setRotation(glm::vec3(-15.0f, 45.0f, 0.0f));
+		camera.setPerspective(60.0f, (float)width / (float)height, 1.0f, 256.0f);
 		timerSpeed *= 8.0f;
 		rndEngine.seed(benchmark.active ? 0 : (unsigned)time(nullptr));
 	}
 
 	~VulkanExample()
 	{
-		if (device_) {
+		if (device) {
 			textures_.particles.smoke.destroy();
 			textures_.particles.fire.destroy();
 			textures_.floor.colorMap.destroy();
 			textures_.floor.normalMap.destroy();
-			vkDestroyPipeline(device_, pipelines_.particles, nullptr);
-			vkDestroyPipeline(device_, pipelines_.environment, nullptr);
-			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
+			vkDestroyPipeline(device, pipelines_.particles, nullptr);
+			vkDestroyPipeline(device, pipelines_.environment, nullptr);
+			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 			for (auto& buffer : particleBuffers) {
-				vkUnmapMemory(device_, buffer.memory);
-				vkDestroyBuffer(device_, buffer.buffer, nullptr);
-				vkFreeMemory(device_, buffer.memory, nullptr);
+				vkUnmapMemory(device, buffer.memory);
+				vkDestroyBuffer(device, buffer.buffer, nullptr);
+				vkFreeMemory(device, buffer.memory, nullptr);
 			}
 			for (auto& buffer : uniformBuffers_) {
 				buffer.environment.destroy();
 				buffer.particles.destroy();
 			}
-			vkDestroySampler(device_, textures_.particles.sampler, nullptr);
+			vkDestroySampler(device, textures_.particles.sampler, nullptr);
 		}
 	}
 
 	virtual void getEnabledFeatures()
 	{
 		// Enable anisotropic filtering if supported
-		if (deviceFeatures_.samplerAnisotropy) {
-			enabledFeatures_.samplerAnisotropy = VK_TRUE;
+		if (deviceFeatures.samplerAnisotropy) {
+			enabledFeatures.samplerAnisotropy = VK_TRUE;
 		};
 	}
 
@@ -218,7 +218,7 @@ public:
 		for (auto& buffer : particleBuffers) {
 			buffer.size = particles.size() * sizeof(Particle);
 
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(
 				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				buffer.size,
@@ -227,7 +227,7 @@ public:
 				particles.data()));
 
 			// Map the memory and store the pointer for reuse
-			VK_CHECK_RESULT(vkMapMemory(device_, buffer.memory, 0, buffer.size, 0, &buffer.mappedMemory));
+			VK_CHECK_RESULT(vkMapMemory(device, buffer.memory, 0, buffer.size, 0, &buffer.mappedMemory));
 		}
 	}
 
@@ -260,18 +260,18 @@ public:
 		
 		// Copy the updated particles to the vertex buffer for the next frame to be updated
 		size_t size = particles.size() * sizeof(Particle);
-		memcpy(particleBuffers[currentBuffer_].mappedMemory, particles.data(), size);
+		memcpy(particleBuffers[currentBuffer].mappedMemory, particles.data(), size);
 	}
 
 	void loadAssets()
 	{
 		// Particles
-		textures_.particles.smoke.loadFromFile(getAssetPath() + "textures/particle_smoke.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
-		textures_.particles.fire.loadFromFile(getAssetPath() + "textures/particle_fire.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.particles.smoke.loadFromFile(getAssetPath() + "textures/particle_smoke.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
+		textures_.particles.fire.loadFromFile(getAssetPath() + "textures/particle_fire.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
 
 		// Floor
-		textures_.floor.colorMap.loadFromFile(getAssetPath() + "textures/fireplace_colormap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
-		textures_.floor.normalMap.loadFromFile(getAssetPath() + "textures/fireplace_normalmap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+		textures_.floor.colorMap.loadFromFile(getAssetPath() + "textures/fireplace_colormap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
+		textures_.floor.normalMap.loadFromFile(getAssetPath() + "textures/fireplace_normalmap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
 
 		// Create a custom sampler to be used with the particle textures
 		// Create sampler
@@ -289,7 +289,7 @@ public:
 		// Both particle textures have the same number of mip maps
 		samplerCreateInfo.maxLod = float(textures_.particles.fire.mipLevels);
 
-		if (vulkanDevice_->features.samplerAnisotropy)
+		if (vulkanDevice->features.samplerAnisotropy)
 		{
 			// Enable anisotropic filtering
 			samplerCreateInfo.maxAnisotropy = 8.0f;
@@ -298,10 +298,10 @@ public:
 
 		// Use a different border color (than the normal texture loader) for additive blending
 		samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-		VK_CHECK_RESULT(vkCreateSampler(device_, &samplerCreateInfo, nullptr, &textures_.particles.sampler));
+		VK_CHECK_RESULT(vkCreateSampler(device, &samplerCreateInfo, nullptr, &textures_.particles.sampler));
 
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
-		environment.loadFromFile(getAssetPath() + "models/fireplace.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
+		environment.loadFromFile(getAssetPath() + "models/fireplace.gltf", vulkanDevice, queue, glTFLoadingFlags);
 	}
 
 	void setupDescriptors()
@@ -310,11 +310,11 @@ public:
 
 		// Pool
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 * MAX_CONCURRENT_FRAMES),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 * MAX_CONCURRENT_FRAMES)
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 * maxConcurrentFrames),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 * maxConcurrentFrames)
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, 2 * MAX_CONCURRENT_FRAMES);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
+		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, 2 * maxConcurrentFrames);
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 
 		// Layout
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -326,14 +326,14 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT,2)
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout, nullptr, &descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
 		
 		// Sets per frame, just like the buffers themselves
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
 		for (auto& buffer : uniformBuffers_) {
-			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayout, 1);
+			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
 
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &buffer.particlesDescriptor));
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &buffer.particlesDescriptor));
 
 			// Particles
 
@@ -342,20 +342,20 @@ public:
 			VkDescriptorImageInfo texDescriptorFire = vks::initializers::descriptorImageInfo(textures_.particles.sampler, textures_.particles.fire.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 			writeDescriptorSets = {
-				vks::initializers::writeDescriptorSet(buffer.particlesDescriptor, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[currentBuffer_].particles.descriptor),
+				vks::initializers::writeDescriptorSet(buffer.particlesDescriptor, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[currentBuffer].particles.descriptor),
 				vks::initializers::writeDescriptorSet(buffer.particlesDescriptor, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &texDescriptorSmoke),
 				vks::initializers::writeDescriptorSet(buffer.particlesDescriptor, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &texDescriptorFire)
 			};
-			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
 			// Environment
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &buffer.environmentDescriptor));
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &buffer.environmentDescriptor));
 			writeDescriptorSets = {
-				vks::initializers::writeDescriptorSet(buffer.environmentDescriptor, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[currentBuffer_].environment.descriptor),
+				vks::initializers::writeDescriptorSet(buffer.environmentDescriptor, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[currentBuffer].environment.descriptor),
 				vks::initializers::writeDescriptorSet(buffer.environmentDescriptor, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textures_.floor.colorMap.descriptor),
 				vks::initializers::writeDescriptorSet(buffer.environmentDescriptor, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, &textures_.floor.normalMap.descriptor),
 			};
-			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 		}
 	}
 
@@ -363,7 +363,7 @@ public:
 	{
 		// Layout
 		VkPipelineLayoutCreateInfo pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));
 
 		// Pipelines
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_POINT_LIST, 0, VK_FALSE);
@@ -377,7 +377,7 @@ public:
 		VkPipelineDynamicStateCreateInfo dynamicState = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
 		std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
-		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_);
+		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass);
 		pipelineCI.pInputAssemblyState = &inputAssemblyState;
 		pipelineCI.pRasterizationState = &rasterizationState;
 		pipelineCI.pColorBlendState = &colorBlendState;
@@ -426,7 +426,7 @@ public:
 
 			shaderStages[0] = loadShader(getShadersPath() + "particlesystem/particle.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 			shaderStages[1] = loadShader(getShadersPath() + "particlesystem/particle.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.particles));
+			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.particles));
 		}
 
 		// Environment rendering pipeline (normal mapped)
@@ -440,7 +440,7 @@ public:
 
 			shaderStages[0] = loadShader(getShadersPath() + "particlesystem/normalmap.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 			shaderStages[1] = loadShader(getShadersPath() + "particlesystem/normalmap.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.environment));
+			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.environment));
 		}
 	}
 
@@ -448,8 +448,8 @@ public:
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer.particles, sizeof(UniformDataParticles)));
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer.environment, sizeof(UniformDataEnvironment)));
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer.particles, sizeof(UniformDataParticles)));
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer.environment, sizeof(UniformDataEnvironment)));
 			VK_CHECK_RESULT(buffer.particles.map());
 			VK_CHECK_RESULT(buffer.environment.map());
 		}
@@ -458,14 +458,14 @@ public:
 	void updateUniformBuffers()
 	{
 		// Particle system fire
-		uniformDataParticles.projection = camera_.matrices_.perspective;
-		uniformDataParticles.modelView = camera_.matrices_.view;
-		uniformDataParticles.viewportDim = glm::vec2((float)width_, (float)height_);
-		memcpy(uniformBuffers_[currentBuffer_].particles.mapped, &uniformDataParticles, sizeof(UniformDataParticles));
+		uniformDataParticles.projection = camera.matrices.perspective;
+		uniformDataParticles.modelView = camera.matrices.view;
+		uniformDataParticles.viewportDim = glm::vec2((float)width, (float)height);
+		memcpy(uniformBuffers_[currentBuffer].particles.mapped, &uniformDataParticles, sizeof(UniformDataParticles));
 
 		// Environment
-		uniformDataEnvironment.projection = camera_.matrices_.perspective;
-		uniformDataEnvironment.modelView = camera_.matrices_.view;
+		uniformDataEnvironment.projection = camera.matrices.perspective;
+		uniformDataEnvironment.modelView = camera.matrices.view;
 		uniformDataEnvironment.normal = glm::inverseTranspose(uniformDataEnvironment.modelView);
 		// Update light position
 		if (!paused) {
@@ -473,7 +473,7 @@ public:
 			uniformDataEnvironment.lightPos.y = 0.0f;
 			uniformDataEnvironment.lightPos.z = cos(timer * 2.0f * float(M_PI)) * 1.5f;
 		}
-		memcpy(uniformBuffers_[currentBuffer_].environment.mapped, &uniformDataEnvironment, sizeof(UniformDataEnvironment));
+		memcpy(uniformBuffers_[currentBuffer].environment.mapped, &uniformDataEnvironment, sizeof(UniformDataEnvironment));
 	}
 
 	void prepare()
@@ -484,7 +484,7 @@ public:
 		prepareUniformBuffers();
 		setupDescriptors();
 		preparePipelines();
-		prepared_ = true;
+		prepared = true;
 	}
 
 	void buildCommandBuffer()
@@ -496,40 +496,40 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass_;
+		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width_;
-		renderPassBeginInfo.renderArea.extent.height = height_;
+		renderPassBeginInfo.renderArea.extent.width = width;
+		renderPassBeginInfo.renderArea.extent.height = height;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
 
-		VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
 		
 		// Set target frame buffer
-		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 		VkDeviceSize offsets[1] = { 0 };
 
 		// Environment
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &uniformBuffers_[currentBuffer_].environmentDescriptor, 0, nullptr);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &uniformBuffers_[currentBuffer].environmentDescriptor, 0, nullptr);
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.environment);
 		environment.draw(cmdBuffer);
 
 		// Particle system (no index buffer)
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &uniformBuffers_[currentBuffer_].particlesDescriptor, 0, nullptr);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &uniformBuffers_[currentBuffer].particlesDescriptor, 0, nullptr);
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.particles);
-		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &particleBuffers[currentBuffer_].buffer, offsets);
+		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &particleBuffers[currentBuffer].buffer, offsets);
 		vkCmdDraw(cmdBuffer, static_cast<uint32_t>(particles.size()), 1, 0, 0);
 
 		drawUI(cmdBuffer);
@@ -541,7 +541,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared_) {
+		if (!prepared) {
 			return;
 		}
 		VulkanExampleBase::prepareFrame();

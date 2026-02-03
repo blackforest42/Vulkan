@@ -34,7 +34,7 @@ public:
 		vks::Buffer matrices;
 		vks::Buffer params;
 	};
-	std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+	std::array<UniformBuffers, maxConcurrentFrames> uniformBuffers_;
 
 	struct {
 		VkPipelineLayout attachmentWrite{ VK_NULL_HANDLE };
@@ -55,7 +55,7 @@ public:
 		VkDescriptorSet attachmentWrite{ VK_NULL_HANDLE };
 		VkDescriptorSet attachmentRead{ VK_NULL_HANDLE };
 	};
-	std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+	std::array<DescriptorSets, maxConcurrentFrames> descriptorSets_{};
 
 	struct FrameBufferAttachment {
 		VkImage image{ VK_NULL_HANDLE };
@@ -72,30 +72,30 @@ public:
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title_ = "Input attachments";
-		camera_.type_ = Camera::CameraType::firstperson;
-		camera_.movementSpeed = 2.5f;
-		camera_.setPosition(glm::vec3(1.65f, 1.75f, -6.15f));
-		camera_.setRotation(glm::vec3(-12.75f, 380.0f, 0.0f));
-		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
-		ui_.subpass = 1;
+		title = "Input attachments";
+		camera.type_ = Camera::CameraType::firstperson;
+		camera.movementSpeed = 2.5f;
+		camera.setPosition(glm::vec3(1.65f, 1.75f, -6.15f));
+		camera.setRotation(glm::vec3(-12.75f, 380.0f, 0.0f));
+		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
+		ui.subpass = 1;
 	}
 
 	~VulkanExample()
 	{
-		if (device_) {
-			vkDestroyImageView(device_, attachments.color.view, nullptr);
-			vkDestroyImage(device_, attachments.color.image, nullptr);
-			vkFreeMemory(device_, attachments.color.memory, nullptr);
-			vkDestroyImageView(device_, attachments.depth.view, nullptr);
-			vkDestroyImage(device_, attachments.depth.image, nullptr);
-			vkFreeMemory(device_, attachments.depth.memory, nullptr);
-			vkDestroyPipeline(device_, pipelines_.attachmentRead, nullptr);
-			vkDestroyPipeline(device_, pipelines_.attachmentWrite, nullptr);
-			vkDestroyPipelineLayout(device_, pipelineLayouts_.attachmentWrite, nullptr);
-			vkDestroyPipelineLayout(device_, pipelineLayouts_.attachmentRead, nullptr);
-			vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.attachmentWrite, nullptr);
-			vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.attachmentRead, nullptr);
+		if (device) {
+			vkDestroyImageView(device, attachments.color.view, nullptr);
+			vkDestroyImage(device, attachments.color.image, nullptr);
+			vkFreeMemory(device, attachments.color.memory, nullptr);
+			vkDestroyImageView(device, attachments.depth.view, nullptr);
+			vkDestroyImage(device, attachments.depth.image, nullptr);
+			vkFreeMemory(device, attachments.depth.memory, nullptr);
+			vkDestroyPipeline(device, pipelines_.attachmentRead, nullptr);
+			vkDestroyPipeline(device, pipelines_.attachmentWrite, nullptr);
+			vkDestroyPipelineLayout(device, pipelineLayouts_.attachmentWrite, nullptr);
+			vkDestroyPipelineLayout(device, pipelineLayouts_.attachmentRead, nullptr);
+			vkDestroyDescriptorSetLayout(device, descriptorSetLayouts_.attachmentWrite, nullptr);
+			vkDestroyDescriptorSetLayout(device, descriptorSetLayouts_.attachmentRead, nullptr);
 			for (auto& buffer : uniformBuffers_) {
 				buffer.matrices.destroy();
 				buffer.params.destroy();
@@ -105,9 +105,9 @@ public:
 
 	void clearAttachment(FrameBufferAttachment* attachment)
 	{
-		vkDestroyImageView(device_, attachment->view, nullptr);
-		vkDestroyImage(device_, attachment->image, nullptr);
-		vkFreeMemory(device_, attachment->memory, nullptr);
+		vkDestroyImageView(device, attachment->view, nullptr);
+		vkDestroyImage(device, attachment->image, nullptr);
+		vkFreeMemory(device, attachment->memory, nullptr);
 	}
 
 	// Create a frame buffer attachment
@@ -130,8 +130,8 @@ public:
 		VkImageCreateInfo imageCI = vks::initializers::imageCreateInfo();
 		imageCI.imageType = VK_IMAGE_TYPE_2D;
 		imageCI.format = format;
-		imageCI.extent.width = width_;
-		imageCI.extent.height = height_;
+		imageCI.extent.width = width;
+		imageCI.extent.height = height;
 		imageCI.extent.depth = 1;
 		imageCI.mipLevels = 1;
 		imageCI.arrayLayers = 1;
@@ -140,15 +140,15 @@ public:
 		// VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT flag is required for input attachments;
 		imageCI.usage = usage | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
 		imageCI.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		VK_CHECK_RESULT(vkCreateImage(device_, &imageCI, nullptr, &attachment->image));
+		VK_CHECK_RESULT(vkCreateImage(device, &imageCI, nullptr, &attachment->image));
 
 		VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
 		VkMemoryRequirements memReqs;
-		vkGetImageMemoryRequirements(device_, attachment->image, &memReqs);
+		vkGetImageMemoryRequirements(device, attachment->image, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
-		memAlloc.memoryTypeIndex = vulkanDevice_->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr, &attachment->memory));
-		VK_CHECK_RESULT(vkBindImageMemory(device_, attachment->image, attachment->memory, 0));
+		memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &attachment->memory));
+		VK_CHECK_RESULT(vkBindImageMemory(device, attachment->image, attachment->memory, 0));
 
 		VkImageViewCreateInfo imageViewCI = vks::initializers::imageViewCreateInfo();
 		imageViewCI.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -160,28 +160,28 @@ public:
 		imageViewCI.subresourceRange.baseArrayLayer = 0;
 		imageViewCI.subresourceRange.layerCount = 1;
 		imageViewCI.image = attachment->image;
-		VK_CHECK_RESULT(vkCreateImageView(device_, &imageViewCI, nullptr, &attachment->view));
+		VK_CHECK_RESULT(vkCreateImageView(device, &imageViewCI, nullptr, &attachment->view));
 	}
 
 	// Override framebuffer setup from base class
 	void setupFrameBuffer()
 	{
 		// If the window is resized, all the framebuffers/attachments used in our composition passes need to be recreated
-		if (attachmentSize.width != width_ || attachmentSize.height != height_)
+		if (attachmentSize.width != width || attachmentSize.height != height)
 		{
-			attachmentSize = { width_, height_ };
+			attachmentSize = { width, height };
 
 			// @todo: unify
 			clearAttachment(&attachments.color);
 			clearAttachment(&attachments.depth);
 			createAttachment(colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &attachments.color);
-			createAttachment(depthFormat_, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, &attachments.depth);
+			createAttachment(depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, &attachments.depth);
 
-			vkDestroyPipelineLayout(device_, pipelineLayouts_.attachmentWrite, nullptr);
-			vkDestroyPipelineLayout(device_, pipelineLayouts_.attachmentRead, nullptr);
-			vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.attachmentWrite, nullptr);
-			vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.attachmentRead, nullptr);
-			vkDestroyDescriptorPool(device_, descriptorPool_, nullptr);
+			vkDestroyPipelineLayout(device, pipelineLayouts_.attachmentWrite, nullptr);
+			vkDestroyPipelineLayout(device, pipelineLayouts_.attachmentRead, nullptr);
+			vkDestroyDescriptorSetLayout(device, descriptorSetLayouts_.attachmentWrite, nullptr);
+			vkDestroyDescriptorSetLayout(device, descriptorSetLayouts_.attachmentRead, nullptr);
+			vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
 			// Since the framebuffers/attachments are referred in the descriptor sets, these need to be updated on resize
 			setupDescriptors();
@@ -191,36 +191,36 @@ public:
 
 		VkFramebufferCreateInfo frameBufferCI{};
 		frameBufferCI.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		frameBufferCI.renderPass = renderPass_;
+		frameBufferCI.renderPass = renderPass;
 		frameBufferCI.attachmentCount = 3;
 		frameBufferCI.pAttachments = views;
-		frameBufferCI.width = width_;
-		frameBufferCI.height = height_;
+		frameBufferCI.width = width;
+		frameBufferCI.height = height;
 		frameBufferCI.layers = 1;
 
-		frameBuffers_.resize(swapChain_.images_.size());
-		for (uint32_t i = 0; i < frameBuffers_.size(); i++)
+		frameBuffers.resize(swapChain.images.size());
+		for (uint32_t i = 0; i < frameBuffers.size(); i++)
 		{
-			views[0] = swapChain_.imageViews_[i];
+			views[0] = swapChain.imageViews[i];
 			views[1] = attachments.color.view;
 			views[2] = attachments.depth.view;
-			VK_CHECK_RESULT(vkCreateFramebuffer(device_, &frameBufferCI, nullptr, &frameBuffers_[i]));
+			VK_CHECK_RESULT(vkCreateFramebuffer(device, &frameBufferCI, nullptr, &frameBuffers[i]));
 		}
 	}
 
 	// Override render pass setup from base class
 	void setupRenderPass()
 	{
-		attachmentSize = { width_, height_ };		
+		attachmentSize = { width, height };		
 
 		createAttachment(colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &attachments.color);
-		createAttachment(depthFormat_, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, &attachments.depth);
+		createAttachment(depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, &attachments.depth);
 
 		std::array<VkAttachmentDescription, 3> attachments{};
 
 		// Swap chain image color attachment
 		// Will be transitioned to present layout
-		attachments[0].format = swapChain_.colorFormat_;
+		attachments[0].format = swapChain.colorFormat;
 		attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
 		attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -243,7 +243,7 @@ public:
 		attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		attachments[1].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		// Depth
-		attachments[2].format = depthFormat_;
+		attachments[2].format = depthFormat;
 		attachments[2].samples = VK_SAMPLE_COUNT_1_BIT;
 		attachments[2].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		attachments[2].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -325,13 +325,13 @@ public:
 		renderPassInfoCI.pSubpasses = subpassDescriptions.data();
 		renderPassInfoCI.dependencyCount = static_cast<uint32_t>(dependencies.size());
 		renderPassInfoCI.pDependencies = dependencies.data();
-		VK_CHECK_RESULT(vkCreateRenderPass(device_, &renderPassInfoCI, nullptr, &renderPass_));
+		VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfoCI, nullptr, &renderPass));
 	}
 
 	void loadAssets()
 	{
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
-		scene.loadFromFile(getAssetPath() + "models/treasure_smooth.gltf", vulkanDevice_, queue_, glTFLoadingFlags);
+		scene.loadFromFile(getAssetPath() + "models/treasure_smooth.gltf", vulkanDevice, queue, glTFLoadingFlags);
 	}
 
 	void updateAttachmentReadDescriptors(uint32_t index)
@@ -349,7 +349,7 @@ public:
 			// Binding 2: Display parameters uniform buffer
 			vks::initializers::writeDescriptorSet(descriptorSets_[index].attachmentRead, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2, &uniformBuffers_[index].params.descriptor),
 		};
-		vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
 
 	void setupDescriptors()
@@ -358,11 +358,11 @@ public:
 			Pool
 		*/
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES * 2),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, MAX_CONCURRENT_FRAMES * 2),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames * 2),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, maxConcurrentFrames * 2),
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(static_cast<uint32_t>(poolSizes.size()), poolSizes.data(), MAX_CONCURRENT_FRAMES * 2);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
+		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(static_cast<uint32_t>(poolSizes.size()), poolSizes.data(), maxConcurrentFrames * 2);
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 
 		// Layouts
 		// Attachment writes
@@ -370,7 +370,7 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0)
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr, &descriptorSetLayouts_.attachmentWrite));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayoutCI, nullptr, &descriptorSetLayouts_.attachmentWrite));
 		// Attachment reads
 		setLayoutBindings = {
 			// Binding 0: Color input attachment
@@ -381,22 +381,22 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 2),
 		};
 		descriptorLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayoutCI, nullptr, &descriptorSetLayouts_.attachmentRead));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayoutCI, nullptr, &descriptorSetLayouts_.attachmentRead));
 
 
 		// Sets per frame, just like the buffers themselves
 		// Images do not need to be duplicated per frame, we reuse the same one for each frame
 		for (auto i = 0; i < uniformBuffers_.size(); i++) {
 			// Attachment writes
-			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayouts_.attachmentWrite, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i].attachmentWrite));
+			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts_.attachmentWrite, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets_[i].attachmentWrite));
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 				vks::initializers::writeDescriptorSet(descriptorSets_[i].attachmentWrite, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].matrices.descriptor)
 			};
-			vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 			// Attachment reads
-			allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayouts_.attachmentRead, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i].attachmentRead));
+			allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts_.attachmentRead, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets_[i].attachmentRead));
 			updateAttachmentReadDescriptors(i);
 		}
 	}
@@ -405,9 +405,9 @@ public:
 	{
 		// Layouts
 		VkPipelineLayoutCreateInfo pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts_.attachmentWrite, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr, &pipelineLayouts_.attachmentWrite));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayouts_.attachmentWrite));
 		pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts_.attachmentRead, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr, &pipelineLayouts_.attachmentRead));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayouts_.attachmentRead));
 
 		// Pipelines
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCI = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -422,7 +422,7 @@ public:
 		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo();
 		std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{};
 
-		pipelineCI.renderPass = renderPass_;
+		pipelineCI.renderPass = renderPass;
 		pipelineCI.pInputAssemblyState = &inputAssemblyStateCI;
 		pipelineCI.pRasterizationState = &rasterizationStateCI;
 		pipelineCI.pColorBlendState = &colorBlendStateCI;
@@ -445,7 +445,7 @@ public:
 		shaderStages[0] = loadShader(getShadersPath() + "inputattachments/attachmentwrite.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "inputattachments/attachmentwrite.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.attachmentWrite));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.attachmentWrite));
 
 		/*
 			Attachment read
@@ -465,15 +465,15 @@ public:
 
 		shaderStages[0] = loadShader(getShadersPath() + "inputattachments/attachmentread.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "inputattachments/attachmentread.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.attachmentRead));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.attachmentRead));
 	}
 
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer.matrices, sizeof(uboMatrices));
+			vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer.matrices, sizeof(uboMatrices));
 			VK_CHECK_RESULT(buffer.matrices.map());
-			vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer.params, sizeof(uboParams));
+			vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer.params, sizeof(uboParams));
 			VK_CHECK_RESULT(buffer.params.map());
 		}
 		updateUniformBuffers();
@@ -481,11 +481,11 @@ public:
 
 	void updateUniformBuffers()
 	{
-		uboMatrices.projection = camera_.matrices_.perspective;
-		uboMatrices.view = camera_.matrices_.view;
+		uboMatrices.projection = camera.matrices.perspective;
+		uboMatrices.view = camera.matrices.view;
 		uboMatrices.model = glm::mat4(1.0f);
-		memcpy(uniformBuffers_[currentBuffer_].matrices.mapped, &uboMatrices, sizeof(uboMatrices));
-		memcpy(uniformBuffers_[currentBuffer_].params.mapped, &uboParams, sizeof(uboParams));
+		memcpy(uniformBuffers_[currentBuffer].matrices.mapped, &uboMatrices, sizeof(uboMatrices));
+		memcpy(uniformBuffers_[currentBuffer].params.mapped, &uboParams, sizeof(uboParams));
 	}
 
 	void prepare()
@@ -495,12 +495,12 @@ public:
 		prepareUniformBuffers();
 		setupDescriptors();
 		preparePipelines();
-		prepared_ = true;
+		prepared = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -510,23 +510,23 @@ public:
 		clearValues[2].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass_;
+		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width_;
-		renderPassBeginInfo.renderArea.extent.height = height_;
+		renderPassBeginInfo.renderArea.extent.width = width;
+		renderPassBeginInfo.renderArea.extent.height = height;
 		renderPassBeginInfo.clearValueCount = 3;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-		VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 		/*
@@ -537,7 +537,7 @@ public:
 			vks::debugutils::cmdBeginLabel(cmdBuffer, "Subpass 0: Writing attachments", { 1.0f, 0.78f, 0.05f, 1.0f });
 
 			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.attachmentWrite);
-			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.attachmentWrite, 0, 1, &descriptorSets_[currentBuffer_].attachmentWrite, 0, nullptr);
+			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.attachmentWrite, 0, 1, &descriptorSets_[currentBuffer].attachmentWrite, 0, nullptr);
 			scene.draw(cmdBuffer);
 
 			vks::debugutils::cmdEndLabel(cmdBuffer);
@@ -553,7 +553,7 @@ public:
 			vkCmdNextSubpass(cmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
 
 			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.attachmentRead);
-			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.attachmentRead, 0, 1, &descriptorSets_[currentBuffer_].attachmentRead, 0, nullptr);
+			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.attachmentRead, 0, 1, &descriptorSets_[currentBuffer].attachmentRead, 0, nullptr);
 			vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
 
 			vks::debugutils::cmdEndLabel(cmdBuffer);
@@ -573,7 +573,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared_)
+		if (!prepared)
 			return;
 		VulkanExampleBase::prepareFrame();
 		updateUniformBuffers();

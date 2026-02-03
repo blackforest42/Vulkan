@@ -38,10 +38,10 @@ class VulkanExample : public VulkanExampleBase {
     VkCommandPool commandPool{
         VK_NULL_HANDLE};  // Use a separate command pool (queue family may
                           // differ from the one used for graphics)
-    std::array<VkCommandBuffer, MAX_CONCURRENT_FRAMES>
+    std::array<VkCommandBuffer, maxConcurrentFrames>
         commandBuffers;  // Command buffers storing the dispatch commands and
                          // barriers
-    std::array<VkFence, MAX_CONCURRENT_FRAMES>
+    std::array<VkFence, maxConcurrentFrames>
         fences;  // Synchronization fence to avoid rewriting compute CB if still
                  // in use
     VkDescriptorSetLayout descriptorSetLayout{
@@ -67,8 +67,8 @@ class VulkanExample : public VulkanExampleBase {
     // Uniform buffer object containing scene parameters
     // These need to be per frames in flight, as CPU writes to while GPU reads
     // from
-    std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers;
-    std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets{};
+    std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers;
+    std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets{};
   } compute;
 
   // Definitions for scene objects
@@ -94,31 +94,31 @@ class VulkanExample : public VulkanExampleBase {
   };
 
   VulkanExample() : VulkanExampleBase() {
-    title_ = "Compute shader ray tracing";
+    title = "Compute shader ray tracing";
     timerSpeed *= 0.25f;
-    camera_.type_ = Camera::CameraType::lookat;
-    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
-    camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
-    camera_.setTranslation(glm::vec3(0.0f, 0.0f, -4.0f));
-    camera_.rotationSpeed = 0.0f;
-    camera_.movementSpeed = 2.5f;
+    camera.type_ = Camera::CameraType::lookat;
+    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
+    camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+    camera.setTranslation(glm::vec3(0.0f, 0.0f, -4.0f));
+    camera.rotationSpeed = 0.0f;
+    camera.movementSpeed = 2.5f;
   }
 
   ~VulkanExample() {
-    if (device_) {
+    if (device) {
       // Graphics
-      vkDestroyPipeline(device_, graphics.pipeline, nullptr);
-      vkDestroyPipelineLayout(device_, graphics.pipelineLayout, nullptr);
-      vkDestroyDescriptorSetLayout(device_, graphics.descriptorSetLayout,
+      vkDestroyPipeline(device, graphics.pipeline, nullptr);
+      vkDestroyPipelineLayout(device, graphics.pipelineLayout, nullptr);
+      vkDestroyDescriptorSetLayout(device, graphics.descriptorSetLayout,
                                    nullptr);
       // Compute
-      vkDestroyPipeline(device_, compute.pipeline, nullptr);
-      vkDestroyPipelineLayout(device_, compute.pipelineLayout, nullptr);
-      vkDestroyDescriptorSetLayout(device_, compute.descriptorSetLayout,
+      vkDestroyPipeline(device, compute.pipeline, nullptr);
+      vkDestroyPipelineLayout(device, compute.pipelineLayout, nullptr);
+      vkDestroyDescriptorSetLayout(device, compute.descriptorSetLayout,
                                    nullptr);
-      vkDestroyCommandPool(device_, compute.commandPool, nullptr);
+      vkDestroyCommandPool(device, compute.commandPool, nullptr);
       for (auto& fence : compute.fences) {
-        vkDestroyFence(device_, fence, nullptr);
+        vkDestroyFence(device, fence, nullptr);
       }
       for (auto& buffer : compute.uniformBuffers) {
         buffer.destroy();
@@ -142,7 +142,7 @@ class VulkanExample : public VulkanExampleBase {
 
     // Get device properties for the requested texture format
     VkFormatProperties formatProperties;
-    vkGetPhysicalDeviceFormatProperties(physicalDevice_, format,
+    vkGetPhysicalDeviceFormatProperties(physicalDevice, format,
                                         &formatProperties);
     // Check if requested image format supports image storage operations
     // required for storing pixel from the compute shader
@@ -172,17 +172,17 @@ class VulkanExample : public VulkanExampleBase {
     VkMemoryRequirements memReqs;
 
     VK_CHECK_RESULT(
-        vkCreateImage(device_, &imageCreateInfo, nullptr, &storageImage.image));
-    vkGetImageMemoryRequirements(device_, storageImage.image, &memReqs);
+        vkCreateImage(device, &imageCreateInfo, nullptr, &storageImage.image));
+    vkGetImageMemoryRequirements(device, storageImage.image, &memReqs);
     memAllocInfo.allocationSize = memReqs.size;
-    memAllocInfo.memoryTypeIndex = vulkanDevice_->getMemoryType(
+    memAllocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(
         memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VK_CHECK_RESULT(vkAllocateMemory(device_, &memAllocInfo, nullptr,
+    VK_CHECK_RESULT(vkAllocateMemory(device, &memAllocInfo, nullptr,
                                      &storageImage.deviceMemory));
-    VK_CHECK_RESULT(vkBindImageMemory(device_, storageImage.image,
+    VK_CHECK_RESULT(vkBindImageMemory(device, storageImage.image,
                                       storageImage.deviceMemory, 0));
 
-    VkCommandBuffer layoutCmd = vulkanDevice_->createCommandBuffer(
+    VkCommandBuffer layoutCmd = vulkanDevice->createCommandBuffer(
         VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
     storageImage.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     vks::tools::setImageLayout(
@@ -192,8 +192,8 @@ class VulkanExample : public VulkanExampleBase {
     // so that when the compute command buffer executes for the first time
     // it doesn't complain about a lack of a corresponding "release" to its
     // "acquire"
-    if (vulkanDevice_->queueFamilyIndices.graphics !=
-        vulkanDevice_->queueFamilyIndices.compute) {
+    if (vulkanDevice->queueFamilyIndices.graphics !=
+        vulkanDevice->queueFamilyIndices.compute) {
       VkImageMemoryBarrier imageMemoryBarrier = {};
       imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
       imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -204,14 +204,14 @@ class VulkanExample : public VulkanExampleBase {
       imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
       imageMemoryBarrier.dstAccessMask = 0;
       imageMemoryBarrier.srcQueueFamilyIndex =
-          vulkanDevice_->queueFamilyIndices.graphics;
+          vulkanDevice->queueFamilyIndices.graphics;
       imageMemoryBarrier.dstQueueFamilyIndex =
-          vulkanDevice_->queueFamilyIndices.compute;
+          vulkanDevice->queueFamilyIndices.compute;
       vkCmdPipelineBarrier(layoutCmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_FLAGS_NONE,
                            0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
     }
-    vulkanDevice_->flushCommandBuffer(layoutCmd, queue_, true);
+    vulkanDevice->flushCommandBuffer(layoutCmd, queue, true);
 
     // Create sampler
     VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
@@ -228,7 +228,7 @@ class VulkanExample : public VulkanExampleBase {
     sampler.maxLod = 0.0f;
     sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     VK_CHECK_RESULT(
-        vkCreateSampler(device_, &sampler, nullptr, &storageImage.sampler));
+        vkCreateSampler(device, &sampler, nullptr, &storageImage.sampler));
 
     // Create image view
     VkImageViewCreateInfo view = vks::initializers::imageViewCreateInfo();
@@ -237,13 +237,13 @@ class VulkanExample : public VulkanExampleBase {
     view.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
     view.image = storageImage.image;
     VK_CHECK_RESULT(
-        vkCreateImageView(device_, &view, nullptr, &storageImage.view));
+        vkCreateImageView(device, &view, nullptr, &storageImage.view));
 
     // Initialize a descriptor for later use
     storageImage.descriptor.imageLayout = storageImage.imageLayout;
     storageImage.descriptor.imageView = storageImage.view;
     storageImage.descriptor.sampler = storageImage.sampler;
-    storageImage.device = vulkanDevice_;
+    storageImage.device = vulkanDevice;
   }
 
   // Setup and fill the compute shader storage buffes containing object
@@ -302,21 +302,21 @@ class VulkanExample : public VulkanExampleBase {
 
     // Copy the data to the device
     vks::Buffer stagingBuffer;
-    vulkanDevice_->createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+    vulkanDevice->createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                                 &stagingBuffer, storageBufferSize,
                                 sceneObjects.data());
-    vulkanDevice_->createBuffer(
+    vulkanDevice->createBuffer(
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &compute.objectStorageBuffer,
         storageBufferSize);
-    VkCommandBuffer copyCmd = vulkanDevice_->createCommandBuffer(
+    VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(
         VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
     VkBufferCopy copyRegion = {0, 0, storageBufferSize};
     vkCmdCopyBuffer(copyCmd, stagingBuffer.buffer,
                     compute.objectStorageBuffer.buffer, 1, &copyRegion);
-    vulkanDevice_->flushCommandBuffer(copyCmd, queue_, true);
+    vulkanDevice->flushCommandBuffer(copyCmd, queue, true);
 
     stagingBuffer.destroy();
   }
@@ -325,20 +325,20 @@ class VulkanExample : public VulkanExampleBase {
   void setupDescriptorPool() {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                              MAX_CONCURRENT_FRAMES * 2),
+                                              maxConcurrentFrames * 2),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            MAX_CONCURRENT_FRAMES * 4),
+            maxConcurrentFrames * 4),
         vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                              MAX_CONCURRENT_FRAMES * 1),
+                                              maxConcurrentFrames * 1),
         vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                              MAX_CONCURRENT_FRAMES * 2),
+                                              maxConcurrentFrames * 2),
     };
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(poolSizes,
-                                                    MAX_CONCURRENT_FRAMES * 3);
-    VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
-                                           nullptr, &descriptorPool_));
+                                                    maxConcurrentFrames * 3);
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo,
+                                           nullptr, &descriptorPool));
   }
 
   // Prepare the graphics resources used to display the ray traced output of the
@@ -357,18 +357,18 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
     VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
-        device_, &descriptorLayout, nullptr, &graphics.descriptorSetLayout));
+        device, &descriptorLayout, nullptr, &graphics.descriptorSetLayout));
 
     VkDescriptorSetAllocateInfo allocInfo =
         vks::initializers::descriptorSetAllocateInfo(
-            descriptorPool_, &graphics.descriptorSetLayout, 1);
+            descriptorPool, &graphics.descriptorSetLayout, 1);
     VK_CHECK_RESULT(
-        vkAllocateDescriptorSets(device_, &allocInfo, &graphics.descriptorSet));
+        vkAllocateDescriptorSets(device, &allocInfo, &graphics.descriptorSet));
     std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
         vks::initializers::writeDescriptorSet(
             graphics.descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             0, &storageImage.descriptor)};
-    vkUpdateDescriptorSets(device_,
+    vkUpdateDescriptorSets(device,
                            static_cast<uint32_t>(writeDescriptorSets.size()),
                            writeDescriptorSets.data(), 0, nullptr);
 
@@ -376,7 +376,7 @@ class VulkanExample : public VulkanExampleBase {
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
         vks::initializers::pipelineLayoutCreateInfo(
             &graphics.descriptorSetLayout, 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo,
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo,
                                            nullptr, &graphics.pipelineLayout));
 
     // Pipeline
@@ -419,7 +419,7 @@ class VulkanExample : public VulkanExampleBase {
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo =
         vks::initializers::pipelineCreateInfo(graphics.pipelineLayout,
-                                              renderPass_, 0);
+                                              renderPass, 0);
     pipelineCreateInfo.pVertexInputState = &emptyInputState;
     pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
     pipelineCreateInfo.pRasterizationState = &rasterizationState;
@@ -430,8 +430,8 @@ class VulkanExample : public VulkanExampleBase {
     pipelineCreateInfo.pDynamicState = &dynamicState;
     pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineCreateInfo.pStages = shaderStages.data();
-    pipelineCreateInfo.renderPass = renderPass_;
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
+    pipelineCreateInfo.renderPass = renderPass;
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1,
                                               &pipelineCreateInfo, nullptr,
                                               &graphics.pipeline));
   }
@@ -448,18 +448,18 @@ class VulkanExample : public VulkanExampleBase {
     queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queueCreateInfo.pNext = NULL;
     queueCreateInfo.queueFamilyIndex =
-        vulkanDevice_->queueFamilyIndices.compute;
+        vulkanDevice->queueFamilyIndices.compute;
     queueCreateInfo.queueCount = 1;
-    vkGetDeviceQueue(device_, vulkanDevice_->queueFamilyIndices.compute, 0,
+    vkGetDeviceQueue(device, vulkanDevice->queueFamilyIndices.compute, 0,
                      &compute.queue);
 
     // Separate command pool as queue family for compute may be different from
     // the graphics one
     VkCommandPoolCreateInfo cmdPoolInfo = {};
     cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    cmdPoolInfo.queueFamilyIndex = vulkanDevice_->queueFamilyIndices.compute;
+    cmdPoolInfo.queueFamilyIndex = vulkanDevice->queueFamilyIndices.compute;
     cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    VK_CHECK_RESULT(vkCreateCommandPool(device_, &cmdPoolInfo, nullptr,
+    VK_CHECK_RESULT(vkCreateCommandPool(device, &cmdPoolInfo, nullptr,
                                         &compute.commandPool));
 
     // Some objects need to be duplicated per frames in flight
@@ -469,7 +469,7 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::commandBufferAllocateInfo(
             compute.commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
     for (auto& commandBuffer : compute.commandBuffers) {
-      VK_CHECK_RESULT(vkAllocateCommandBuffers(device_, &cmdBufAllocateInfo,
+      VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo,
                                                &commandBuffer));
     }
 
@@ -478,12 +478,12 @@ class VulkanExample : public VulkanExampleBase {
       VkFenceCreateInfo fenceCreateInfo =
           vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
       VK_CHECK_RESULT(
-          vkCreateFence(device_, &fenceCreateInfo, nullptr, &fence));
+          vkCreateFence(device, &fenceCreateInfo, nullptr, &fence));
     }
 
     // Dynamic parameters are passed to compute via uniform buffers
     for (auto& buffer : compute.uniformBuffers) {
-      vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+      vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                                   &buffer, sizeof(Compute::UniformDataCompute));
@@ -508,7 +508,7 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
     VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
-        device_, &descriptorLayout, nullptr, &compute.descriptorSetLayout));
+        device, &descriptorLayout, nullptr, &compute.descriptorSetLayout));
 
     // Sets per frame in flight as the uniform buffer is written by the CPU and
     // read by the GPU Images and static SSBO with scene data do not need to be
@@ -516,8 +516,8 @@ class VulkanExample : public VulkanExampleBase {
     for (auto i = 0; i < compute.uniformBuffers.size(); i++) {
       VkDescriptorSetAllocateInfo allocInfo =
           vks::initializers::descriptorSetAllocateInfo(
-              descriptorPool_, &compute.descriptorSetLayout, 1);
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
+              descriptorPool, &compute.descriptorSetLayout, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo,
                                                &compute.descriptorSets[i]));
       std::vector<VkWriteDescriptorSet> computeWriteDescriptorSets = {
           vks::initializers::writeDescriptorSet(
@@ -531,7 +531,7 @@ class VulkanExample : public VulkanExampleBase {
               &compute.objectStorageBuffer.descriptor),
       };
       vkUpdateDescriptorSets(
-          device_, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
+          device, static_cast<uint32_t>(computeWriteDescriptorSets.size()),
           computeWriteDescriptorSets.data(), 0, nullptr);
     }
 
@@ -539,7 +539,7 @@ class VulkanExample : public VulkanExampleBase {
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
         vks::initializers::pipelineLayoutCreateInfo(
             &compute.descriptorSetLayout, 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo,
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo,
                                            nullptr, &compute.pipelineLayout));
 
     VkComputePipelineCreateInfo computePipelineCreateInfo =
@@ -547,13 +547,13 @@ class VulkanExample : public VulkanExampleBase {
     computePipelineCreateInfo.stage =
         loadShader(getShadersPath() + "computeraytracing/raytracing.comp.spv",
                    VK_SHADER_STAGE_COMPUTE_BIT);
-    VK_CHECK_RESULT(vkCreateComputePipelines(device_, pipelineCache_, 1,
+    VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1,
                                              &computePipelineCreateInfo,
                                              nullptr, &compute.pipeline));
   }
 
   void updateUniformBuffers() {
-    compute.uniformData.aspectRatio = (float)width_ / (float)height_;
+    compute.uniformData.aspectRatio = (float)width / (float)height;
     compute.uniformData.lightPos.x =
         0.0f + sin(glm::radians(timer * 360.0f)) *
                    cos(glm::radians(timer * 360.0f)) * 2.0f;
@@ -561,8 +561,8 @@ class VulkanExample : public VulkanExampleBase {
         0.0f + sin(glm::radians(timer * 360.0f)) * 2.0f;
     compute.uniformData.lightPos.z =
         0.0f + cos(glm::radians(timer * 360.0f)) * 2.0f;
-    compute.uniformData.camera.pos = camera_.position_ * -1.0f;
-    memcpy(compute.uniformBuffers[currentBuffer_].mapped, &compute.uniformData,
+    compute.uniformData.camera.pos = camera.position * -1.0f;
+    memcpy(compute.uniformBuffers[currentBuffer].mapped, &compute.uniformData,
            sizeof(Compute::UniformDataCompute));
   }
 
@@ -573,11 +573,11 @@ class VulkanExample : public VulkanExampleBase {
     setupDescriptorPool();
     prepareGraphics();
     prepareCompute();
-    prepared_ = true;
+    prepared = true;
   }
 
   void buildGraphicsCommandBuffer() {
-    VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
+    VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
 
     VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
@@ -588,14 +588,14 @@ class VulkanExample : public VulkanExampleBase {
 
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = renderPass_;
+    renderPassBeginInfo.renderPass = renderPass;
     renderPassBeginInfo.renderArea.offset.x = 0;
     renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.renderArea.extent.width = width_;
-    renderPassBeginInfo.renderArea.extent.height = height_;
+    renderPassBeginInfo.renderArea.extent.width = width;
+    renderPassBeginInfo.renderArea.extent.height = height;
     renderPassBeginInfo.clearValueCount = 2;
     renderPassBeginInfo.pClearValues = clearValues;
-    renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+    renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
 
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
@@ -608,15 +608,15 @@ class VulkanExample : public VulkanExampleBase {
     imageMemoryBarrier.image = storageImage.image;
     imageMemoryBarrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0,
                                            1};
-    if (vulkanDevice_->queueFamilyIndices.graphics !=
-        vulkanDevice_->queueFamilyIndices.compute) {
+    if (vulkanDevice->queueFamilyIndices.graphics !=
+        vulkanDevice->queueFamilyIndices.compute) {
       // Acquire barrier for graphics queue
       imageMemoryBarrier.srcAccessMask = 0;
       imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
       imageMemoryBarrier.srcQueueFamilyIndex =
-          vulkanDevice_->queueFamilyIndices.compute;
+          vulkanDevice->queueFamilyIndices.compute;
       imageMemoryBarrier.dstQueueFamilyIndex =
-          vulkanDevice_->queueFamilyIndices.graphics;
+          vulkanDevice->queueFamilyIndices.graphics;
       vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_FLAGS_NONE,
                            0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
@@ -635,10 +635,10 @@ class VulkanExample : public VulkanExampleBase {
                          VK_SUBPASS_CONTENTS_INLINE);
 
     VkViewport viewport =
-        vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+        vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
     // Display ray traced image generated by compute shader as a full screen
@@ -654,15 +654,15 @@ class VulkanExample : public VulkanExampleBase {
 
     vkCmdEndRenderPass(cmdBuffer);
 
-    if (vulkanDevice_->queueFamilyIndices.graphics !=
-        vulkanDevice_->queueFamilyIndices.compute) {
+    if (vulkanDevice->queueFamilyIndices.graphics !=
+        vulkanDevice->queueFamilyIndices.compute) {
       // Release barrier from graphics queue
       imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
       imageMemoryBarrier.dstAccessMask = 0;
       imageMemoryBarrier.srcQueueFamilyIndex =
-          vulkanDevice_->queueFamilyIndices.graphics;
+          vulkanDevice->queueFamilyIndices.graphics;
       imageMemoryBarrier.dstQueueFamilyIndex =
-          vulkanDevice_->queueFamilyIndices.compute;
+          vulkanDevice->queueFamilyIndices.compute;
       vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_FLAGS_NONE,
                            0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
@@ -672,7 +672,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void buildComputeCommandBuffer() {
-    VkCommandBuffer cmdBuffer = compute.commandBuffers[currentBuffer_];
+    VkCommandBuffer cmdBuffer = compute.commandBuffers[currentBuffer];
 
     VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
@@ -686,15 +686,15 @@ class VulkanExample : public VulkanExampleBase {
     imageMemoryBarrier.image = storageImage.image;
     imageMemoryBarrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0,
                                            1};
-    if (vulkanDevice_->queueFamilyIndices.graphics !=
-        vulkanDevice_->queueFamilyIndices.compute) {
+    if (vulkanDevice->queueFamilyIndices.graphics !=
+        vulkanDevice->queueFamilyIndices.compute) {
       // Acquire barrier for compute queue
       imageMemoryBarrier.srcAccessMask = 0;
       imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
       imageMemoryBarrier.srcQueueFamilyIndex =
-          vulkanDevice_->queueFamilyIndices.graphics;
+          vulkanDevice->queueFamilyIndices.graphics;
       imageMemoryBarrier.dstQueueFamilyIndex =
-          vulkanDevice_->queueFamilyIndices.compute;
+          vulkanDevice->queueFamilyIndices.compute;
       vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_FLAGS_NONE,
                            0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
@@ -704,20 +704,20 @@ class VulkanExample : public VulkanExampleBase {
                       compute.pipeline);
     vkCmdBindDescriptorSets(
         cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipelineLayout, 0, 1,
-        &compute.descriptorSets[currentBuffer_], 0, nullptr);
+        &compute.descriptorSets[currentBuffer], 0, nullptr);
 
     vkCmdDispatch(cmdBuffer, storageImage.width / 16, storageImage.height / 16,
                   1);
 
-    if (vulkanDevice_->queueFamilyIndices.graphics !=
-        vulkanDevice_->queueFamilyIndices.compute) {
+    if (vulkanDevice->queueFamilyIndices.graphics !=
+        vulkanDevice->queueFamilyIndices.compute) {
       // Release barrier from compute queue
       imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
       imageMemoryBarrier.dstAccessMask = 0;
       imageMemoryBarrier.srcQueueFamilyIndex =
-          vulkanDevice_->queueFamilyIndices.compute;
+          vulkanDevice->queueFamilyIndices.compute;
       imageMemoryBarrier.dstQueueFamilyIndex =
-          vulkanDevice_->queueFamilyIndices.graphics;
+          vulkanDevice->queueFamilyIndices.graphics;
       vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_FLAGS_NONE,
                            0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
@@ -727,21 +727,21 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   virtual void render() {
-    if (!prepared_)
+    if (!prepared)
       return;
 
     // Use a fence to ensure that compute command buffer has finished executing
     // before using it again
-    vkWaitForFences(device_, 1, &compute.fences[currentBuffer_], VK_TRUE,
+    vkWaitForFences(device, 1, &compute.fences[currentBuffer], VK_TRUE,
                     UINT64_MAX);
-    vkResetFences(device_, 1, &compute.fences[currentBuffer_]);
+    vkResetFences(device, 1, &compute.fences[currentBuffer]);
     buildComputeCommandBuffer();
 
     VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
     computeSubmitInfo.commandBufferCount = 1;
-    computeSubmitInfo.pCommandBuffers = &compute.commandBuffers[currentBuffer_];
+    computeSubmitInfo.pCommandBuffers = &compute.commandBuffers[currentBuffer];
     VK_CHECK_RESULT(vkQueueSubmit(compute.queue, 1, &computeSubmitInfo,
-                                  compute.fences[currentBuffer_]));
+                                  compute.fences[currentBuffer]));
 
     VulkanExampleBase::prepareFrame();
     updateUniformBuffers();

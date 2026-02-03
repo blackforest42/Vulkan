@@ -22,8 +22,8 @@ class VulkanExample : public VulkanExampleBase {
   struct Cube {
     glm::mat4 modelMatrix;
     glm::vec3 rotation;
-    std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> buffers{};
-    std::array<VkDeviceAddress, MAX_CONCURRENT_FRAMES> bufferDeviceAddresses{};
+    std::array<vks::Buffer, maxConcurrentFrames> buffers{};
+    std::array<VkDeviceAddress, maxConcurrentFrames> bufferDeviceAddresses{};
   };
   std::array<Cube, 2> cubes{};
 
@@ -33,8 +33,8 @@ class VulkanExample : public VulkanExampleBase {
   // Global matrices
   struct Scene {
     glm::mat4 mvp;
-    std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> buffers;
-    std::array<VkDeviceAddress, MAX_CONCURRENT_FRAMES> bufferDeviceAddresses{};
+    std::array<vks::Buffer, maxConcurrentFrames> buffers;
+    std::array<VkDeviceAddress, maxConcurrentFrames> bufferDeviceAddresses{};
   } scene;
 
   VkPipeline pipeline{VK_NULL_HANDLE};
@@ -56,32 +56,32 @@ class VulkanExample : public VulkanExampleBase {
   };
 
   VulkanExample() : VulkanExampleBase() {
-    title_ = "Buffer device address";
-    camera_.type_ = Camera::CameraType::lookat;
-    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 512.0f);
-    camera_.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
-    camera_.setTranslation(glm::vec3(0.0f, 0.0f, -5.0f));
+    title = "Buffer device address";
+    camera.type_ = Camera::CameraType::lookat;
+    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
+    camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+    camera.setTranslation(glm::vec3(0.0f, 0.0f, -5.0f));
 
-    enabledInstanceExtensions_.push_back(
+    enabledInstanceExtensions.push_back(
         VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-    enabledInstanceExtensions_.push_back(
+    enabledInstanceExtensions.push_back(
         VK_KHR_DEVICE_GROUP_CREATION_EXTENSION_NAME);
-    enabledDeviceExtensions_.push_back(
+    enabledDeviceExtensions.push_back(
         VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
-    enabledDeviceExtensions_.push_back(VK_KHR_DEVICE_GROUP_EXTENSION_NAME);
+    enabledDeviceExtensions.push_back(VK_KHR_DEVICE_GROUP_EXTENSION_NAME);
 
     enabledBufferDeviceAddresFeatures.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
     enabledBufferDeviceAddresFeatures.bufferDeviceAddress = VK_TRUE;
 
-    deviceCreatepNextChain_ = &enabledBufferDeviceAddresFeatures;
+    deviceCreatepNextChain = &enabledBufferDeviceAddresFeatures;
   }
 
   ~VulkanExample() {
-    if (device_) {
-      vkDestroyPipeline(device_, pipeline, nullptr);
-      vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
+    if (device) {
+      vkDestroyPipeline(device, pipeline, nullptr);
+      vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+      vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
       texture_.destroy();
       for (auto& cube : cubes) {
         for (auto& buffer : cube.buffers) {
@@ -95,8 +95,8 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   virtual void getEnabledFeatures() {
-    if (deviceFeatures_.samplerAnisotropy) {
-      enabledFeatures_.samplerAnisotropy = VK_TRUE;
+    if (deviceFeatures.samplerAnisotropy) {
+      enabledFeatures.samplerAnisotropy = VK_TRUE;
     };
   }
 
@@ -105,11 +105,11 @@ class VulkanExample : public VulkanExampleBase {
         vkglTF::FileLoadingFlags::PreTransformVertices |
         vkglTF::FileLoadingFlags::PreMultiplyVertexColors |
         vkglTF::FileLoadingFlags::FlipY;
-    model.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice_,
-                       queue_, glTFLoadingFlags);
+    model.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice,
+                       queue, glTFLoadingFlags);
     texture_.loadFromFile(
         getAssetPath() + "textures/crate01_color_height_rgba.ktx",
-        VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice_, queue_);
+        VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
   }
 
   // We pass all data via buffer device addresses, so we only allocate
@@ -121,8 +121,8 @@ class VulkanExample : public VulkanExampleBase {
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)};
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(descriptorPoolSizes, 2);
-    VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
-                                           nullptr, &descriptorPool_));
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo,
+                                           nullptr, &descriptorPool));
 
     // Layout
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -131,21 +131,21 @@ class VulkanExample : public VulkanExampleBase {
             VK_SHADER_STAGE_FRAGMENT_BIT, 0)};
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout,
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout,
                                                 nullptr, &descriptorSetLayout));
 
     // Set
     VkDescriptorSetAllocateInfo allocInfo =
-        vks::initializers::descriptorSetAllocateInfo(descriptorPool_,
+        vks::initializers::descriptorSetAllocateInfo(descriptorPool,
                                                      &descriptorSetLayout, 1);
     VK_CHECK_RESULT(
-        vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSet));
+        vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
 
     std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
         vks::initializers::writeDescriptorSet(
             descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0,
             &texture_.descriptor)};
-    vkUpdateDescriptorSets(device_,
+    vkUpdateDescriptorSets(device,
                            static_cast<uint32_t>(writeDescriptorSets.size()),
                            writeDescriptorSets.data(), 0, nullptr);
   }
@@ -166,7 +166,7 @@ class VulkanExample : public VulkanExampleBase {
     pipelineLayoutCI.pPushConstantRanges = &pushConstantRange;
     pipelineLayoutCI.setLayoutCount = 1;
     pipelineLayoutCI.pSetLayouts = &descriptorSetLayout;
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr,
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr,
                                            &pipelineLayout));
 
     const std::vector<VkDynamicState> dynamicStateEnables = {
@@ -203,7 +203,7 @@ class VulkanExample : public VulkanExampleBase {
                    VK_SHADER_STAGE_FRAGMENT_BIT)};
 
     VkGraphicsPipelineCreateInfo pipelineCI =
-        vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_, 0);
+        vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
     pipelineCI.pInputAssemblyState = &inputAssemblyStateCI;
     pipelineCI.pRasterizationState = &rasterizationStateCI;
     pipelineCI.pColorBlendState = &colorBlendStateCI;
@@ -216,17 +216,17 @@ class VulkanExample : public VulkanExampleBase {
     pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState(
         {vkglTF::VertexComponent::Position, vkglTF::VertexComponent::Normal,
          vkglTF::VertexComponent::UV, vkglTF::VertexComponent::Color});
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1,
                                               &pipelineCI, nullptr, &pipeline));
   }
 
   void prepareUniformBuffers() {
-    for (uint32_t i = 0; i < MAX_CONCURRENT_FRAMES; i++) {
+    for (uint32_t i = 0; i < maxConcurrentFrames; i++) {
       // Note that we don't use this buffer for uniforms but rather pass it's
       // address as a reference to the shader, so isntead of the uniform buffer
       // usage we use a different flag
       VK_CHECK_RESULT(
-          vulkanDevice_->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+          vulkanDevice->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                                       &scene.buffers[i], sizeof(glm::mat4)));
@@ -239,13 +239,13 @@ class VulkanExample : public VulkanExampleBase {
           VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
       bufferDeviceAdressInfo.buffer = scene.buffers[i].buffer;
       scene.bufferDeviceAddresses[i] =
-          vkGetBufferDeviceAddressKHR(device_, &bufferDeviceAdressInfo);
+          vkGetBufferDeviceAddressKHR(device, &bufferDeviceAdressInfo);
 
       for (auto& cube : cubes) {
         // Note that we don't use this buffer for uniforms but rather pass it's
         // address as a reference to the shader, so isntead of the uniform
         // buffer usage we use a different flag
-        VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+        VK_CHECK_RESULT(vulkanDevice->createBuffer(
             VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -256,14 +256,14 @@ class VulkanExample : public VulkanExampleBase {
         // (aka "reference")
         bufferDeviceAdressInfo.buffer = cube.buffers[i].buffer;
         cube.bufferDeviceAddresses[i] =
-            vkGetBufferDeviceAddressKHR(device_, &bufferDeviceAdressInfo);
+            vkGetBufferDeviceAddressKHR(device, &bufferDeviceAdressInfo);
       }
     }
   }
 
   void updateUniformBuffers() {
-    scene.mvp = camera_.matrices_.perspective * camera_.matrices_.view;
-    memcpy(scene.buffers[currentBuffer_].mapped, &scene, sizeof(glm::mat4));
+    scene.mvp = camera.matrices.perspective * camera.matrices.view;
+    memcpy(scene.buffers[currentBuffer].mapped, &scene, sizeof(glm::mat4));
 
     cubes[0].modelMatrix =
         glm::translate(glm::mat4(1.0f), glm::vec3(-2.0f, 0.0f, 0.0f));
@@ -281,7 +281,7 @@ class VulkanExample : public VulkanExampleBase {
           glm::rotate(cube.modelMatrix, glm::radians(cube.rotation.z),
                       glm::vec3(0.0f, 0.0f, 1.0f));
       cube.modelMatrix = glm::scale(cube.modelMatrix, glm::vec3(0.25f));
-      memcpy(cube.buffers[currentBuffer_].mapped, &cube.modelMatrix,
+      memcpy(cube.buffers[currentBuffer].mapped, &cube.modelMatrix,
              sizeof(glm::mat4));
     }
   }
@@ -293,17 +293,17 @@ class VulkanExample : public VulkanExampleBase {
     // pass it to the shader
     vkGetBufferDeviceAddressKHR =
         reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(
-            vkGetDeviceProcAddr(device_, "vkGetBufferDeviceAddressKHR"));
+            vkGetDeviceProcAddr(device, "vkGetBufferDeviceAddressKHR"));
 
     loadAssets();
     prepareUniformBuffers();
     setupDescriptors();
     preparePipelines();
-    prepared_ = true;
+    prepared = true;
   }
 
   void buildCommandBuffer() {
-    VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
+    VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
 
     VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
@@ -314,14 +314,14 @@ class VulkanExample : public VulkanExampleBase {
 
     VkRenderPassBeginInfo renderPassBeginInfo =
         vks::initializers::renderPassBeginInfo();
-    renderPassBeginInfo.renderPass = renderPass_;
+    renderPassBeginInfo.renderPass = renderPass;
     renderPassBeginInfo.renderArea.offset.x = 0;
     renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.renderArea.extent.width = width_;
-    renderPassBeginInfo.renderArea.extent.height = height_;
+    renderPassBeginInfo.renderArea.extent.width = width;
+    renderPassBeginInfo.renderArea.extent.height = height;
     renderPassBeginInfo.clearValueCount = 2;
     renderPassBeginInfo.pClearValues = clearValues;
-    renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+    renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
 
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
@@ -331,10 +331,10 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
     VkViewport viewport =
-        vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+        vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -347,7 +347,7 @@ class VulkanExample : public VulkanExampleBase {
     // shader then simply reads data from the address of that reference
     PushConstantBlock references{};
     // Pass pointer to the global matrix via a buffer device address
-    references.sceneReference = scene.bufferDeviceAddresses[currentBuffer_];
+    references.sceneReference = scene.bufferDeviceAddresses[currentBuffer];
 
     for (auto& cube : cubes) {
       // Pass pointer to this cube's data buffer via a buffer device address
@@ -355,7 +355,7 @@ class VulkanExample : public VulkanExampleBase {
       // different device address This doesn't have to be an address from a
       // different buffer, but could very well be just another address in the
       // same buffer
-      references.modelReference = cube.bufferDeviceAddresses[currentBuffer_];
+      references.modelReference = cube.bufferDeviceAddresses[currentBuffer];
       vkCmdPushConstants(cmdBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
                          0, sizeof(PushConstantBlock), &references);
 
@@ -370,7 +370,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   virtual void render() {
-    if (!prepared_)
+    if (!prepared)
       return;
     VulkanExampleBase::prepareFrame();
     if (animate && !paused) {

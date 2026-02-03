@@ -11,20 +11,23 @@
 
 #ifdef _WIN32
 #pragma comment(linker, "/subsystem:windows")
+#include <windows.h>
+
 #include <ShellScalingAPI.h>
 #include <fcntl.h>
 #include <io.h>
-#include <windows.h>
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
 #include <android/asset_manager.h>
 #include <android/native_activity.h>
 #include <android_native_app_glue.h>
 #include <sys/system_properties.h>
+
 #include "VulkanAndroid.h"
 #elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
 #include <directfb.h>
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
 #include <wayland-client.h>
+
 #include "xdg-shell-client-protocol.h"
 #elif defined(_DIRECT2DISPLAY)
 //
@@ -41,6 +44,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -60,24 +64,22 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <string>
 
-#include "vulkan/vulkan.h"
-
 #include "CommandLineParser.hpp"
 #include "VulkanBuffer.h"
 #include "VulkanDebug.h"
 #include "VulkanDevice.h"
+#include "VulkanInitializers.hpp"
 #include "VulkanSwapChain.h"
 #include "VulkanTexture.h"
 #include "VulkanTools.h"
 #include "VulkanUIOverlay.h"
-#include "keycodes.hpp"
-
-#include "VulkanInitializers.hpp"
 #include "benchmark.hpp"
 #include "camera.hpp"
+#include "keycodes.hpp"
+#include "vulkan/vulkan.h"
 
 // NOT the same number as swap chain size!
-constexpr uint32_t MAX_CONCURRENT_FRAMES{2};
+constexpr uint32_t maxConcurrentFrames{2};
 
 class VulkanExampleBase {
  private:
@@ -102,79 +104,79 @@ class VulkanExampleBase {
   std::string getShadersPath() const;
 
   // Frame counter to display fps
-  uint32_t frameCounter_ = 0;
+  uint32_t frameCounter = 0;
   uint32_t lastFPS = 0;
-  std::chrono::time_point<std::chrono::high_resolution_clock> lastTimestamp_,
-      tPrevEnd_;
+  std::chrono::time_point<std::chrono::high_resolution_clock> lastTimestamp,
+      tPrevEnd;
   // Vulkan instance, stores all per-application states
-  VkInstance instance_{VK_NULL_HANDLE};
-  std::vector<std::string> supportedInstanceExtensions_;
+  VkInstance instance{VK_NULL_HANDLE};
+  std::vector<std::string> supportedInstanceExtensions;
   // Physical device (GPU) that Vulkan will use
-  VkPhysicalDevice physicalDevice_{VK_NULL_HANDLE};
+  VkPhysicalDevice physicalDevice{VK_NULL_HANDLE};
   // Stores physical device properties (for e.g. checking device limits)
-  VkPhysicalDeviceProperties deviceProperties_{};
+  VkPhysicalDeviceProperties deviceProperties{};
   // Stores the features available on the selected physical device (for e.g.
   // checking if a feature is available)
-  VkPhysicalDeviceFeatures deviceFeatures_{};
+  VkPhysicalDeviceFeatures deviceFeatures{};
   // Stores all available memory (type) properties for the physical device
-  VkPhysicalDeviceMemoryProperties deviceMemoryProperties_{};
+  VkPhysicalDeviceMemoryProperties deviceMemoryProperties{};
   /** @brief Set of physical device features to be enabled for this example
    * (must be set in the derived constructor) */
-  VkPhysicalDeviceFeatures enabledFeatures_{};
+  VkPhysicalDeviceFeatures enabledFeatures{};
   /** @brief Set of device extensions to be enabled for this example (must be
    * set in the derived constructor) */
-  std::vector<const char*> enabledDeviceExtensions_;
+  std::vector<const char*> enabledDeviceExtensions;
   /** @brief Set of instance extensions to be enabled for this example (must be
    * set in the derived constructor) */
-  std::vector<const char*> enabledInstanceExtensions_;
+  std::vector<const char*> enabledInstanceExtensions;
   /** @brief Set of layer settings to be enabled for this example (must be set
    * in the derived constructor) */
-  std::vector<VkLayerSettingEXT> enabledLayerSettings_;
+  std::vector<VkLayerSettingEXT> enabledLayerSettings;
   /** @brief Optional pNext structure for passing extension structures to device
    * creation */
-  void* deviceCreatepNextChain_ = nullptr;
+  void* deviceCreatepNextChain = nullptr;
   /** @brief Logical device, application's view of the physical device (GPU) */
-  VkDevice device_{VK_NULL_HANDLE};
+  VkDevice device{VK_NULL_HANDLE};
   // Handle to the device graphics queue that command buffers are submitted to
-  VkQueue queue_{VK_NULL_HANDLE};
+  VkQueue queue{VK_NULL_HANDLE};
   // Depth buffer format (selected during Vulkan initialization)
-  VkFormat depthFormat_{VK_FORMAT_UNDEFINED};
+  VkFormat depthFormat{VK_FORMAT_UNDEFINED};
   // Command buffer pool
-  VkCommandPool cmdPool_{VK_NULL_HANDLE};
+  VkCommandPool cmdPool{VK_NULL_HANDLE};
   // Command buffers used for rendering
-  std::array<VkCommandBuffer, MAX_CONCURRENT_FRAMES> drawCmdBuffers_;
+  std::array<VkCommandBuffer, maxConcurrentFrames> drawCmdBuffers;
   // Global render pass for frame buffer writes
-  VkRenderPass renderPass_{VK_NULL_HANDLE};
+  VkRenderPass renderPass{VK_NULL_HANDLE};
   // List of available frame buffers (same as number of swap chain images)
-  std::vector<VkFramebuffer> frameBuffers_;
+  std::vector<VkFramebuffer> frameBuffers;
   // Descriptor set pool
-  VkDescriptorPool descriptorPool_{VK_NULL_HANDLE};
+  VkDescriptorPool descriptorPool{VK_NULL_HANDLE};
   // List of shader modules created (stored for cleanup)
-  std::vector<VkShaderModule> shaderModules_;
+  std::vector<VkShaderModule> shaderModules;
   // Pipeline cache object
-  VkPipelineCache pipelineCache_{VK_NULL_HANDLE};
+  VkPipelineCache pipelineCache{VK_NULL_HANDLE};
   // Wraps the swap chain to present images (framebuffers) to the windowing
   // system
-  VulkanSwapChain swapChain_;
+  VulkanSwapChain swapChain;
 
   // Synchronization related objects and variables
   // These are used to have multiple frame buffers "in flight" to get some
   // CPU/GPU parallelism
-  uint32_t currentImageIndex_{0};
-  uint32_t currentBuffer_{0};
-  std::array<VkSemaphore, MAX_CONCURRENT_FRAMES> presentCompleteSemaphores_{};
-  std::vector<VkSemaphore> renderCompleteSemaphores_{};
-  std::array<VkFence, MAX_CONCURRENT_FRAMES> waitFences_;
+  uint32_t currentImageIndex{0};
+  uint32_t currentBuffer{0};
+  std::array<VkSemaphore, maxConcurrentFrames> presentCompleteSemaphores{};
+  std::vector<VkSemaphore> renderCompleteSemaphores{};
+  std::array<VkFence, maxConcurrentFrames> waitFences;
 
-  bool requiresStencil_{false};
+  bool requiresStencil{false};
 
  public:
-  bool prepared_ = false;
-  bool resized_ = false;
-  uint32_t width_ = 1920;
-  uint32_t height_ = 1080;
+  bool prepared = false;
+  bool resized = false;
+  uint32_t width = 1920;
+  uint32_t height = 1080;
 
-  vks::UIOverlay ui_;
+  vks::UIOverlay ui;
   CommandLineParser commandLineParser;
 
   /** @brief Last frame time measured using a high performance timer (if
@@ -184,7 +186,7 @@ class VulkanExampleBase {
   vks::Benchmark benchmark;
 
   /** @brief Encapsulated physical and logical vulkan device */
-  vks::VulkanDevice* vulkanDevice_{};
+  vks::VulkanDevice* vulkanDevice{};
 
   /** @brief Example settings that can be changed e.g. by command line arguments
    */
@@ -199,7 +201,7 @@ class VulkanExampleBase {
     bool vsync = false;
     /** @brief Enable UI overlay */
     bool overlay = true;
-  } settings_;
+  } settings;
 
   /** @brief State of gamepad input (only used on Android) */
   struct {
@@ -228,18 +230,18 @@ class VulkanExampleBase {
   float timerSpeed = 0.25f;
   bool paused = false;
 
-  Camera camera_;
+  Camera camera;
 
-  std::string title_ = "Vulkan Example";
-  std::string name_ = "vulkanExample";
-  uint32_t apiVersion_ = VK_API_VERSION_1_0;
+  std::string title = "Vulkan Example";
+  std::string name = "vulkanExample";
+  uint32_t apiVersion = VK_API_VERSION_1_0;
 
   /** @brief Default depth stencil attachment used by the default render pass */
   struct {
     VkImage image;
     VkDeviceMemory memory;
     VkImageView view;
-  } depthStencil_{};
+  } depthStencil{};
 
   // OS specific
 #if defined(_WIN32)

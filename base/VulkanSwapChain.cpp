@@ -175,7 +175,7 @@ void VulkanSwapChain::initSurface(screen_context_t screen_context,
     vks::tools::exitFatal(
         "Separate graphics and presenting queues are not supported yet!", -1);
   }
-  queueNodeIndex_ = graphicsQueueNodeIndex;
+  queueNodeIndex = graphicsQueueNodeIndex;
 
   // Get list of supported surface formats
   uint32_t formatCount;
@@ -202,8 +202,8 @@ void VulkanSwapChain::initSurface(screen_context_t screen_context,
     }
   }
 
-  colorFormat_ = selectedFormat.format;
-  colorSpace_ = selectedFormat.colorSpace;
+  colorFormat = selectedFormat.format;
+  colorSpace = selectedFormat.colorSpace;
 }
 
 void VulkanSwapChain::setContext(VkInstance instance,
@@ -224,7 +224,7 @@ void VulkanSwapChain::create(uint32_t& width,
 
   // Store the current swap chain handle so we can use it later on to ease up
   // recreation
-  VkSwapchainKHR oldSwapchain = swapChain_;
+  VkSwapchainKHR oldSwapchain = swapChain;
 
   // Get physical device surface properties and formats
   VkSurfaceCapabilitiesKHR surfaceCaps;
@@ -312,8 +312,8 @@ void VulkanSwapChain::create(uint32_t& width,
       .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
       .surface = surface,
       .minImageCount = desiredNumberOfSwapchainImages,
-      .imageFormat = colorFormat_,
-      .imageColorSpace = colorSpace_,
+      .imageFormat = colorFormat,
+      .imageColorSpace = colorSpace,
       .imageExtent = {swapchainExtent.width, swapchainExtent.height},
       .imageArrayLayers = 1,
       .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
@@ -339,32 +339,32 @@ void VulkanSwapChain::create(uint32_t& width,
     swapchainCI.imageUsage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
   }
   VK_CHECK_RESULT(
-      vkCreateSwapchainKHR(device, &swapchainCI, nullptr, &swapChain_));
+      vkCreateSwapchainKHR(device, &swapchainCI, nullptr, &swapChain));
 
   // If an existing swap chain is re-created, destroy the old swap chain and the
   // ressources owned by the application (image views, images are owned by the
   // swap chain)
   if (oldSwapchain != VK_NULL_HANDLE) {
-    for (auto i = 0; i < images_.size(); i++) {
-      vkDestroyImageView(device, imageViews_[i], nullptr);
+    for (auto i = 0; i < images.size(); i++) {
+      vkDestroyImageView(device, imageViews[i], nullptr);
     }
     vkDestroySwapchainKHR(device, oldSwapchain, nullptr);
   }
   // Get the (new) swap chain images
   VK_CHECK_RESULT(
-      vkGetSwapchainImagesKHR(device, swapChain_, &imageCount_, nullptr));
-  images_.resize(imageCount_);
-  VK_CHECK_RESULT(vkGetSwapchainImagesKHR(device, swapChain_, &imageCount_,
-                                          images_.data()));
+      vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr));
+  images.resize(imageCount);
+  VK_CHECK_RESULT(
+      vkGetSwapchainImagesKHR(device, swapChain, &imageCount, images.data()));
 
   // Get the swap chain buffers containing the image and imageview
-  imageViews_.resize(imageCount_);
-  for (auto i = 0; i < images_.size(); i++) {
+  imageViews.resize(imageCount);
+  for (auto i = 0; i < images.size(); i++) {
     VkImageViewCreateInfo colorAttachmentView{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = images_[i],
+        .image = images[i],
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = colorFormat_,
+        .format = colorFormat,
         .components = {VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G,
                        VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A},
         .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -374,7 +374,7 @@ void VulkanSwapChain::create(uint32_t& width,
                              .layerCount = 1},
     };
     VK_CHECK_RESULT(vkCreateImageView(device, &colorAttachmentView, nullptr,
-                                      &imageViews_[i]));
+                                      &imageViews[i]));
   }
 }
 
@@ -383,22 +383,22 @@ VkResult VulkanSwapChain::acquireNextImage(VkSemaphore presentCompleteSemaphore,
   // By setting timeout to UINT64_MAX we will always wait until the next image
   // has been acquired or an actual error is thrown With that we don't have to
   // handle VK_NOT_READY
-  return vkAcquireNextImageKHR(device, swapChain_, UINT64_MAX,
+  return vkAcquireNextImageKHR(device, swapChain, UINT64_MAX,
                                presentCompleteSemaphore, (VkFence) nullptr,
                                &imageIndex);
 }
 void VulkanSwapChain::cleanup() {
-  if (swapChain_ != VK_NULL_HANDLE) {
-    for (auto i = 0; i < images_.size(); i++) {
-      vkDestroyImageView(device, imageViews_[i], nullptr);
+  if (swapChain != VK_NULL_HANDLE) {
+    for (auto i = 0; i < images.size(); i++) {
+      vkDestroyImageView(device, imageViews[i], nullptr);
     }
-    vkDestroySwapchainKHR(device, swapChain_, nullptr);
+    vkDestroySwapchainKHR(device, swapChain, nullptr);
   }
   if (surface != VK_NULL_HANDLE) {
     vkDestroySurfaceKHR(instance, surface, nullptr);
   }
   surface = VK_NULL_HANDLE;
-  swapChain_ = VK_NULL_HANDLE;
+  swapChain = VK_NULL_HANDLE;
 }
 
 #if defined(_DIRECT2DISPLAY)

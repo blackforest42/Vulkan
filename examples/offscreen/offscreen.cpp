@@ -35,7 +35,7 @@ class VulkanExample : public VulkanExampleBase {
     vks::Buffer mirror;
     vks::Buffer offscreen;
   };
-  std::array<UniformBuffers, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+  std::array<UniformBuffers, maxConcurrentFrames> uniformBuffers_;
 
   struct {
     VkPipelineLayout textured{VK_NULL_HANDLE};
@@ -59,7 +59,7 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorSet mirror{VK_NULL_HANDLE};
     VkDescriptorSet model{VK_NULL_HANDLE};
   };
-  std::array<DescriptorSets, MAX_CONCURRENT_FRAMES> descriptorSets_;
+  std::array<DescriptorSets, maxConcurrentFrames> descriptorSets_;
 
   // Framebuffer for offscreen rendering
   struct FrameBufferAttachment {
@@ -80,37 +80,37 @@ class VulkanExample : public VulkanExampleBase {
   glm::vec3 modelRotation = glm::vec3(0.0f);
 
   VulkanExample() : VulkanExampleBase() {
-    title_ = "Offscreen rendering";
+    title = "Offscreen rendering";
     timerSpeed *= 0.25f;
-    camera_.type_ = Camera::CameraType::lookat;
-    camera_.setPosition(glm::vec3(0.0f, 1.0f, -6.0f));
-    camera_.setRotation(glm::vec3(-2.5f, 0.0f, 0.0f));
-    camera_.setRotationSpeed(0.5f);
-    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
+    camera.type_ = Camera::CameraType::lookat;
+    camera.setPosition(glm::vec3(0.0f, 1.0f, -6.0f));
+    camera.setRotation(glm::vec3(-2.5f, 0.0f, 0.0f));
+    camera.setRotationSpeed(0.5f);
+    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
     // The scene shader uses a clipping plane, so this feature has to be enabled
-    enabledFeatures_.shaderClipDistance = VK_TRUE;
+    enabledFeatures.shaderClipDistance = VK_TRUE;
   }
 
   ~VulkanExample() {
-    if (device_) {
-      vkDestroyImageView(device_, offscreenPass_.color.view, nullptr);
-      vkDestroyImage(device_, offscreenPass_.color.image, nullptr);
-      vkFreeMemory(device_, offscreenPass_.color.mem, nullptr);
-      vkDestroyImageView(device_, offscreenPass_.depth.view, nullptr);
-      vkDestroyImage(device_, offscreenPass_.depth.image, nullptr);
-      vkFreeMemory(device_, offscreenPass_.depth.mem, nullptr);
-      vkDestroyRenderPass(device_, offscreenPass_.renderPass, nullptr);
-      vkDestroySampler(device_, offscreenPass_.sampler, nullptr);
-      vkDestroyFramebuffer(device_, offscreenPass_.frameBuffer, nullptr);
-      vkDestroyPipeline(device_, pipelines_.debug, nullptr);
-      vkDestroyPipeline(device_, pipelines_.shaded, nullptr);
-      vkDestroyPipeline(device_, pipelines_.shadedOffscreen, nullptr);
-      vkDestroyPipeline(device_, pipelines_.mirror, nullptr);
-      vkDestroyPipelineLayout(device_, pipelineLayouts_.textured, nullptr);
-      vkDestroyPipelineLayout(device_, pipelineLayouts_.shaded, nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.shaded,
+    if (device) {
+      vkDestroyImageView(device, offscreenPass_.color.view, nullptr);
+      vkDestroyImage(device, offscreenPass_.color.image, nullptr);
+      vkFreeMemory(device, offscreenPass_.color.mem, nullptr);
+      vkDestroyImageView(device, offscreenPass_.depth.view, nullptr);
+      vkDestroyImage(device, offscreenPass_.depth.image, nullptr);
+      vkFreeMemory(device, offscreenPass_.depth.mem, nullptr);
+      vkDestroyRenderPass(device, offscreenPass_.renderPass, nullptr);
+      vkDestroySampler(device, offscreenPass_.sampler, nullptr);
+      vkDestroyFramebuffer(device, offscreenPass_.frameBuffer, nullptr);
+      vkDestroyPipeline(device, pipelines_.debug, nullptr);
+      vkDestroyPipeline(device, pipelines_.shaded, nullptr);
+      vkDestroyPipeline(device, pipelines_.shadedOffscreen, nullptr);
+      vkDestroyPipeline(device, pipelines_.mirror, nullptr);
+      vkDestroyPipelineLayout(device, pipelineLayouts_.textured, nullptr);
+      vkDestroyPipelineLayout(device, pipelineLayouts_.shaded, nullptr);
+      vkDestroyDescriptorSetLayout(device, descriptorSetLayouts_.shaded,
                                    nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.textured,
+      vkDestroyDescriptorSetLayout(device, descriptorSetLayouts_.textured,
                                    nullptr);
       for (auto& buffer : uniformBuffers_) {
         buffer.model.destroy();
@@ -130,7 +130,7 @@ class VulkanExample : public VulkanExampleBase {
     // Find a suitable depth format
     VkFormat fbDepthFormat;
     VkBool32 validDepthFormat =
-        vks::tools::getSupportedDepthFormat(physicalDevice_, &fbDepthFormat);
+        vks::tools::getSupportedDepthFormat(physicalDevice, &fbDepthFormat);
     assert(validDepthFormat);
 
     // Color attachment
@@ -152,14 +152,14 @@ class VulkanExample : public VulkanExampleBase {
     VkMemoryRequirements memReqs;
 
     VK_CHECK_RESULT(
-        vkCreateImage(device_, &image, nullptr, &offscreenPass_.color.image));
-    vkGetImageMemoryRequirements(device_, offscreenPass_.color.image, &memReqs);
+        vkCreateImage(device, &image, nullptr, &offscreenPass_.color.image));
+    vkGetImageMemoryRequirements(device, offscreenPass_.color.image, &memReqs);
     memAlloc.allocationSize = memReqs.size;
-    memAlloc.memoryTypeIndex = vulkanDevice_->getMemoryType(
+    memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(
         memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr,
+    VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr,
                                      &offscreenPass_.color.mem));
-    VK_CHECK_RESULT(vkBindImageMemory(device_, offscreenPass_.color.image,
+    VK_CHECK_RESULT(vkBindImageMemory(device, offscreenPass_.color.image,
                                       offscreenPass_.color.mem, 0));
 
     VkImageViewCreateInfo colorImageView =
@@ -173,7 +173,7 @@ class VulkanExample : public VulkanExampleBase {
     colorImageView.subresourceRange.baseArrayLayer = 0;
     colorImageView.subresourceRange.layerCount = 1;
     colorImageView.image = offscreenPass_.color.image;
-    VK_CHECK_RESULT(vkCreateImageView(device_, &colorImageView, nullptr,
+    VK_CHECK_RESULT(vkCreateImageView(device, &colorImageView, nullptr,
                                       &offscreenPass_.color.view));
 
     // Create sampler to sample from the attachment in the fragment shader
@@ -189,7 +189,7 @@ class VulkanExample : public VulkanExampleBase {
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = 1.0f;
     samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-    VK_CHECK_RESULT(vkCreateSampler(device_, &samplerInfo, nullptr,
+    VK_CHECK_RESULT(vkCreateSampler(device, &samplerInfo, nullptr,
                                     &offscreenPass_.sampler));
 
     // Depth stencil attachment
@@ -197,14 +197,14 @@ class VulkanExample : public VulkanExampleBase {
     image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
     VK_CHECK_RESULT(
-        vkCreateImage(device_, &image, nullptr, &offscreenPass_.depth.image));
-    vkGetImageMemoryRequirements(device_, offscreenPass_.depth.image, &memReqs);
+        vkCreateImage(device, &image, nullptr, &offscreenPass_.depth.image));
+    vkGetImageMemoryRequirements(device, offscreenPass_.depth.image, &memReqs);
     memAlloc.allocationSize = memReqs.size;
-    memAlloc.memoryTypeIndex = vulkanDevice_->getMemoryType(
+    memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(
         memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VK_CHECK_RESULT(vkAllocateMemory(device_, &memAlloc, nullptr,
+    VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr,
                                      &offscreenPass_.depth.mem));
-    VK_CHECK_RESULT(vkBindImageMemory(device_, offscreenPass_.depth.image,
+    VK_CHECK_RESULT(vkBindImageMemory(device, offscreenPass_.depth.image,
                                       offscreenPass_.depth.mem, 0));
 
     VkImageViewCreateInfo depthStencilView =
@@ -223,7 +223,7 @@ class VulkanExample : public VulkanExampleBase {
     depthStencilView.subresourceRange.baseArrayLayer = 0;
     depthStencilView.subresourceRange.layerCount = 1;
     depthStencilView.image = offscreenPass_.depth.image;
-    VK_CHECK_RESULT(vkCreateImageView(device_, &depthStencilView, nullptr,
+    VK_CHECK_RESULT(vkCreateImageView(device, &depthStencilView, nullptr,
                                       &offscreenPass_.depth.view));
 
     // Create a separate render pass for the offscreen rendering as it may
@@ -306,7 +306,7 @@ class VulkanExample : public VulkanExampleBase {
     renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
     renderPassInfo.pDependencies = dependencies.data();
 
-    VK_CHECK_RESULT(vkCreateRenderPass(device_, &renderPassInfo, nullptr,
+    VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr,
                                        &offscreenPass_.renderPass));
 
     VkImageView attachments[2];
@@ -322,7 +322,7 @@ class VulkanExample : public VulkanExampleBase {
     fbufCreateInfo.height = offscreenPass_.height;
     fbufCreateInfo.layers = 1;
 
-    VK_CHECK_RESULT(vkCreateFramebuffer(device_, &fbufCreateInfo, nullptr,
+    VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbufCreateInfo, nullptr,
                                         &offscreenPass_.frameBuffer));
 
     // Fill a descriptor for later use in a descriptor set
@@ -338,24 +338,24 @@ class VulkanExample : public VulkanExampleBase {
         vkglTF::FileLoadingFlags::PreMultiplyVertexColors |
         vkglTF::FileLoadingFlags::FlipY;
     models_.plane.loadFromFile(getAssetPath() + "models/plane.gltf",
-                               vulkanDevice_, queue_, glTFLoadingFlags);
+                               vulkanDevice, queue, glTFLoadingFlags);
     models_.example.loadFromFile(getAssetPath() + "models/chinesedragon.gltf",
-                                 vulkanDevice_, queue_, glTFLoadingFlags);
+                                 vulkanDevice, queue, glTFLoadingFlags);
   }
 
   void setupDescriptors() {
     // Pool
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                              MAX_CONCURRENT_FRAMES * 3),
+                                              maxConcurrentFrames * 3),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            MAX_CONCURRENT_FRAMES * 2)};
+            maxConcurrentFrames * 2)};
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(poolSizes,
-                                                    MAX_CONCURRENT_FRAMES * 3);
-    VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
-                                           nullptr, &descriptorPool_));
+                                                    maxConcurrentFrames * 3);
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo,
+                                           nullptr, &descriptorPool));
 
     // Layout
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
@@ -369,7 +369,7 @@ class VulkanExample : public VulkanExampleBase {
     };
     descriptorLayoutInfo =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayoutInfo,
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayoutInfo,
                                                 nullptr,
                                                 &descriptorSetLayouts_.shaded));
 
@@ -385,7 +385,7 @@ class VulkanExample : public VulkanExampleBase {
     descriptorLayoutInfo =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
     VK_CHECK_RESULT(
-        vkCreateDescriptorSetLayout(device_, &descriptorLayoutInfo, nullptr,
+        vkCreateDescriptorSetLayout(device, &descriptorLayoutInfo, nullptr,
                                     &descriptorSetLayouts_.textured));
 
     // Sets per frame, just like the buffers themselves
@@ -395,8 +395,8 @@ class VulkanExample : public VulkanExampleBase {
       // Mirror plane descriptor set
       VkDescriptorSetAllocateInfo allocInfo =
           vks::initializers::descriptorSetAllocateInfo(
-              descriptorPool_, &descriptorSetLayouts_.textured, 1);
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
+              descriptorPool, &descriptorSetLayouts_.textured, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo,
                                                &descriptorSets_[i].mirror));
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
           // Binding 0 : Vertex shader uniform buffer
@@ -409,15 +409,15 @@ class VulkanExample : public VulkanExampleBase {
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1,
               &offscreenPass_.descriptor),
       };
-      vkUpdateDescriptorSets(device_,
+      vkUpdateDescriptorSets(device,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
 
       // Shaded descriptor sets
       allocInfo = vks::initializers::descriptorSetAllocateInfo(
-          descriptorPool_, &descriptorSetLayouts_.shaded, 1);
+          descriptorPool, &descriptorSetLayouts_.shaded, 1);
       // Model
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo,
                                                &descriptorSets_[i].model));
       std::vector<VkWriteDescriptorSet> modelWriteDescriptorSets = {
           // Binding 0 : Vertex shader uniform buffer
@@ -425,11 +425,11 @@ class VulkanExample : public VulkanExampleBase {
               descriptorSets_[i].model, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
               &uniformBuffers_[i].model.descriptor)};
       vkUpdateDescriptorSets(
-          device_, static_cast<uint32_t>(modelWriteDescriptorSets.size()),
+          device, static_cast<uint32_t>(modelWriteDescriptorSets.size()),
           modelWriteDescriptorSets.data(), 0, nullptr);
 
       // Offscreen
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo,
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo,
                                                &descriptorSets_[i].offscreen));
       std::vector<VkWriteDescriptorSet> offScreenWriteDescriptorSets = {
           // Binding 0 : Vertex shader uniform buffer
@@ -437,7 +437,7 @@ class VulkanExample : public VulkanExampleBase {
               descriptorSets_[i].offscreen, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
               0, &uniformBuffers_[i].offscreen.descriptor)};
       vkUpdateDescriptorSets(
-          device_, static_cast<uint32_t>(offScreenWriteDescriptorSets.size()),
+          device, static_cast<uint32_t>(offScreenWriteDescriptorSets.size()),
           offScreenWriteDescriptorSets.data(), 0, nullptr);
     }
   }
@@ -447,13 +447,13 @@ class VulkanExample : public VulkanExampleBase {
     VkPipelineLayoutCreateInfo pipelineLayoutInfo =
         vks::initializers::pipelineLayoutCreateInfo(
             &descriptorSetLayouts_.shaded, 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutInfo,
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutInfo,
                                            nullptr, &pipelineLayouts_.shaded));
 
     pipelineLayoutInfo = vks::initializers::pipelineLayoutCreateInfo(
         &descriptorSetLayouts_.textured, 1);
     VK_CHECK_RESULT(vkCreatePipelineLayout(
-        device_, &pipelineLayoutInfo, nullptr, &pipelineLayouts_.textured));
+        device, &pipelineLayoutInfo, nullptr, &pipelineLayouts_.textured));
 
     // Pipelines
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
@@ -484,7 +484,7 @@ class VulkanExample : public VulkanExampleBase {
 
     VkGraphicsPipelineCreateInfo pipelineCI =
         vks::initializers::pipelineCreateInfo(pipelineLayouts_.textured,
-                                              renderPass_, 0);
+                                              renderPass, 0);
     pipelineCI.pInputAssemblyState = &inputAssemblyState;
     pipelineCI.pRasterizationState = &rasterizationState;
     pipelineCI.pColorBlendState = &colorBlendState;
@@ -506,7 +506,7 @@ class VulkanExample : public VulkanExampleBase {
     shaderStages[1] = loadShader(getShadersPath() + "offscreen/quad.frag.spv",
                                  VK_SHADER_STAGE_FRAGMENT_BIT);
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-        device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.debug));
+        device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.debug));
 
     // Mirror
     shaderStages[0] = loadShader(getShadersPath() + "offscreen/mirror.vert.spv",
@@ -514,7 +514,7 @@ class VulkanExample : public VulkanExampleBase {
     shaderStages[1] = loadShader(getShadersPath() + "offscreen/mirror.frag.spv",
                                  VK_SHADER_STAGE_FRAGMENT_BIT);
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-        device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.mirror));
+        device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.mirror));
 
     rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
@@ -526,12 +526,12 @@ class VulkanExample : public VulkanExampleBase {
     shaderStages[1] = loadShader(getShadersPath() + "offscreen/phong.frag.spv",
                                  VK_SHADER_STAGE_FRAGMENT_BIT);
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-        device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.shaded));
+        device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.shaded));
     // Offscreen
     // Flip cull mode
     rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
     pipelineCI.renderPass = offscreenPass_.renderPass;
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1,
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1,
                                               &pipelineCI, nullptr,
                                               &pipelines_.shadedOffscreen));
   }
@@ -541,21 +541,21 @@ class VulkanExample : public VulkanExampleBase {
     for (auto& buffer : uniformBuffers_) {
       // Mesh vertex shader uniform buffer block
       VK_CHECK_RESULT(
-          vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                                       &buffer.model, sizeof(UniformData)));
       VK_CHECK_RESULT(buffer.model.map());
       // Mirror plane vertex shader uniform buffer block
       VK_CHECK_RESULT(
-          vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                                       &buffer.mirror, sizeof(UniformData)));
       VK_CHECK_RESULT(buffer.mirror.map());
       // Offscreen vertex shader uniform buffer block
       VK_CHECK_RESULT(
-          vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                                       &buffer.offscreen, sizeof(UniformData)));
@@ -568,8 +568,8 @@ class VulkanExample : public VulkanExampleBase {
       modelRotation.y += frameTimer * 10.0f;
     }
 
-    uniformData_.projection = camera_.matrices_.perspective;
-    uniformData_.view = camera_.matrices_.view;
+    uniformData_.projection = camera.matrices.perspective;
+    uniformData_.view = camera.matrices.view;
 
     // Model
     uniformData_.model = glm::mat4(1.0f);
@@ -577,12 +577,12 @@ class VulkanExample : public VulkanExampleBase {
         glm::rotate(uniformData_.model, glm::radians(modelRotation.y),
                     glm::vec3(0.0f, 1.0f, 0.0f));
     uniformData_.model = glm::translate(uniformData_.model, modelPosition);
-    memcpy(uniformBuffers_[currentBuffer_].model.mapped, &uniformData_,
+    memcpy(uniformBuffers_[currentBuffer].model.mapped, &uniformData_,
            sizeof(UniformData));
 
     // Mirror
     uniformData_.model = glm::mat4(1.0f);
-    memcpy(uniformBuffers_[currentBuffer_].mirror.mapped, &uniformData_,
+    memcpy(uniformBuffers_[currentBuffer].mirror.mapped, &uniformData_,
            sizeof(UniformData));
 
     uniformData_.model = glm::mat4(1.0f);
@@ -592,7 +592,7 @@ class VulkanExample : public VulkanExampleBase {
     uniformData_.model =
         glm::scale(uniformData_.model, glm::vec3(1.0f, -1.0f, 1.0f));
     uniformData_.model = glm::translate(uniformData_.model, modelPosition);
-    memcpy(uniformBuffers_[currentBuffer_].offscreen.mapped, &uniformData_,
+    memcpy(uniformBuffers_[currentBuffer].offscreen.mapped, &uniformData_,
            sizeof(UniformData));
   }
 
@@ -605,11 +605,11 @@ class VulkanExample : public VulkanExampleBase {
     prepareUniformBuffers();
     setupDescriptors();
     preparePipelines();
-    prepared_ = true;
+    prepared = true;
   }
 
   void buildCommandBuffer() {
-    VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
+    VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
 
     VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
@@ -648,7 +648,7 @@ class VulkanExample : public VulkanExampleBase {
       // Mirrored scene
       vkCmdBindDescriptorSets(
           cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.shaded,
-          0, 1, &descriptorSets_[currentBuffer_].offscreen, 0, nullptr);
+          0, 1, &descriptorSets_[currentBuffer].offscreen, 0, nullptr);
       vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                         pipelines_.shadedOffscreen);
       models_.example.draw(cmdBuffer);
@@ -671,10 +671,10 @@ class VulkanExample : public VulkanExampleBase {
 
       VkRenderPassBeginInfo renderPassBeginInfo =
           vks::initializers::renderPassBeginInfo();
-      renderPassBeginInfo.renderPass = renderPass_;
-      renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
-      renderPassBeginInfo.renderArea.extent.width = width_;
-      renderPassBeginInfo.renderArea.extent.height = height_;
+      renderPassBeginInfo.renderPass = renderPass;
+      renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+      renderPassBeginInfo.renderArea.extent.width = width;
+      renderPassBeginInfo.renderArea.extent.height = height;
       renderPassBeginInfo.clearValueCount = 2;
       renderPassBeginInfo.pClearValues = clearValues;
 
@@ -682,17 +682,17 @@ class VulkanExample : public VulkanExampleBase {
                            VK_SUBPASS_CONTENTS_INLINE);
 
       VkViewport viewport = vks::initializers::viewport(
-          (float)width_, (float)height_, 0.0f, 1.0f);
+          (float)width, (float)height, 0.0f, 1.0f);
       vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-      VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+      VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
       vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
       if (debugDisplay) {
         // Display the offscreen render target
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 pipelineLayouts_.textured, 0, 1,
-                                &descriptorSets_[currentBuffer_].mirror, 0,
+                                &descriptorSets_[currentBuffer].mirror, 0,
                                 nullptr);
         vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           pipelines_.debug);
@@ -702,7 +702,7 @@ class VulkanExample : public VulkanExampleBase {
         // Reflection plane
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 pipelineLayouts_.textured, 0, 1,
-                                &descriptorSets_[currentBuffer_].mirror, 0,
+                                &descriptorSets_[currentBuffer].mirror, 0,
                                 nullptr);
         vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           pipelines_.mirror);
@@ -710,7 +710,7 @@ class VulkanExample : public VulkanExampleBase {
         // Model
         vkCmdBindDescriptorSets(
             cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.shaded,
-            0, 1, &descriptorSets_[currentBuffer_].model, 0, nullptr);
+            0, 1, &descriptorSets_[currentBuffer].model, 0, nullptr);
         vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           pipelines_.shaded);
         models_.example.draw(cmdBuffer);
@@ -725,7 +725,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   virtual void render() {
-    if (!prepared_)
+    if (!prepared)
       return;
     VulkanExampleBase::prepareFrame();
     updateUniformBuffers();

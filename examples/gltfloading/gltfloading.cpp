@@ -390,7 +390,7 @@ public:
 		glm::vec4 lightPos = glm::vec4(5.0f, 5.0f, -5.0f, 1.0f);
 		glm::vec4 viewPos;
 	} uniformData_;
-	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers_;
 
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	struct Pipelines {
@@ -402,28 +402,28 @@ public:
 		VkDescriptorSetLayout matrices{ VK_NULL_HANDLE };
 		VkDescriptorSetLayout textures{ VK_NULL_HANDLE };
 	} descriptorSetLayouts_;
-	std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+	std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets_{};
 
 	VulkanExample() : VulkanExampleBase()
 	{
-		title_ = "glTF model rendering";
-		camera_.type_ = Camera::CameraType::lookat;
-		camera_.flipY = true;
-		camera_.setPosition(glm::vec3(0.0f, -0.1f, -1.0f));
-		camera_.setRotation(glm::vec3(0.0f, 45.0f, 0.0f));
-		camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
+		title = "glTF model rendering";
+		camera.type_ = Camera::CameraType::lookat;
+		camera.flipY = true;
+		camera.setPosition(glm::vec3(0.0f, -0.1f, -1.0f));
+		camera.setRotation(glm::vec3(0.0f, 45.0f, 0.0f));
+		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
 	}
 
 	~VulkanExample()
 	{
-		if (device_) {
-			vkDestroyPipeline(device_, pipelines_.solid, nullptr);
+		if (device) {
+			vkDestroyPipeline(device, pipelines_.solid, nullptr);
 			if (pipelines_.wireframe != VK_NULL_HANDLE) {
-				vkDestroyPipeline(device_, pipelines_.wireframe, nullptr);
+				vkDestroyPipeline(device, pipelines_.wireframe, nullptr);
 			}
-			vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.matrices, nullptr);
-			vkDestroyDescriptorSetLayout(device_, descriptorSetLayouts_.textures, nullptr);
+			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device, descriptorSetLayouts_.matrices, nullptr);
+			vkDestroyDescriptorSetLayout(device, descriptorSetLayouts_.textures, nullptr);
 			for (auto& buffer : uniformBuffers_) {
 				buffer.destroy();
 			}
@@ -433,8 +433,8 @@ public:
 	virtual void getEnabledFeatures()
 	{
 		// Fill mode non solid is required for wireframe display
-		if (deviceFeatures_.fillModeNonSolid) {
-			enabledFeatures_.fillModeNonSolid = VK_TRUE;
+		if (deviceFeatures.fillModeNonSolid) {
+			enabledFeatures.fillModeNonSolid = VK_TRUE;
 		};
 	}
 
@@ -444,7 +444,7 @@ public:
 		tinygltf::TinyGLTF gltfContext;
 		std::string error, warning;
 
-		this->device_ = device_;
+		this->device = device;
 
 #if defined(__ANDROID__)
 		// On Android all assets are packed with the apk in a compressed form, so we need to open them using the asset manager
@@ -454,8 +454,8 @@ public:
 		bool fileLoaded = gltfContext.LoadASCIIFromFile(&glTFInput, &error, &warning, filename);
 
 		// Pass some Vulkan resources required for setup and rendering to the glTF model loading class
-		glTFModel.vulkanDevice = vulkanDevice_;
-		glTFModel.copyQueue = queue_;
+		glTFModel.vulkanDevice = vulkanDevice;
+		glTFModel.copyQueue = queue;
 
 		std::vector<uint32_t> indexBuffer;
 		std::vector<VulkanglTFModel::Vertex> vertexBuffer;
@@ -486,14 +486,14 @@ public:
 		vks::Buffer vertexStaging, indexStaging;
 
 		// Create host visible staging buffers (source)
-		VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			&vertexStaging,
 			vertexBufferSize,
 			vertexBuffer.data()));
 		// Index data
-		VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			&indexStaging,
@@ -501,13 +501,13 @@ public:
 			indexBuffer.data()));
 
 		// Create device local buffers (target)
-		VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(
 			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			vertexBufferSize,
 			&glTFModel.vertices.buffer,
 			&glTFModel.vertices.memory));
-		VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(
 			VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			indexBufferSize,
@@ -515,7 +515,7 @@ public:
 			&glTFModel.indices.memory));
 
 		// Copy data from staging buffers (host) do device local buffer (gpu)
-		VkCommandBuffer copyCmd = vulkanDevice_->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+		VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 		VkBufferCopy copyRegion = {};
 
 		copyRegion.size = vertexBufferSize;
@@ -534,7 +534,7 @@ public:
 			1,
 			&copyRegion);
 
-		vulkanDevice_->flushCommandBuffer(copyCmd, queue_, true);
+		vulkanDevice->flushCommandBuffer(copyCmd, queue, true);
 
 		vertexStaging.destroy();
 		indexStaging.destroy();
@@ -552,37 +552,37 @@ public:
 		*/
 
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_CONCURRENT_FRAMES),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames),
 			// One combined image sampler per model image/texture
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(glTFModel.images.size()) * MAX_CONCURRENT_FRAMES),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(glTFModel.images.size()) * maxConcurrentFrames),
 		};
 		// One set for matrices and one per model image/texture
-		const uint32_t maxSetCount = (static_cast<uint32_t>(glTFModel.images.size()) + 1) * MAX_CONCURRENT_FRAMES;
+		const uint32_t maxSetCount = (static_cast<uint32_t>(glTFModel.images.size()) + 1) * maxConcurrentFrames;
 		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxSetCount);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo, nullptr, &descriptorPool_));
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 
 		// Descriptor set layout for passing matrices
 		VkDescriptorSetLayoutBinding setLayoutBinding = vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
 		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(&setLayoutBinding, 1);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts_.matrices));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts_.matrices));
 		// Descriptor set layout for passing material textures
 		setLayoutBinding = vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts_.textures));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts_.textures));
 
 		// Descriptor set for scene matrices per frame, just like the buffers themselves
 		for (auto i = 0; i < uniformBuffers_.size(); i++) {
-			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayouts_.matrices, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
+			VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts_.matrices, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets_[i]));
 			VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers_[i].descriptor);
-			vkUpdateDescriptorSets(device_, 1, &writeDescriptorSet, 0, nullptr);
+			vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
 		}
 
 		// Descriptor sets for materials, since they only use static images, no need to duplicate them per frame		
 		for (auto& image : glTFModel.images) {
-			const VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool_, &descriptorSetLayouts_.textures, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device_, &allocInfo, &image.descriptorSet));
+			const VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts_.textures, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &image.descriptorSet));
 			VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(image.descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &image.texture.descriptor);
-			vkUpdateDescriptorSets(device_, 1, &writeDescriptorSet, 0, nullptr);
+			vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
 		}
 	}
 
@@ -597,7 +597,7 @@ public:
 		// Push constant ranges are part of the pipeline layout
 		pipelineLayoutCI.pushConstantRangeCount = 1;
 		pipelineLayoutCI.pPushConstantRanges = &pushConstantRange;
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCI, nullptr, &pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));
 
 		// Pipeline
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCI = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -630,7 +630,7 @@ public:
 			loadShader(getShadersPath() + "gltfloading/mesh.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT)
 		};
 
-		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass_, 0);
+		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
 		pipelineCI.pVertexInputState = &vertexInputStateCI;
 		pipelineCI.pInputAssemblyState = &inputAssemblyStateCI;
 		pipelineCI.pRasterizationState = &rasterizationStateCI;
@@ -643,13 +643,13 @@ public:
 		pipelineCI.pStages = shaderStages.data();
 
 		// Solid rendering pipeline
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.solid));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.solid));
 
 		// Wire frame rendering pipeline
-		if (deviceFeatures_.fillModeNonSolid) {
+		if (deviceFeatures.fillModeNonSolid) {
 			rasterizationStateCI.polygonMode = VK_POLYGON_MODE_LINE;
 			rasterizationStateCI.lineWidth = 1.0f;
-			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipelines_.wireframe));
+			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.wireframe));
 		}
 	}
 
@@ -657,17 +657,17 @@ public:
 	void prepareUniformBuffers()
 	{
 		for (auto& buffer : uniformBuffers_) {
-			VK_CHECK_RESULT(vulkanDevice_->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer, sizeof(UniformData), &uniformData_));
 			VK_CHECK_RESULT(buffer.map());
 		}
 	}
 
 	void updateUniformBuffers()
 	{
-		uniformData_.projection = camera_.matrices_.perspective;
-		uniformData_.model = camera_.matrices_.view;
-		uniformData_.viewPos = camera_.viewPos_;
-		memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_, sizeof(UniformData));
+		uniformData_.projection = camera.matrices.perspective;
+		uniformData_.model = camera.matrices.view;
+		uniformData_.viewPos = camera.viewPos;
+		memcpy(uniformBuffers_[currentBuffer].mapped, &uniformData_, sizeof(UniformData));
 	}
 
 	void prepare()
@@ -677,12 +677,12 @@ public:
 		prepareUniformBuffers();
 		setupDescriptors();
 		preparePipelines();
-		prepared_ = true;
+		prepared = true;
 	}
 
 	void buildCommandBuffer()
 	{
-		VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
+		VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
 		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -691,23 +691,23 @@ public:
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass_;
+		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width_;
-		renderPassBeginInfo.renderArea.extent.height = height_;
+		renderPassBeginInfo.renderArea.extent.width = width;
+		renderPassBeginInfo.renderArea.extent.height = height;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers_[currentImageIndex_];
+		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		const VkViewport viewport = vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+		const VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
-		const VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+		const VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 		// Bind scene matrices descriptor to set 0
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer_], 0, nullptr);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets_[currentBuffer], 0, nullptr);
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, wireframe ? pipelines_.wireframe : pipelines_.solid);
 		glTFModel.draw(cmdBuffer, pipelineLayout);
 		drawUI(cmdBuffer);
@@ -717,7 +717,7 @@ public:
 
 	virtual void render()
 	{
-		if (!prepared_)
+		if (!prepared)
 			return;
 		VulkanExampleBase::prepareFrame();
 		updateUniformBuffers();

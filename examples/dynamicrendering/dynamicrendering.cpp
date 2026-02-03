@@ -26,31 +26,31 @@ class VulkanExample : public VulkanExampleBase {
     glm::mat4 modelView;
     glm::vec4 viewPos;
   } uniformData_;
-  std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+  std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers_;
 
   VkPipeline pipeline_{VK_NULL_HANDLE};
   VkPipelineLayout pipelineLayout{VK_NULL_HANDLE};
   VkDescriptorSetLayout descriptorSetLayout{VK_NULL_HANDLE};
-  std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+  std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets_{};
 
   VulkanExample() : VulkanExampleBase() {
-    title_ = "Dynamic rendering";
-    camera_.type_ = Camera::CameraType::lookat;
-    camera_.setPosition(glm::vec3(0.0f, 0.0f, -10.0f));
-    camera_.setRotation(glm::vec3(-7.5f, 72.0f, 0.0f));
-    camera_.setPerspective(60.0f, (float)width_ / (float)height_, 0.1f, 256.0f);
+    title = "Dynamic rendering";
+    camera.type_ = Camera::CameraType::lookat;
+    camera.setPosition(glm::vec3(0.0f, 0.0f, -10.0f));
+    camera.setRotation(glm::vec3(-7.5f, 72.0f, 0.0f));
+    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
 
-    enabledInstanceExtensions_.push_back(
+    enabledInstanceExtensions.push_back(
         VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 
     // The sample uses the extension (instead of Vulkan 1.2, where dynamic
     // rendering is core)
-    enabledDeviceExtensions_.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
-    enabledDeviceExtensions_.push_back(VK_KHR_MAINTENANCE2_EXTENSION_NAME);
-    enabledDeviceExtensions_.push_back(VK_KHR_MULTIVIEW_EXTENSION_NAME);
-    enabledDeviceExtensions_.push_back(
+    enabledDeviceExtensions.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
+    enabledDeviceExtensions.push_back(VK_KHR_MAINTENANCE2_EXTENSION_NAME);
+    enabledDeviceExtensions.push_back(VK_KHR_MULTIVIEW_EXTENSION_NAME);
+    enabledDeviceExtensions.push_back(
         VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME);
-    enabledDeviceExtensions_.push_back(
+    enabledDeviceExtensions.push_back(
         VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME);
 
     // in addition to the extension, the feature needs to be explicitly enabled
@@ -59,14 +59,14 @@ class VulkanExample : public VulkanExampleBase {
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
     enabledDynamicRenderingFeaturesKHR.dynamicRendering = VK_TRUE;
 
-    deviceCreatepNextChain_ = &enabledDynamicRenderingFeaturesKHR;
+    deviceCreatepNextChain = &enabledDynamicRenderingFeaturesKHR;
   }
 
   ~VulkanExample() {
-    if (device_) {
-      vkDestroyPipeline(device_, pipeline_, nullptr);
-      vkDestroyPipelineLayout(device_, pipelineLayout, nullptr);
-      vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
+    if (device) {
+      vkDestroyPipeline(device, pipeline_, nullptr);
+      vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+      vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
       for (auto& buffer : uniformBuffers_) {
         buffer.destroy();
       }
@@ -76,7 +76,7 @@ class VulkanExample : public VulkanExampleBase {
   void setupRenderPass() {
     // With VK_KHR_dynamic_rendering we no longer need a render pass, so skip
     // the sample base render pass setup
-    renderPass_ = VK_NULL_HANDLE;
+    renderPass = VK_NULL_HANDLE;
   }
 
   void setupFrameBuffer() {
@@ -87,8 +87,8 @@ class VulkanExample : public VulkanExampleBase {
   // Enable physical device features required for this example
   virtual void getEnabledFeatures() {
     // Enable anisotropic filtering if supported
-    if (deviceFeatures_.samplerAnisotropy) {
-      enabledFeatures_.samplerAnisotropy = VK_TRUE;
+    if (deviceFeatures.samplerAnisotropy) {
+      enabledFeatures.samplerAnisotropy = VK_TRUE;
     };
   }
 
@@ -97,21 +97,21 @@ class VulkanExample : public VulkanExampleBase {
         vkglTF::FileLoadingFlags::PreTransformVertices |
         vkglTF::FileLoadingFlags::PreMultiplyVertexColors |
         vkglTF::FileLoadingFlags::FlipY;
-    model.loadFromFile(getAssetPath() + "models/voyager.gltf", vulkanDevice_,
-                       queue_, glTFLoadingFlags);
+    model.loadFromFile(getAssetPath() + "models/voyager.gltf", vulkanDevice,
+                       queue, glTFLoadingFlags);
   }
 
   void setupDescriptors() {
     // Pool
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                              MAX_CONCURRENT_FRAMES),
+                                              maxConcurrentFrames),
     };
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(poolSizes,
-                                                    MAX_CONCURRENT_FRAMES);
-    VK_CHECK_RESULT(vkCreateDescriptorPool(device_, &descriptorPoolInfo,
-                                           nullptr, &descriptorPool_));
+                                                    maxConcurrentFrames);
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo,
+                                           nullptr, &descriptorPool));
     // Layout
     const std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
         vks::initializers::descriptorSetLayoutBinding(
@@ -119,21 +119,21 @@ class VulkanExample : public VulkanExampleBase {
     };
     VkDescriptorSetLayoutCreateInfo descriptorLayout =
         vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device_, &descriptorLayout,
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout,
                                                 nullptr, &descriptorSetLayout));
     // Sets per frame, just like the buffers themselves
     VkDescriptorSetAllocateInfo allocInfo =
-        vks::initializers::descriptorSetAllocateInfo(descriptorPool_,
+        vks::initializers::descriptorSetAllocateInfo(descriptorPool,
                                                      &descriptorSetLayout, 1);
     for (auto i = 0; i < uniformBuffers_.size(); i++) {
       VK_CHECK_RESULT(
-          vkAllocateDescriptorSets(device_, &allocInfo, &descriptorSets_[i]));
+          vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets_[i]));
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
           vks::initializers::writeDescriptorSet(
               descriptorSets_[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
               &uniformBuffers_[i].descriptor),
       };
-      vkUpdateDescriptorSets(device_,
+      vkUpdateDescriptorSets(device,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
     }
@@ -149,7 +149,7 @@ class VulkanExample : public VulkanExampleBase {
     };
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
         vks::initializers::pipelineLayoutCreateInfo(setLayouts.data(), 2);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo,
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo,
                                            nullptr, &pipelineLayout));
 
     // Pipeline
@@ -203,9 +203,9 @@ class VulkanExample : public VulkanExampleBase {
         VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
     pipelineRenderingCreateInfo.colorAttachmentCount = 1;
     pipelineRenderingCreateInfo.pColorAttachmentFormats =
-        &swapChain_.colorFormat_;
-    pipelineRenderingCreateInfo.depthAttachmentFormat = depthFormat_;
-    pipelineRenderingCreateInfo.stencilAttachmentFormat = depthFormat_;
+        &swapChain.colorFormat;
+    pipelineRenderingCreateInfo.depthAttachmentFormat = depthFormat;
+    pipelineRenderingCreateInfo.stencilAttachmentFormat = depthFormat;
     // Chain into the pipeline creat einfo
     pipelineCI.pNext = &pipelineRenderingCreateInfo;
 
@@ -216,13 +216,13 @@ class VulkanExample : public VulkanExampleBase {
         loadShader(getShadersPath() + "dynamicrendering/texture.frag.spv",
                    VK_SHADER_STAGE_FRAGMENT_BIT);
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-        device_, pipelineCache_, 1, &pipelineCI, nullptr, &pipeline_));
+        device, pipelineCache, 1, &pipelineCI, nullptr, &pipeline_));
   }
 
   // Prepare and initialize uniform buffer containing shader uniforms
   void prepareUniformBuffers() {
     for (auto& buffer : uniformBuffers_) {
-      VK_CHECK_RESULT(vulkanDevice_->createBuffer(
+      VK_CHECK_RESULT(vulkanDevice->createBuffer(
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -232,10 +232,10 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    uniformData_.projection = camera_.matrices_.perspective;
-    uniformData_.modelView = camera_.matrices_.view;
-    uniformData_.viewPos = camera_.viewPos_;
-    memcpy(uniformBuffers_[currentBuffer_].mapped, &uniformData_,
+    uniformData_.projection = camera.matrices.perspective;
+    uniformData_.modelView = camera.matrices.view;
+    uniformData_.viewPos = camera.viewPos;
+    memcpy(uniformBuffers_[currentBuffer].mapped, &uniformData_,
            sizeof(uniformData_));
   }
 
@@ -245,19 +245,19 @@ class VulkanExample : public VulkanExampleBase {
     // Since we use an extension, we need to expliclity load the function
     // pointers for extension related Vulkan commands
     vkCmdBeginRenderingKHR = reinterpret_cast<PFN_vkCmdBeginRenderingKHR>(
-        vkGetDeviceProcAddr(device_, "vkCmdBeginRenderingKHR"));
+        vkGetDeviceProcAddr(device, "vkCmdBeginRenderingKHR"));
     vkCmdEndRenderingKHR = reinterpret_cast<PFN_vkCmdEndRenderingKHR>(
-        vkGetDeviceProcAddr(device_, "vkCmdEndRenderingKHR"));
+        vkGetDeviceProcAddr(device, "vkCmdEndRenderingKHR"));
 
     loadAssets();
     prepareUniformBuffers();
     setupDescriptors();
     preparePipelines();
-    prepared_ = true;
+    prepared = true;
   }
 
   void buildCommandBuffer() {
-    VkCommandBuffer cmdBuffer = drawCmdBuffers_[currentBuffer_];
+    VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
 
     VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
@@ -267,14 +267,14 @@ class VulkanExample : public VulkanExampleBase {
     // take care of proper layout transitions by using barriers This set of
     // barriers prepares the color and depth images for output
     vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, swapChain_.images_[currentImageIndex_], 0,
+        cmdBuffer, swapChain.images[currentImageIndex], 0,
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
     vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, depthStencil_.image, 0,
+        cmdBuffer, depthStencil.image, 0,
         VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
         VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
@@ -289,7 +289,7 @@ class VulkanExample : public VulkanExampleBase {
     // rendering
     VkRenderingAttachmentInfoKHR colorAttachment{};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    colorAttachment.imageView = swapChain_.imageViews_[currentImageIndex_];
+    colorAttachment.imageView = swapChain.imageViews[currentImageIndex];
     colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -301,7 +301,7 @@ class VulkanExample : public VulkanExampleBase {
     VkRenderingAttachmentInfoKHR depthStencilAttachment{};
     depthStencilAttachment.sType =
         VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    depthStencilAttachment.imageView = depthStencil_.view;
+    depthStencilAttachment.imageView = depthStencil.view;
     depthStencilAttachment.imageLayout =
         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     depthStencilAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -310,7 +310,7 @@ class VulkanExample : public VulkanExampleBase {
 
     VkRenderingInfoKHR renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-    renderingInfo.renderArea = {0, 0, width_, height_};
+    renderingInfo.renderArea = {0, 0, width, height};
     renderingInfo.layerCount = 1;
     renderingInfo.colorAttachmentCount = 1;
     renderingInfo.pColorAttachments = &colorAttachment;
@@ -321,15 +321,15 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdBeginRenderingKHR(cmdBuffer, &renderingInfo);
 
     VkViewport viewport =
-        vks::initializers::viewport((float)width_, (float)height_, 0.0f, 1.0f);
+        vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
-    VkRect2D scissor = vks::initializers::rect2D(width_, height_, 0, 0);
+    VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             pipelineLayout, 0, 1,
-                            &descriptorSets_[currentBuffer_], 0, nullptr);
+                            &descriptorSets_[currentBuffer], 0, nullptr);
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
 
     model.draw(cmdBuffer, vkglTF::RenderFlags::BindImages, pipelineLayout);
@@ -342,7 +342,7 @@ class VulkanExample : public VulkanExampleBase {
     // This set of barriers prepares the color image for presentation, we don't
     // need to care for the depth image
     vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, swapChain_.images_[currentImageIndex_],
+        cmdBuffer, swapChain.images[currentImageIndex],
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
@@ -354,7 +354,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   virtual void render() {
-    if (!prepared_)
+    if (!prepared)
       return;
     VulkanExampleBase::prepareFrame();
     updateUniformBuffers();

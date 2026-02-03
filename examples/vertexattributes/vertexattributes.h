@@ -99,7 +99,7 @@ public:
 		glm::vec4 lightPos = glm::vec4(0.0f, 2.5f, 0.0f, 1.0f);
 		glm::vec4 viewPos;
 	} uniformData_;
-	std::array<vks::Buffer, MAX_CONCURRENT_FRAMES> uniformBuffers_;
+	std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers_;
 
 	struct Pipelines {
 		VkPipeline vertexAttributesInterleaved;
@@ -111,7 +111,7 @@ public:
 		VkDescriptorSetLayout matrices;
 		VkDescriptorSetLayout textures;
 	} descriptorSetLayouts_;
-	std::array<VkDescriptorSet, MAX_CONCURRENT_FRAMES> descriptorSets_{};
+	std::array<VkDescriptorSet, maxConcurrentFrames> descriptorSets_{};
 
 	struct Scene {
 		std::vector<Image> images;

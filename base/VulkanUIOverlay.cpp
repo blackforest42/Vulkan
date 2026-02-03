@@ -54,7 +54,7 @@ UIOverlay::~UIOverlay() {
 
 /** Prepare all vulkan resources required to render the UI overlay */
 void UIOverlay::prepareResources() {
-  assert(MAX_CONCURRENT_FRAMES > 0);
+  assert(maxConcurrentFrames > 0);
 
   ImGuiIO& io = ImGui::GetIO();
 
@@ -222,7 +222,7 @@ void UIOverlay::prepareResources() {
                          nullptr);
 
   // Buffers per max. frames-in-flight
-  buffers.resize(MAX_CONCURRENT_FRAMES);
+  buffers.resize(maxConcurrentFrames);
 }
 
 /** Prepare a separate pipeline for the UI overlay rendering decoupled from the
