@@ -88,7 +88,7 @@ class VulkanExample : public VulkanExampleBase {
     const uint32_t TEXTURE_HEIGHT = ktxTexture->baseHeight;
     ktxTexture_Destroy(ktxTexture);
 
-    const uint32_t n_patches{128};
+    const uint32_t n_patches{1024};
     const float patch_width = (float)TEXTURE_WIDTH / n_patches;
     const float patch_height = (float)TEXTURE_HEIGHT / n_patches;
     // We use the Vertex definition from the glTF model loader, so we can re-use
