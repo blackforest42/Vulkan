@@ -1,5 +1,5 @@
 /*
- * Vulkan Example - Wave Simulatio  *
+ * Vulkan Example - Wave Simulation  *
  *
  * This code is licensed under the MIT license (MIT)
  * (http://opensource.org/licenses/MIT)

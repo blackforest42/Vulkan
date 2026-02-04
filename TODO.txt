@@ -1,25 +1,170 @@
-Jan 28
+Feb 4
 TODO:
-    - remaining validation errors:
-        - vkmemory
-        - vkimage
-        - vkbuffer
-        - vkpipeline
-        - vkpipelinelayout
-        - vkdescriptorsetlayout
 
-    - handle resizing in fluid sim better:
-        - keep texture dimensions fixed, only change rendering dims.
+Vulkan Water Simulation Pipeline
+High-Level Architecture
+The modern Vulkan approach splits this into compute shader preprocessing followed by graphics pipeline rendering. This leverages GPU parallelism better than the legacy DirectX 9 approach shown in the code.
 
-Long term (not ordered):
-    - add fast diffuse lighting
-        - https://blog.maximeheckel.com/posts/real-time-cloudscapes-with-volumetric-raymarching/
-        float diffuse = clamp((scene(p) - scene(p + 0.3 * sunDirection)) / 0.3, 0.0, 1.0 );
-    - make smoke interactive with mouse
-	- Remove layout transition from raymarchCmd() and call it only once after texture creation
-	- Refactor DescriptorLayouts and PipelineLayouts to reuse (same layouts across most shaders)
-    - micro-randomness to smoke plume position
-    - use BFECC MacCormack advection
-        - needs three passes: forward, backward, maccormack
-    - not happy with perf. 60 fps with 5090
-        - bottleneck is in jacobi iters
+Pipeline Overview
+Phase 1: Compute Shader Wave Simulation
+Phase 2: Compute Shader Normal Map Generation
+Phase 3: Graphics Pipeline Rendering
+
+Detailed Pipeline
+Phase 1: Wave Position & Displacement Compute
+Purpose
+Calculate Gerstner wave displacements for the water mesh vertices.
+Resources
+
+Input Buffers:
+
+Base mesh vertex positions (storage buffer, read-only)
+Wave parameters (uniform buffer): directions, frequencies, amplitudes, phases, K values
+Time uniform
+
+
+Output Buffers:
+
+Displaced vertex positions (storage buffer, write)
+Tangent basis vectors (storage buffer, write) - Binormal, Tangent, Normal per vertex
+
+
+
+Compute Shader Dispatch
+
+Work Groups: Divide mesh vertices across compute work groups (e.g., 256 threads per group)
+Per-Thread Work: Each thread processes one vertex
+
+Load base XY position
+Loop through 4+ waves (or unroll for all waves)
+Accumulate sin/cos contributions using shared wave parameters
+Compute horizontal (X,Y) and vertical (Z) displacements
+Write final displaced position
+Compute partial derivatives for tangent space
+Write tangent basis vectors
+
+
+
+Synchronization
+
+Compute shader completion barrier before graphics pipeline reads
+
+
+Phase 2: Bump/Normal Map Generation Compute
+Purpose
+Generate high-frequency detail normal map for pixel shader sampling.
+Resources
+
+Input:
+
+Texture-space wave parameters (uniform buffer): 16+ small-scale directional waves
+Cosine lookup texture (precomputed)
+Noise texture (for randomness)
+Time uniform for animation
+
+
+Output:
+
+Normal map render target (2D image, e.g., 512x512 RGBA)
+
+
+Compute Shader Dispatch
+
+Work Groups: 2D dispatch covering normal map dimensions (e.g., 16x16 thread groups)
+Per-Thread Work: Each thread processes one texel
+
+Calculate UV coordinates from thread ID
+Evaluate multiple texture-space waves at this UV
+Sum directional cosine contributions (using LUT)
+Blend with procedural noise
+Normalize and encode normal vector into RGB
+Write to normal map
+
+
+
+Multi-Pass Consideration
+The original code uses multiple passes for accumulation. In Vulkan:
+
+Option A: Single compute pass with all waves
+Option B: Multiple dispatches with image blend operations (if you need true accumulation blending)
+
+Synchronization
+
+Image memory barrier: transition normal map from GENERAL (compute write) to SHADER_READ_ONLY_OPTIMAL (fragment shader read)
+
+
+Phase 3: Graphics Pipeline Rendering
+Vertex Shader Stage
+Input:
+
+Vertex attributes (might just be index or minimal data)
+Displaced positions from compute (via vertex buffer binding)
+Tangent basis from compute (via vertex buffer binding)
+Camera matrices (uniform)
+Wave parameters for additional calculations
+
+Responsibilities:
+
+Read pre-computed displaced position from storage buffer
+Transform to clip space (MVP matrix)
+Calculate texture coordinates for bump map sampling
+Pass tangent-space basis to fragment shader
+Calculate eye ray direction
+Compute depth-based filtering values (for LOD)
+Calculate fog factor
+
+Output to Fragment Shader:
+
+Position (clip space)
+Tangent basis matrix (3 vectors as separate varyings)
+Bump map UVs
+Eye ray direction
+Depth/distance attenuation factors
+Vertex color modulation
+
+
+Fragment Shader Stage
+Input Textures:
+
+Normal/bump map (from compute phase 2)
+Environment cube map (for reflections)
+Optional: caustics, foam, depth textures
+
+Input Varyings:
+Tangent basis matrix (for transforming normals)
+Eye ray direction
+UV coordinates
+Attenuation factors
+
+Responsibilities:
+
+Normal Perturbation:
+Sample bump/normal map
+Decode normal from RGB
+Transform from tangent space to world space using basis matrix
+Attenuate normal perturbation based on distance (fight aliasing)
+
+
+Reflection Calculation:
+Reflect eye ray across perturbed normal
+Sample environment cube map with reflected vector
+Apply Fresnel approximation (view-angle-dependent reflectivity)
+
+
+Lighting:
+Specular highlights using perturbed normal
+Distance-based attenuation
+Depth-based color tinting (water gets darker/greener deeper)
+
+
+Color Composition:
+Blend environment reflection with water tint
+Apply depth-based opacity
+Apply Fresnel effect
+Fog blending based on distance
+
+
+
+Output:
+RGBA color with alpha for blending
+

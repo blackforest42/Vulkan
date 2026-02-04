@@ -2,6 +2,20 @@
  * Vulkan Example - Smoke simulation with compute shaders and cube marching
  *
  *
+Long term TODO (not ordered):
+    - add fast diffuse lighting for smoke plumes:
+https://blog.maximeheckel.com/posts/real-time-cloudscapes-with-volumetric-raymarching/
+    - make smoke interactive with mouse
+    - Remove layout transition from raymarchCmd() and call it only once after
+texture creation
+        - Refactor DescriptorLayouts and PipelineLayouts to reuse (same layouts
+across most shaders)
+    - micro-randomness to smoke plume position
+    - use BFECC MacCormack advection
+        - needs three passes: forward, backward, maccormack
+    - not happy with perf. 60 fps with 5090
+        - bottleneck is in jacobi iters
+ *
  * This code is licensed under the MIT license (MIT)
  * (http://opensource.org/licenses/MIT)
  */
@@ -1476,10 +1490,10 @@ class VulkanExample : public VulkanExampleBase {
   void divergenceCmd(const VkCommandBuffer& cmdBuffer) const {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines_.divergence);
-    vkCmdBindDescriptorSets(
-        cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-        compute_.pipelineLayouts_.divergence, 0, 1,
-        &compute_.descriptorSets_[currentBuffer].divergence, 0, nullptr);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            compute_.pipelineLayouts_.divergence, 0, 1,
+                            &compute_.descriptorSets_[currentBuffer].divergence,
+                            0, nullptr);
     cmdBeginLabel(cmdBuffer, "Divergence", {0, .7f, 0.7f, 1});
     vkCmdDispatch(cmdBuffer,
                   compute_.write_textures[0].width /
@@ -1618,8 +1632,8 @@ class VulkanExample : public VulkanExampleBase {
     // Needed if using VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT in
     // descriptor bindings
     descriptorPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
-    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo,
-                                           nullptr, &descriptorPool));
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr,
+                                           &descriptorPool));
   }
 
   void prepareCompute() {
@@ -2400,8 +2414,7 @@ class VulkanExample : public VulkanExampleBase {
     for (auto& fence : compute_.fences) {
       VkFenceCreateInfo fenceCreateInfo =
           vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
-      VK_CHECK_RESULT(
-          vkCreateFence(device, &fenceCreateInfo, nullptr, &fence));
+      VK_CHECK_RESULT(vkCreateFence(device, &fenceCreateInfo, nullptr, &fence));
     }
 
     // Semaphores to order compute and graphics submissions
@@ -2604,8 +2617,8 @@ class VulkanExample : public VulkanExampleBase {
                               nullptr);
       vkDestroyPipelineLayout(device, compute_.pipelineLayouts_.vorticity,
                               nullptr);
-      vkDestroyPipelineLayout(
-          device, compute_.pipelineLayouts_.vortConfinement, nullptr);
+      vkDestroyPipelineLayout(device, compute_.pipelineLayouts_.vortConfinement,
+                              nullptr);
       vkDestroyPipelineLayout(device, compute_.pipelineLayouts_.divergence,
                               nullptr);
       vkDestroyPipelineLayout(device, compute_.pipelineLayouts_.jacobi,
