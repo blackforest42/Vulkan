@@ -186,8 +186,8 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(poolSizes,
                                                     maxConcurrentFrames * 2);
-    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo,
-                                           nullptr, &descriptorPool));
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr,
+                                           &descriptorPool));
 
     // Layouts
     VkDescriptorSetLayoutCreateInfo descriptorLayout;
@@ -311,7 +311,7 @@ class VulkanExample : public VulkanExampleBase {
         VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
     VkPipelineDynamicStateCreateInfo dynamicState =
         vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
-    std::array<VkPipelineShaderStageCreateInfo, 4> shaderStages;
+    std::array<VkPipelineShaderStageCreateInfo, 4> shaderStages{};
 
     // Tessellation stage input is a patch of quads
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
@@ -409,9 +409,9 @@ class VulkanExample : public VulkanExampleBase {
       // Skybox vertex shader uniform buffer
       VK_CHECK_RESULT(
           vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                      &buffer.skybox, sizeof(ubos_.skyBox)));
+                                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                     &buffer.skybox, sizeof(ubos_.skyBox)));
       VK_CHECK_RESULT(buffer.skybox.map());
     }
   }
@@ -520,9 +520,9 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
     // Skybox
-    vkCmdBindDescriptorSets(
-        cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts_.skyBox, 0,
-        1, &descriptorSets_[currentBuffer].skyBox, 0, nullptr);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            pipelineLayouts_.skyBox, 0, 1,
+                            &descriptorSets_[currentBuffer].skyBox, 0, nullptr);
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       pipelines_.skyBox);
     models_.skyBox.draw(cmdBuffer);
@@ -588,8 +588,7 @@ class VulkanExample : public VulkanExampleBase {
   VulkanExample() : VulkanExampleBase() {
     title = "Dynamic terrain tessellation 2";
     camera.type_ = Camera::CameraType::firstperson;
-    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f,
-                           1024.0f);
+    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 1024.0f);
     camera.setTranslation(glm::vec3(18.0f, 64.5f, 57.5f));
     camera.movementSpeed = 100.0f;
 

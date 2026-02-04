@@ -53,7 +53,7 @@ for root, dirs, files in os.walk(dir_path):
             input_file = os.path.join(root, file)
             output_file = input_file + ".spv"
 
-            add_params = ""
+            add_params = "-g"
             if args.g:
                 add_params = "-g"
 
