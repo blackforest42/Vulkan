@@ -16,6 +16,8 @@
 #include "frustum.hpp"
 #include "vulkanexamplebase.h"
 
+constexpr uint32_t COMPUTE_TEXTURE_DIMENSION = 256;
+
 // Vertex structure with position and texture coordinates
 struct WaterVertex {
   glm::vec3 position;  // x, y, z
@@ -167,7 +169,7 @@ class WaveGenerator {
   }
 
   void generateWaves(WaveParams& params) {
-    const float bumpTexSize = 256.0f;  // Original: kBumpTexSize
+    const float bumpTexSize = 1.f * COMPUTE_TEXTURE_DIMENSION;
 
     for (int i = 0; i < NUM_WAVES; ++i) {
       // Calculate which vec4 and component this wave belongs to
@@ -326,10 +328,87 @@ class VulkanExample : public VulkanExampleBase {
 
   // Command to enable dynamic states during rendering
   PFN_vkCmdSetPolygonModeEXT vkCmdSetPolygonModeEXT{VK_NULL_HANDLE};
- struct Compute {
+
+  // Handles all compute pipelines
+  struct Compute {
+    static constexpr int WORKGROUP_SIZE = 16;
+
+    // Used to check if compute and graphics queue
+    // families differ and require additional barriers
+    uint32_t queueFamilyIndex{0};
+    // Separate queue for compute commands (queue family may
+    // differ from the one used for graphics)
+    VkQueue queue{};
+    // Use a separate command pool (queue family may
+    // differ from the one used for graphics)
+    VkCommandPool commandPool{};
+    // Command buffer storing the dispatch commands and
+    // barriers
+    std::array<VkCommandBuffer, maxConcurrentFrames> commandBuffers{};
+    // Fences to make sure command buffers are done
+    std::array<VkFence, maxConcurrentFrames> fences{};
+
+    // Semaphores for submission ordering
+    struct ComputeSemaphores {
+      VkSemaphore ready{VK_NULL_HANDLE};
+      VkSemaphore complete{VK_NULL_HANDLE};
+    };
+    std::array<ComputeSemaphores, maxConcurrentFrames> semaphores{};
+
+    // Contains all Vulkan objects that are required to store and use a 3D
+    // texture
+    struct Texture3D {
+      VkSampler sampler = VK_NULL_HANDLE;
+      VkImage image = VK_NULL_HANDLE;
+      VkImageLayout imageLayout{};
+      VkDeviceMemory deviceMemory = VK_NULL_HANDLE;
+      VkImageView view = VK_NULL_HANDLE;
+      VkDescriptorImageInfo descriptor{};
+      VkFormat format{};
+      uint32_t width{0};
+      uint32_t height{0};
+      uint32_t depth{0};
+      uint32_t mipLevels{0};
+    };
+
+    struct {
+      WaveParams compose;
+    } ubos_;
+
+    struct UniformBuffers {
+      vks::Buffer compose;
+    };
+    std::array<UniformBuffers, maxConcurrentFrames> uniformBuffers_;
+
+    // Buffers
+    std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers;
+
+    // Pipelines
+    struct {
+      VkPipeline compose;
+    } pipelines_{};
+
+    // Pipeline Layout
+    struct {
+      VkPipelineLayout compose{VK_NULL_HANDLE};
+    } pipelineLayouts_;
+
+    // Descriptor Layout
+    struct {
+      VkDescriptorSetLayout compose{VK_NULL_HANDLE};
+    } descriptorSetLayouts_;
+
+    // Descriptor Sets
+    struct DescriptorSets {
+      VkDescriptorSet compose{VK_NULL_HANDLE};
+    };
+    std::array<DescriptorSets, maxConcurrentFrames> descriptorSets_{};
   } compute_;
 
+  // Handles graphics rendering pipelines
   struct Graphics {
+    // families differ and require additional barriers
+    uint32_t queueFamilyIndex{0};
     uint32_t GRID_SIZE = 32;
     uint32_t PATCH_COUNT = GRID_SIZE * GRID_SIZE;
     float GRID_SCALE = 1000.0f;
@@ -392,19 +471,6 @@ class VulkanExample : public VulkanExampleBase {
   } graphics_;
 
   void setupDescriptors() {
-    // Pool
-    std::vector<VkDescriptorPoolSize> poolSizes = {
-        vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                              maxConcurrentFrames * 2),
-        vks::initializers::descriptorPoolSize(
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            maxConcurrentFrames * 1)};
-    VkDescriptorPoolCreateInfo descriptorPoolInfo =
-        vks::initializers::descriptorPoolCreateInfo(poolSizes,
-                                                    maxConcurrentFrames * 2);
-    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr,
-                                           &descriptorPool));
-
     // Layouts
     VkDescriptorSetLayoutCreateInfo descriptorLayout;
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
@@ -706,8 +772,35 @@ class VulkanExample : public VulkanExampleBase {
     vkFreeMemory(device, indexStaging.memory, nullptr);
   }
 
-  void prepare() override {
-    VulkanExampleBase::prepare();
+  void prepareDescriptorPool() {
+    // Pool
+    std::vector<VkDescriptorPoolSize> poolSizes = {
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            /*total ubo count */ (/*graphics*/ 2 + /*compute*/ 1) *
+                maxConcurrentFrames),
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            /*total texture count (across all pipelines) */ (
+                /*graphics*/ 1 + /*compute textures*/ 0) *
+                maxConcurrentFrames),
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            static_cast<uint32_t>(1) * maxConcurrentFrames)};
+
+    VkDescriptorPoolCreateInfo descriptorPoolInfo =
+        vks::initializers::descriptorPoolCreateInfo(
+            poolSizes,
+            /*total descriptor count*/ (/*graphics*/ 2 + /*compute*/ 1) *
+                maxConcurrentFrames);
+    // Needed if using VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT in
+    // descriptor bindings
+    descriptorPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr,
+                                           &descriptorPool));
+  };
+
+  void prepareGraphics() {
     vkCmdSetPolygonModeEXT = reinterpret_cast<PFN_vkCmdSetPolygonModeEXT>(
         vkGetDeviceProcAddr(device, "vkCmdSetPolygonModeEXT"));
     loadAssets();
@@ -715,6 +808,70 @@ class VulkanExample : public VulkanExampleBase {
     prepareUniformBuffers();
     setupDescriptors();
     preparePipelines();
+  }
+
+  void prepareComputeTextures() {}
+
+  void prepareComputeUniformBuffers() {}
+
+  void prepareComputeDescriptors() {}
+
+  void prepareComputePipelines() {}
+
+  void prepareCompute() {
+    prepareComputeTextures();
+    prepareComputeUniformBuffers();
+    prepareComputeDescriptors();
+    prepareComputePipelines();
+    // prepareComputeCommandPoolBuffersFencesAndSemaphores();
+  }
+
+  void prepareComputeCommandPoolBuffersFencesAndSemaphores() {
+    // Separate command pool as queue family for compute may be different than
+    // graphics
+    VkCommandPoolCreateInfo cmdPoolInfo =
+        vks::initializers::commandPoolCreateInfo();
+    cmdPoolInfo.queueFamilyIndex = compute_.queueFamilyIndex;
+    cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    VK_CHECK_RESULT(vkCreateCommandPool(device, &cmdPoolInfo, nullptr,
+                                        &compute_.commandPool));
+
+    // Create command buffers for compute operations
+    for (auto& cmdBuffer : compute_.commandBuffers) {
+      cmdBuffer = vulkanDevice->createCommandBuffer(
+          VK_COMMAND_BUFFER_LEVEL_PRIMARY, compute_.commandPool);
+    }
+
+    // Fences to check for command buffer completion
+    for (auto& fence : compute_.fences) {
+      VkFenceCreateInfo fenceCreateInfo =
+          vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
+      VK_CHECK_RESULT(vkCreateFence(device, &fenceCreateInfo, nullptr, &fence));
+    }
+
+    // Semaphores to order compute and graphics submissions
+    for (auto& [ready, complete] : compute_.semaphores) {
+      VkSemaphoreCreateInfo semaphoreInfo{
+          .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+      vkCreateSemaphore(device, &semaphoreInfo, nullptr, &ready);
+      vkCreateSemaphore(device, &semaphoreInfo, nullptr, &complete);
+    }
+    // Signal first used ready semaphore
+    VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
+    computeSubmitInfo.signalSemaphoreCount = 1;
+    computeSubmitInfo.pSignalSemaphores =
+        &compute_.semaphores[maxConcurrentFrames - 1].ready;
+    VK_CHECK_RESULT(
+        vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo, VK_NULL_HANDLE));
+  }
+
+  void prepare() override {
+    VulkanExampleBase::prepare();
+    graphics_.queueFamilyIndex = vulkanDevice->queueFamilyIndices.graphics;
+    compute_.queueFamilyIndex = vulkanDevice->queueFamilyIndices.compute;
+    prepareDescriptorPool();
+    prepareCompute();
+    prepareGraphics();
     prepared = true;
   }
 
