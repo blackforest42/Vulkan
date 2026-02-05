@@ -1057,7 +1057,7 @@ class VulkanExample : public VulkanExampleBase {
     prepareComputeUniformBuffers();
     prepareComputeDescriptors();
     prepareComputePipelines();
-    // prepareComputeCommandPoolBuffersFencesAndSemaphores();
+    prepareComputeCommandPoolBuffersFencesAndSemaphores();
   }
 
   void prepareComputeCommandPoolBuffersFencesAndSemaphores() {
@@ -1118,6 +1118,31 @@ class VulkanExample : public VulkanExampleBase {
   void setupFrameBuffer() override {
     // With VK_KHR_dynamic_rendering we no longer need a frame buffer
     // LEAVE THIS EMPTY
+  }
+
+  void buildComputeCommandBuffer() {
+    const VkCommandBuffer cmdBuffer = compute_.commandBuffers[currentBuffer];
+
+    const VkCommandBufferBeginInfo cmdBufInfo =
+        vks::initializers::commandBufferBeginInfo();
+
+    VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
+    composeCmd(cmdBuffer);
+    VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
+  }
+  void composeCmd(const VkCommandBuffer& cmdBuffer) {
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      compute_.pipelines.compose);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            compute_.pipeline_layouts.compose, 0, 1,
+                            &compute_.descriptor_sets[currentBuffer].compose, 0,
+                            nullptr);
+    vkCmdDispatch(
+        cmdBuffer,
+        compute_.wave_normal_map.width / VulkanExample::Compute::WORKGROUP_SIZE,
+        compute_.wave_normal_map.height /
+            VulkanExample::Compute::WORKGROUP_SIZE,
+        1);
   }
 
   void buildCommandBuffer() {
@@ -1227,10 +1252,31 @@ class VulkanExample : public VulkanExampleBase {
     if (!prepared) {
       return;
     }
-    VulkanExampleBase::prepareFrame();
-    updateUniformBuffers();
-    buildCommandBuffer();
-    VulkanExampleBase::submitFrame();
+    {
+      // Compute
+      // Use a fence to ensure that compute command buffer has finished
+      // executing before using it again
+      // VK_CHECK_RESULT(vkWaitForFences(
+      //     device, 1, &compute_.fences[currentBuffer], VK_TRUE, UINT64_MAX));
+      // VK_CHECK_RESULT(
+      //     vkResetFences(device, 1, &compute_.fences[currentBuffer]));
+      //
+      // buildComputeCommandBuffer();
+      //
+      // VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
+      // computeSubmitInfo.commandBufferCount = 1;
+      // computeSubmitInfo.pCommandBuffers =
+      //     &compute_.commandBuffers[currentBuffer];
+      // VK_CHECK_RESULT(vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo,
+      //                               compute_.fences[currentBuffer]));
+    }
+    {
+      // Graphics
+      VulkanExampleBase::prepareFrame();
+      updateUniformBuffers();
+      buildCommandBuffer();
+      VulkanExampleBase::submitFrame();
+    }
   }
 
   void OnUpdateUIOverlay(vks::UIOverlay* overlay) override {
@@ -1336,6 +1382,15 @@ class VulkanExample : public VulkanExampleBase {
       vkDestroyImage(device, compute_.wave_normal_map.image, nullptr);
       vkDestroySampler(device, compute_.wave_normal_map.sampler, nullptr);
       vkFreeMemory(device, compute_.wave_normal_map.deviceMemory, nullptr);
+
+      vkDestroyCommandPool(device, compute_.commandPool, nullptr);
+      for (const auto& fence : compute_.fences) {
+        vkDestroyFence(device, fence, nullptr);
+      }
+      for (auto& [ready, complete] : compute_.semaphores) {
+        vkDestroySemaphore(device, ready, nullptr);
+        vkDestroySemaphore(device, complete, nullptr);
+      }
     }
   }
 };
