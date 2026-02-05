@@ -136,40 +136,6 @@ class WaveGenerator {
   std::mt19937 rng;
   std::uniform_real_distribution<float> dist;
 
- public:
-  WaveGenerator() : rng(std::random_device{}()), dist(-1.0f, 1.0f) {}
-
-  float randomMinusOneToOne() { return dist(rng); }
-
-  float randomZeroToOne() { return (dist(rng) + 1.0f) * 0.5f; }
-
-  // Initialize wave parameters with physically-based values
-  WaveParams initializeWaveParams() {
-    WaveParams params{};
-
-    // Global configuration (matching original code's InitTexState)
-    params.time = 0.0f;
-    params.chopiness = 1.0f;      // Original: m_TexState.m_Chop
-    params.noiseStrength = 0.2f;  // Original: m_TexState.m_Noise
-    params.rippleScale = 25.0f;   // Original: m_TexState.m_RippleScale
-
-    // Wind parameters
-    params.windDirection = glm::vec2(0.0f, 1.0f);  // North
-    params.angleDeviation = 15.0f;  // Original: m_TexState.m_AngleDeviation
-    params.speedDeviation = 0.1f;   // Original: m_TexState.m_SpeedDeviation
-
-    // Physical parameters
-    params.gravity = 30.0f;             // Original: kGravConst
-    params.minWavelength = 1.0f;        // Original: m_TexState.m_MinLength
-    params.maxWavelength = 10.0f;       // Original: m_TexState.m_MaxLength
-    params.amplitudeOverLength = 0.1f;  // Original: m_TexState.m_AmpOverLen
-
-    // Generate individual waves
-    generateWaves(params);
-
-    return params;
-  }
-
   void generateWaves(WaveParams& params) {
     const float bumpTexSize = 1.f * COMPUTE_TEXTURE_DIMENSION;
 
@@ -232,6 +198,40 @@ class WaveGenerator {
       // Speed = ω/k = √(g/(2π/λ)) = √(gλ/(2π))
       // This is handled in update function
     }
+  }
+
+ public:
+  WaveGenerator() : rng(std::random_device{}()), dist(-1.0f, 1.0f) {}
+
+  float randomMinusOneToOne() { return dist(rng); }
+
+  float randomZeroToOne() { return (dist(rng) + 1.0f) * 0.5f; }
+
+  // Initialize wave parameters with physically-based values
+  WaveParams initializeWaveParams() {
+    WaveParams params{};
+
+    // Global configuration (matching original code's InitTexState)
+    params.time = 0.0f;
+    params.chopiness = 1.0f;      // Original: m_TexState.m_Chop
+    params.noiseStrength = 0.2f;  // Original: m_TexState.m_Noise
+    params.rippleScale = 25.0f;   // Original: m_TexState.m_RippleScale
+
+    // Wind parameters
+    params.windDirection = glm::vec2(0.0f, 1.0f);  // North
+    params.angleDeviation = 15.0f;  // Original: m_TexState.m_AngleDeviation
+    params.speedDeviation = 0.1f;   // Original: m_TexState.m_SpeedDeviation
+
+    // Physical parameters
+    params.gravity = 30.0f;             // Original: kGravConst
+    params.minWavelength = 1.0f;        // Original: m_TexState.m_MinLength
+    params.maxWavelength = 10.0f;       // Original: m_TexState.m_MaxLength
+    params.amplitudeOverLength = 0.1f;  // Original: m_TexState.m_AmpOverLen
+
+    // Generate individual waves
+    generateWaves(params);
+
+    return params;
   }
 
   // Update wave parameters each frame
@@ -334,6 +334,7 @@ class VulkanExample : public VulkanExampleBase {
   // Handles all compute pipelines
   struct Compute {
     static constexpr int WORKGROUP_SIZE = 16;
+    static constexpr float TIME_DELTA = 0.5f;
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
@@ -357,8 +358,7 @@ class VulkanExample : public VulkanExampleBase {
     };
     std::array<ComputeSemaphores, maxConcurrentFrames> semaphores{};
 
-    // Contains all Vulkan objects that are required to store and use a 2D
-    // texture
+    // Contains all Vulkan objects that are required to store and use a 2D tex
     struct Texture2D {
       VkSampler sampler = VK_NULL_HANDLE;
       VkImage image = VK_NULL_HANDLE;
@@ -406,6 +406,9 @@ class VulkanExample : public VulkanExampleBase {
       VkDescriptorSet compose{VK_NULL_HANDLE};
     };
     std::array<DescriptorSets, maxConcurrentFrames> descriptor_sets{};
+
+    WaveGenerator wave_generator;
+
   } compute_;
 
   // Handles graphics rendering pipelines
@@ -714,6 +717,12 @@ class VulkanExample : public VulkanExampleBase {
     graphics_.ubos.wave.view = camera.matrices.view;
     memcpy(graphics_.uniform_buffers[currentBuffer].wave.mapped,
            &graphics_.ubos.wave, sizeof(Graphics::WaveUBO));
+
+    // Compute: Compose
+    compute_.wave_generator.updateWaveParams(compute_.ubos.compose,
+                                             compute_.TIME_DELTA);
+    memcpy(compute_.uniform_buffers[currentBuffer].compose.mapped,
+           &compute_.ubos.compose, sizeof(WaveParams));
   }
 
   void setupWaterMesh() {
@@ -1058,6 +1067,11 @@ class VulkanExample : public VulkanExampleBase {
     prepareComputeDescriptors();
     prepareComputePipelines();
     prepareComputeCommandPoolBuffersFencesAndSemaphores();
+    prepareInitialWaveState();
+  }
+
+  void prepareInitialWaveState() {
+    compute_.ubos.compose = compute_.wave_generator.initializeWaveParams();
   }
 
   void prepareComputeCommandPoolBuffersFencesAndSemaphores() {
