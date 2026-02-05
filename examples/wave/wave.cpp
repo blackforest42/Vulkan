@@ -152,50 +152,52 @@ class VulkanExample : public VulkanExampleBase {
   VkPhysicalDeviceVulkan13Features enabledFeatures13_{
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
 
-  // Holds the buffers for rendering
-  struct {
-    vks::Buffer vertexBuffer;
-    vks::Buffer indexBuffer;
-    uint32_t indexCount{};
-  } waveMeshBuffers;
+  struct Graphics {
+    // Holds the buffers for rendering
+    struct {
+      vks::Buffer vertex_buffer;
+      vks::Buffer index_buffer;
+      uint32_t indexCount{};
+    } wave_mesh_buffers;
 
-  struct {
-    vkglTF::Model skyBox{};
-  } models_;
+    struct {
+      vkglTF::Model sky_box{};
+    } models;
 
-  struct {
-    vks::TextureCubeMap cubeMap{};
-  } textures_;
+    struct {
+      vks::TextureCubeMap cube_map{};
+    } textures;
 
-  struct ModelViewPerspectiveUBO {
-    glm::mat4 perspective;
-    glm::mat4 view;
-  };
-  struct {
-    ModelViewPerspectiveUBO skyBox;
-  } ubos_;
+    struct ModelViewPerspectiveUBO {
+      glm::mat4 perspective;
+      glm::mat4 view;
+    };
+    struct {
+      ModelViewPerspectiveUBO sky_box;
+    } ubos;
 
-  struct UniformBuffers {
-    vks::Buffer skybox;
-  };
-  std::array<UniformBuffers, maxConcurrentFrames> uniformBuffers_;
+    struct UniformBuffers {
+      vks::Buffer sky_box;
+    };
+    std::array<UniformBuffers, maxConcurrentFrames> uniform_buffers;
 
-  struct Pipelines {
-    VkPipeline skyBox{VK_NULL_HANDLE};
-  } pipelines_;
+    struct Pipelines {
+      VkPipeline sky_box{VK_NULL_HANDLE};
+    } pipelines;
 
-  struct {
-    VkDescriptorSetLayout skyBox{VK_NULL_HANDLE};
-  } descriptorSetLayouts_;
+    struct {
+      VkDescriptorSetLayout sky_box{VK_NULL_HANDLE};
+    } descriptor_set_layouts;
 
-  struct {
-    VkPipelineLayout skyBox{VK_NULL_HANDLE};
-  } pipelineLayouts_;
+    struct {
+      VkPipelineLayout sky_box{VK_NULL_HANDLE};
+    } pipeline_layouts;
 
-  struct DescriptorSets {
-    VkDescriptorSet skyBox{VK_NULL_HANDLE};
-  };
-  std::array<DescriptorSets, maxConcurrentFrames> descriptorSets_;
+    struct DescriptorSets {
+      VkDescriptorSet sky_box{VK_NULL_HANDLE};
+    };
+    std::array<DescriptorSets, maxConcurrentFrames> descriptor_sets;
+  } graphics_;
 
   void setupDescriptors() {
     // Pool
@@ -229,24 +231,26 @@ class VulkanExample : public VulkanExampleBase {
     descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
         setLayoutBindings.data(),
         static_cast<uint32_t>(setLayoutBindings.size()));
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
-        device, &descriptorLayout, nullptr, &descriptorSetLayouts_.skyBox));
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr,
+                                    &graphics_.descriptor_set_layouts.sky_box));
 
-    for (auto i = 0; i < uniformBuffers_.size(); i++) {
+    for (auto i = 0; i < graphics_.uniform_buffers.size(); i++) {
       // Skybox
       VkDescriptorSetAllocateInfo allocInfo =
           vks::initializers::descriptorSetAllocateInfo(
-              descriptorPool, &descriptorSetLayouts_.skyBox, 1);
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo,
-                                               &descriptorSets_[i].skyBox));
+              descriptorPool, &graphics_.descriptor_set_layouts.sky_box, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device, &allocInfo, &graphics_.descriptor_sets[i].sky_box));
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
           vks::initializers::writeDescriptorSet(
-              descriptorSets_[i].skyBox, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
-              &uniformBuffers_[i].skybox.descriptor),
+              graphics_.descriptor_sets[i].sky_box,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
+              &graphics_.uniform_buffers[i].sky_box.descriptor),
           vks::initializers::writeDescriptorSet(
-              descriptorSets_[i].skyBox,
+              graphics_.descriptor_sets[i].sky_box,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1,
-              &textures_.cubeMap.descriptor),
+              &graphics_.textures.cube_map.descriptor),
       };
       vkUpdateDescriptorSets(device,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -260,9 +264,10 @@ class VulkanExample : public VulkanExampleBase {
 
     // Skybox
     pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
-        &descriptorSetLayouts_.skyBox, 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo,
-                                           nullptr, &pipelineLayouts_.skyBox));
+        &graphics_.descriptor_set_layouts.sky_box, 1);
+    VK_CHECK_RESULT(
+        vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr,
+                               &graphics_.pipeline_layouts.sky_box));
 
     // Pipeline
     VkPipelineRasterizationStateCreateInfo rasterizationState =
@@ -294,7 +299,7 @@ class VulkanExample : public VulkanExampleBase {
 
     VkGraphicsPipelineCreateInfo pipelineCI =
         vks::initializers::pipelineCreateInfo();
-    pipelineCI.layout = pipelineLayouts_.skyBox;
+    pipelineCI.layout = graphics_.pipeline_layouts.sky_box;
     pipelineCI.pInputAssemblyState = &inputAssemblyState;
     pipelineCI.pRasterizationState = &rasterizationState;
     pipelineCI.pColorBlendState = &colorBlendState;
@@ -333,28 +338,29 @@ class VulkanExample : public VulkanExampleBase {
                                  VK_SHADER_STAGE_VERTEX_BIT);
     shaderStages[1] = loadShader(getShadersPath() + "wave/skybox.frag.spv",
                                  VK_SHADER_STAGE_FRAGMENT_BIT);
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-        device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines_.skyBox));
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1,
+                                              &pipelineCI, nullptr,
+                                              &graphics_.pipelines.sky_box));
   }
 
   // Prepare and initialize uniform buffer containing shader uniforms
   void prepareUniformBuffers() {
-    for (auto& buffer : uniformBuffers_) {
+    for (auto& buffer : graphics_.uniform_buffers) {
       // Skybox vertex shader uniform buffer
-      VK_CHECK_RESULT(
-          vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                     &buffer.skybox, sizeof(ubos_.skyBox)));
-      VK_CHECK_RESULT(buffer.skybox.map());
+      VK_CHECK_RESULT(vulkanDevice->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.sky_box, sizeof(graphics_.ubos.sky_box)));
+      VK_CHECK_RESULT(buffer.sky_box.map());
     }
   }
 
   void updateUniformBuffers() {
-    ubos_.skyBox.perspective = camera.matrices.perspective;
-    ubos_.skyBox.view = glm::mat4(glm::mat3(camera.matrices.view));
-    memcpy(uniformBuffers_[currentBuffer].skybox.mapped, &ubos_.skyBox,
-           sizeof(ModelViewPerspectiveUBO));
+    graphics_.ubos.sky_box.perspective = camera.matrices.perspective;
+    graphics_.ubos.sky_box.view = glm::mat4(glm::mat3(camera.matrices.view));
+    memcpy(graphics_.uniform_buffers[currentBuffer].sky_box.mapped,
+           &graphics_.ubos.sky_box, sizeof(Graphics::ModelViewPerspectiveUBO));
   }
 
   void setupWaterMesh() {
@@ -363,8 +369,9 @@ class VulkanExample : public VulkanExampleBase {
     waterMesh.generatePatchGrid(16, 100.0f);  // 16x16 patches
 
     // 2. Create Vulkan buffers
-    uint32_t vertexBufferSize = waterMesh.vertices.size() * sizeof(WaterVertex);
-    uint32_t indexBufferSize = waterMesh.indices.size() * sizeof(uint32_t);
+    uint32_t vertex_bufferSize =
+        waterMesh.vertices.size() * sizeof(WaterVertex);
+    uint32_t index_bufferSize = waterMesh.indices.size() * sizeof(uint32_t);
     vks::Buffer vertexStaging, indexStaging;
 
     // 3. Store for rendering
@@ -372,23 +379,23 @@ class VulkanExample : public VulkanExampleBase {
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        &vertexStaging, vertexBufferSize, waterMesh.vertices.data()));
+        &vertexStaging, vertex_bufferSize, waterMesh.vertices.data()));
 
     VK_CHECK_RESULT(vulkanDevice->createBuffer(
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        &indexStaging, indexBufferSize, waterMesh.indices.data()));
+        &indexStaging, index_bufferSize, waterMesh.indices.data()));
 
     VK_CHECK_RESULT(vulkanDevice->createBuffer(
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &waveMeshBuffers.vertexBuffer,
-        vertexBufferSize));
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        &graphics_.wave_mesh_buffers.vertex_buffer, vertex_bufferSize));
 
     VK_CHECK_RESULT(vulkanDevice->createBuffer(
         VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &waveMeshBuffers.indexBuffer,
-        indexBufferSize));
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        &graphics_.wave_mesh_buffers.index_buffer, index_bufferSize));
 
     // Copy from staging buffers
     VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(
@@ -396,13 +403,15 @@ class VulkanExample : public VulkanExampleBase {
 
     VkBufferCopy copyRegion = {};
 
-    copyRegion.size = vertexBufferSize;
+    copyRegion.size = vertex_bufferSize;
     vkCmdCopyBuffer(copyCmd, vertexStaging.buffer,
-                    waveMeshBuffers.vertexBuffer.buffer, 1, &copyRegion);
+                    graphics_.wave_mesh_buffers.vertex_buffer.buffer, 1,
+                    &copyRegion);
 
-    copyRegion.size = indexBufferSize;
+    copyRegion.size = index_bufferSize;
     vkCmdCopyBuffer(copyCmd, indexStaging.buffer,
-                    waveMeshBuffers.indexBuffer.buffer, 1, &copyRegion);
+                    graphics_.wave_mesh_buffers.index_buffer.buffer, 1,
+                    &copyRegion);
 
     vulkanDevice->flushCommandBuffer(copyCmd, queue, true);
 
@@ -502,11 +511,12 @@ class VulkanExample : public VulkanExampleBase {
 
     // Skybox
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            pipelineLayouts_.skyBox, 0, 1,
-                            &descriptorSets_[currentBuffer].skyBox, 0, nullptr);
+                            graphics_.pipeline_layouts.sky_box, 0, 1,
+                            &graphics_.descriptor_sets[currentBuffer].sky_box,
+                            0, nullptr);
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      pipelines_.skyBox);
-    models_.skyBox.draw(cmdBuffer);
+                      graphics_.pipelines.sky_box);
+    graphics_.models.sky_box.draw(cmdBuffer);
 
     drawUI(cmdBuffer);
 
@@ -539,10 +549,11 @@ class VulkanExample : public VulkanExampleBase {
         vkglTF::FileLoadingFlags::PreTransformVertices |
         vkglTF::FileLoadingFlags::PreMultiplyVertexColors |
         vkglTF::FileLoadingFlags::FlipY;
-    models_.skyBox.loadFromFile(getAssetPath() + "models/cube.gltf",
-                                vulkanDevice, queue, glTFLoadingFlags);
+    graphics_.models.sky_box.loadFromFile(getAssetPath() + "models/cube.gltf",
+                                          vulkanDevice, queue,
+                                          glTFLoadingFlags);
     // Skybox textures
-    textures_.cubeMap.loadFromFile(
+    graphics_.textures.cube_map.loadFromFile(
         getExamplesBasePath() + "wave/cartoon_skybox.ktx",
         VK_FORMAT_R8G8B8A8_SRGB, vulkanDevice, queue);
   }
@@ -564,7 +575,7 @@ class VulkanExample : public VulkanExampleBase {
 
   ~VulkanExample() override {
     if (device) {
-      vkDestroyPipeline(device, pipelines_.skyBox, nullptr);
+      vkDestroyPipeline(device, graphics_.pipelines.sky_box, nullptr);
     }
   }
 };
