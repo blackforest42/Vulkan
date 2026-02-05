@@ -50,58 +50,6 @@ struct WaterMesh {
   std::vector<WaterVertex> vertices;
   std::vector<uint32_t> indices;
 
-  // Generate a grid mesh for water surface
-  // gridSize: number of quads per side (e.g., 32 = 32x32 quads)
-  // worldSize: physical size in world units
-  void generateGrid(uint32_t gridSize, float worldSize) {
-    vertices.clear();
-    indices.clear();
-
-    const uint32_t vertexCount = (gridSize + 1) * (gridSize + 1);
-    const uint32_t quadCount = gridSize * gridSize;
-
-    vertices.reserve(vertexCount);
-    indices.reserve(quadCount * 6);  // 6 indices per quad (2 triangles)
-
-    // Generate vertices
-    for (uint32_t z = 0; z <= gridSize; ++z) {
-      for (uint32_t x = 0; x <= gridSize; ++x) {
-        WaterVertex vertex{};
-
-        // Position: centered at origin, y=0 (flat plane)
-        vertex.position[0] = (float(x) / gridSize - 0.5f) * worldSize;
-        vertex.position[1] = 0.0f;  // Flat initially (waves applied in shader)
-        vertex.position[2] = (float(z) / gridSize - 0.5f) * worldSize;
-
-        // Texture coordinates: [0, 1] range
-        vertex.uv[0] = float(x) / gridSize;
-        vertex.uv[1] = float(z) / gridSize;
-
-        vertices.push_back(vertex);
-      }
-    }
-
-    // Generate indices (two triangles per quad)
-    for (uint32_t z = 0; z < gridSize; ++z) {
-      for (uint32_t x = 0; x < gridSize; ++x) {
-        uint32_t topLeft = z * (gridSize + 1) + x;
-        uint32_t topRight = topLeft + 1;
-        uint32_t bottomLeft = (z + 1) * (gridSize + 1) + x;
-        uint32_t bottomRight = bottomLeft + 1;
-
-        // First triangle (top-left, bottom-left, top-right)
-        indices.push_back(topLeft);
-        indices.push_back(bottomLeft);
-        indices.push_back(topRight);
-
-        // Second triangle (top-right, bottom-left, bottom-right)
-        indices.push_back(topRight);
-        indices.push_back(bottomLeft);
-        indices.push_back(bottomRight);
-      }
-    }
-  }
-
   // Alternative: Generate patch list for tessellation (4 vertices per patch)
   void generatePatchGrid(uint32_t gridSize, float worldSize) {
     vertices.clear();
@@ -164,7 +112,7 @@ class VulkanExample : public VulkanExampleBase {
     struct {
       vks::Buffer vertex_buffer;
       vks::Buffer index_buffer;
-      uint32_t indexCount{};
+      uint32_t index_count{};
     } wave_mesh_buffers;
 
     struct {
@@ -345,8 +293,7 @@ class VulkanExample : public VulkanExampleBase {
             VK_SAMPLE_COUNT_1_BIT, 0);
     std::vector<VkDynamicState> dynamicStateEnables = {
         VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR,
-        VK_DYNAMIC_STATE_POLYGON_MODE_EXT,
-        VK_DYNAMIC_STATE_LINE_RASTERIZATION_MODE_EXT};
+        VK_DYNAMIC_STATE_POLYGON_MODE_EXT};
     VkPipelineDynamicStateCreateInfo dynamicState =
         vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
     std::array<VkPipelineShaderStageCreateInfo, 4> shaderStages{};
@@ -462,10 +409,17 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
+    // Skybox
     graphics_.ubos.sky_box.perspective = camera.matrices.perspective;
     graphics_.ubos.sky_box.view = glm::mat4(glm::mat3(camera.matrices.view));
     memcpy(graphics_.uniform_buffers[currentBuffer].sky_box.mapped,
            &graphics_.ubos.sky_box, sizeof(Graphics::ModelViewPerspectiveUBO));
+
+    // Wave
+    graphics_.ubos.wave.perspective = camera.matrices.perspective;
+    graphics_.ubos.wave.view = camera.matrices.view;
+    memcpy(graphics_.uniform_buffers[currentBuffer].wave.mapped,
+           &graphics_.ubos.wave, sizeof(Graphics::WaveUBO));
   }
 
   void setupWaterMesh() {
@@ -474,9 +428,10 @@ class VulkanExample : public VulkanExampleBase {
     waterMesh.generatePatchGrid(16, 100.0f);  // 16x16 patches
 
     // 2. Create Vulkan buffers
-    uint32_t vertex_bufferSize =
+    graphics_.wave_mesh_buffers.index_count = waterMesh.indices.size();
+    uint32_t vertex_buffer_size =
         waterMesh.vertices.size() * sizeof(WaterVertex);
-    uint32_t index_bufferSize = waterMesh.indices.size() * sizeof(uint32_t);
+    uint32_t index_buffer_size = waterMesh.indices.size() * sizeof(uint32_t);
     vks::Buffer vertexStaging, indexStaging;
 
     // 3. Store for rendering
@@ -484,23 +439,23 @@ class VulkanExample : public VulkanExampleBase {
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        &vertexStaging, vertex_bufferSize, waterMesh.vertices.data()));
+        &vertexStaging, vertex_buffer_size, waterMesh.vertices.data()));
 
     VK_CHECK_RESULT(vulkanDevice->createBuffer(
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        &indexStaging, index_bufferSize, waterMesh.indices.data()));
+        &indexStaging, index_buffer_size, waterMesh.indices.data()));
 
     VK_CHECK_RESULT(vulkanDevice->createBuffer(
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        &graphics_.wave_mesh_buffers.vertex_buffer, vertex_bufferSize));
+        &graphics_.wave_mesh_buffers.vertex_buffer, vertex_buffer_size));
 
     VK_CHECK_RESULT(vulkanDevice->createBuffer(
         VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        &graphics_.wave_mesh_buffers.index_buffer, index_bufferSize));
+        &graphics_.wave_mesh_buffers.index_buffer, index_buffer_size));
 
     // Copy from staging buffers
     VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(
@@ -508,12 +463,12 @@ class VulkanExample : public VulkanExampleBase {
 
     VkBufferCopy copyRegion = {};
 
-    copyRegion.size = vertex_bufferSize;
+    copyRegion.size = vertex_buffer_size;
     vkCmdCopyBuffer(copyCmd, vertexStaging.buffer,
                     graphics_.wave_mesh_buffers.vertex_buffer.buffer, 1,
                     &copyRegion);
 
-    copyRegion.size = index_bufferSize;
+    copyRegion.size = index_buffer_size;
     vkCmdCopyBuffer(copyCmd, indexStaging.buffer,
                     graphics_.wave_mesh_buffers.index_buffer.buffer, 1,
                     &copyRegion);
@@ -626,6 +581,24 @@ class VulkanExample : public VulkanExampleBase {
                       graphics_.pipelines.sky_box);
     graphics_.models.sky_box.draw(cmdBuffer);
 
+    // Wave
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            graphics_.pipeline_layouts.wave, 0, 1,
+                            &graphics_.descriptor_sets[currentBuffer].wave, 0,
+                            nullptr);
+    vkCmdSetPolygonModeEXT(cmdBuffer, VK_POLYGON_MODE_LINE);
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      graphics_.pipelines.wave);
+    VkDeviceSize offsets[1] = {0};
+    vkCmdBindVertexBuffers(cmdBuffer, 0, 1,
+                           &graphics_.wave_mesh_buffers.vertex_buffer.buffer,
+                           offsets);
+    vkCmdBindIndexBuffer(cmdBuffer,
+                         graphics_.wave_mesh_buffers.index_buffer.buffer, 0,
+                         VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(cmdBuffer, graphics_.wave_mesh_buffers.index_count, 1, 0,
+                     0, 0);
+
     drawUI(cmdBuffer);
 
     // End dynamic rendering
@@ -681,7 +654,6 @@ class VulkanExample : public VulkanExampleBase {
 
     // Dynamic states
     dynamicState3Features.extendedDynamicState3PolygonMode = VK_TRUE;
-    dynamicState3Features.extendedDynamicState3LineRasterizationMode = VK_TRUE;
     enabledDeviceExtensions.push_back(
         VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME);
 
