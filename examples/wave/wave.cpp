@@ -5,7 +5,6 @@
  * (http://opensource.org/licenses/MIT)
  */
 
-#include <ktx.h>
 #include <ktxvulkan.h>
 
 #include <array>
@@ -172,29 +171,41 @@ class VulkanExample : public VulkanExampleBase {
       glm::mat4 perspective;
       glm::mat4 view;
     };
+
+    struct WaveUBO {
+      glm::mat4 perspective;
+      glm::mat4 view;
+    };
+
     struct {
       ModelViewPerspectiveUBO sky_box;
+      WaveUBO wave;
     } ubos;
 
     struct UniformBuffers {
       vks::Buffer sky_box;
+      vks::Buffer wave;
     };
     std::array<UniformBuffers, maxConcurrentFrames> uniform_buffers;
 
     struct Pipelines {
       VkPipeline sky_box{VK_NULL_HANDLE};
+      VkPipeline wave{VK_NULL_HANDLE};
     } pipelines;
 
     struct {
       VkDescriptorSetLayout sky_box{VK_NULL_HANDLE};
+      VkDescriptorSetLayout wave{VK_NULL_HANDLE};
     } descriptor_set_layouts;
 
     struct {
       VkPipelineLayout sky_box{VK_NULL_HANDLE};
+      VkPipelineLayout wave{VK_NULL_HANDLE};
     } pipeline_layouts;
 
     struct DescriptorSets {
       VkDescriptorSet sky_box{VK_NULL_HANDLE};
+      VkDescriptorSet wave{VK_NULL_HANDLE};
     };
     std::array<DescriptorSets, maxConcurrentFrames> descriptor_sets;
   } graphics_;
@@ -203,13 +214,13 @@ class VulkanExample : public VulkanExampleBase {
     // Pool
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                              maxConcurrentFrames * 1),
+                                              maxConcurrentFrames * 2),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             maxConcurrentFrames * 1)};
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(poolSizes,
-                                                    maxConcurrentFrames * 1);
+                                                    maxConcurrentFrames * 2);
     VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr,
                                            &descriptorPool));
 
@@ -235,6 +246,20 @@ class VulkanExample : public VulkanExampleBase {
         vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr,
                                     &graphics_.descriptor_set_layouts.sky_box));
 
+    // Wave
+    setLayoutBindings = {
+        // Binding 0 : Vertex shader ubo
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT,
+            /*binding id*/ 0),
+    };
+    descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
+        setLayoutBindings.data(),
+        static_cast<uint32_t>(setLayoutBindings.size()));
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr,
+                                    &graphics_.descriptor_set_layouts.wave));
+
     for (auto i = 0; i < graphics_.uniform_buffers.size(); i++) {
       // Skybox
       VkDescriptorSetAllocateInfo allocInfo =
@@ -255,6 +280,21 @@ class VulkanExample : public VulkanExampleBase {
       vkUpdateDescriptorSets(device,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
+
+      // Wave
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool, &graphics_.descriptor_set_layouts.wave, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device, &allocInfo, &graphics_.descriptor_sets[i].wave));
+      writeDescriptorSets = {
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptor_sets[i].wave,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
+              &graphics_.uniform_buffers[i].wave.descriptor),
+      };
+      vkUpdateDescriptorSets(device,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
     }
   }
 
@@ -268,6 +308,12 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(
         vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr,
                                &graphics_.pipeline_layouts.sky_box));
+    // Wave
+    pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
+        &graphics_.descriptor_set_layouts.wave, 1);
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo,
+                                           nullptr,
+                                           &graphics_.pipeline_layouts.wave));
 
     // Pipeline
     VkPipelineRasterizationStateCreateInfo rasterizationState =
@@ -353,6 +399,14 @@ class VulkanExample : public VulkanExampleBase {
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
           &buffer.sky_box, sizeof(graphics_.ubos.sky_box)));
       VK_CHECK_RESULT(buffer.sky_box.map());
+
+      // Wave
+      VK_CHECK_RESULT(vulkanDevice->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.wave, sizeof(graphics_.ubos.wave)));
+      VK_CHECK_RESULT(buffer.wave.map());
     }
   }
 
@@ -455,7 +509,7 @@ class VulkanExample : public VulkanExampleBase {
     vks::tools::insertImageMemoryBarrier(
         cmdBuffer, swapChain.images[currentImageIndex], 0,
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
@@ -575,7 +629,33 @@ class VulkanExample : public VulkanExampleBase {
 
   ~VulkanExample() override {
     if (device) {
+      // Pipelines
       vkDestroyPipeline(device, graphics_.pipelines.sky_box, nullptr);
+      vkDestroyPipeline(device, graphics_.pipelines.wave, nullptr);
+
+      // Pipeline Layouts
+      vkDestroyPipelineLayout(device, graphics_.pipeline_layouts.sky_box,
+                              nullptr);
+      vkDestroyPipelineLayout(device, graphics_.pipeline_layouts.wave, nullptr);
+
+      // Buffers
+      for (auto& buffer : graphics_.uniform_buffers) {
+        buffer.sky_box.destroy();
+        buffer.wave.destroy();
+      }
+
+      // Vertex buffers
+      graphics_.wave_mesh_buffers.vertex_buffer.destroy();
+      graphics_.wave_mesh_buffers.index_buffer.destroy();
+
+      // Descriptor Layouts
+      vkDestroyDescriptorSetLayout(
+          device, graphics_.descriptor_set_layouts.sky_box, nullptr);
+      vkDestroyDescriptorSetLayout(
+          device, graphics_.descriptor_set_layouts.wave, nullptr);
+
+      // Cube map
+      graphics_.textures.cube_map.destroy();
     }
   }
 };
