@@ -8,15 +8,156 @@
 #include <ktx.h>
 #include <ktxvulkan.h>
 
+#include <array>
+#include <vector>
+
 #include "VulkanglTFModel.h"
 #include "frustum.hpp"
 #include "vulkanexamplebase.h"
+
+// Vertex structure with position and texture coordinates
+struct WaterVertex {
+  float position[3];  // x, y, z
+  float texCoord[2];  // u, v
+
+  // Vulkan vertex input description
+  static VkVertexInputBindingDescription getBindingDescription() {
+    VkVertexInputBindingDescription bindingDescription{};
+    bindingDescription.binding = 0;
+    bindingDescription.stride = sizeof(WaterVertex);
+    bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    return bindingDescription;
+  }
+
+  static std::array<VkVertexInputAttributeDescription, 2>
+  getAttributeDescriptions() {
+    std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+    // Position attribute(location 0) attributeDescriptions[0].binding = 0;
+    attributeDescriptions[0].location = 0;
+    attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+    attributeDescriptions[0].offset = offsetof(WaterVertex, position);
+
+    // Texture coordinate attribute (location 1)
+    attributeDescriptions[1].binding = 0;
+    attributeDescriptions[1].location = 1;
+    attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+    attributeDescriptions[1].offset = offsetof(WaterVertex, texCoord);
+
+    return attributeDescriptions;
+  }
+};
+
+struct WaterMesh {
+  std::vector<WaterVertex> vertices;
+  std::vector<uint32_t> indices;
+
+  // Generate a grid mesh for water surface
+  // gridSize: number of quads per side (e.g., 32 = 32x32 quads)
+  // worldSize: physical size in world units
+  void generateGrid(uint32_t gridSize, float worldSize) {
+    vertices.clear();
+    indices.clear();
+
+    const uint32_t vertexCount = (gridSize + 1) * (gridSize + 1);
+    const uint32_t quadCount = gridSize * gridSize;
+
+    vertices.reserve(vertexCount);
+    indices.reserve(quadCount * 6);  // 6 indices per quad (2 triangles)
+
+    // Generate vertices
+    for (uint32_t z = 0; z <= gridSize; ++z) {
+      for (uint32_t x = 0; x <= gridSize; ++x) {
+        WaterVertex vertex{};
+
+        // Position: centered at origin, y=0 (flat plane)
+        vertex.position[0] = (float(x) / gridSize - 0.5f) * worldSize;
+        vertex.position[1] = 0.0f;  // Flat initially (waves applied in shader)
+        vertex.position[2] = (float(z) / gridSize - 0.5f) * worldSize;
+
+        // Texture coordinates: [0, 1] range
+        vertex.texCoord[0] = float(x) / gridSize;
+        vertex.texCoord[1] = float(z) / gridSize;
+
+        vertices.push_back(vertex);
+      }
+    }
+
+    // Generate indices (two triangles per quad)
+    for (uint32_t z = 0; z < gridSize; ++z) {
+      for (uint32_t x = 0; x < gridSize; ++x) {
+        uint32_t topLeft = z * (gridSize + 1) + x;
+        uint32_t topRight = topLeft + 1;
+        uint32_t bottomLeft = (z + 1) * (gridSize + 1) + x;
+        uint32_t bottomRight = bottomLeft + 1;
+
+        // First triangle (top-left, bottom-left, top-right)
+        indices.push_back(topLeft);
+        indices.push_back(bottomLeft);
+        indices.push_back(topRight);
+
+        // Second triangle (top-right, bottom-left, bottom-right)
+        indices.push_back(topRight);
+        indices.push_back(bottomLeft);
+        indices.push_back(bottomRight);
+      }
+    }
+  }
+
+  // Alternative: Generate patch list for tessellation (4 vertices per patch)
+  void generatePatchGrid(uint32_t gridSize, float worldSize) {
+    vertices.clear();
+    indices.clear();
+
+    const uint32_t patchCount = gridSize * gridSize;
+
+    vertices.reserve(patchCount * 4);
+    indices.reserve(patchCount * 4);
+
+    // Generate patch vertices (each quad is a patch)
+    for (uint32_t z = 0; z < gridSize; ++z) {
+      for (uint32_t x = 0; x < gridSize; ++x) {
+        // Four corners of the patch
+        for (uint32_t corner = 0; corner < 4; ++corner) {
+          WaterVertex vertex{};
+
+          uint32_t localX = (corner == 1 || corner == 2) ? 1 : 0;
+          uint32_t localZ = (corner == 2 || corner == 3) ? 1 : 0;
+
+          float gridX = float(x + localX) / gridSize;
+          float gridZ = float(z + localZ) / gridSize;
+
+          vertex.position[0] = (gridX - 0.5f) * worldSize;
+          vertex.position[1] = 0.0f;
+          vertex.position[2] = (gridZ - 0.5f) * worldSize;
+          vertex.texCoord[0] = gridX;
+          vertex.texCoord[1] = gridZ;
+
+          vertices.push_back(vertex);
+        }
+
+        // Indices for this patch (4 vertices)
+        uint32_t baseIndex = (z * gridSize + x) * 4;
+        indices.push_back(baseIndex + 0);
+        indices.push_back(baseIndex + 1);
+        indices.push_back(baseIndex + 2);
+        indices.push_back(baseIndex + 3);
+      }
+    }
+  }
+};
 
 class VulkanExample : public VulkanExampleBase {
  public:
   // Enable Vulkan 1.3
   VkPhysicalDeviceVulkan13Features enabledFeatures13_{
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
+
+  // Holds the buffers for rendering
+  struct {
+    vks::Buffer vertexBuffer;
+    vks::Buffer indexBuffer;
+    uint32_t indexCount{};
+  } waveMeshBuffers;
 
   struct {
     vkglTF::Model skyBox{};
@@ -216,9 +357,65 @@ class VulkanExample : public VulkanExampleBase {
            sizeof(ModelViewPerspectiveUBO));
   }
 
+  void setupWaterMesh() {
+    // 1. Generate the mesh
+    WaterMesh waterMesh;
+    waterMesh.generatePatchGrid(16, 100.0f);  // 16x16 patches
+
+    // 2. Create Vulkan buffers
+    uint32_t vertexBufferSize = waterMesh.vertices.size() * sizeof(WaterVertex);
+    uint32_t indexBufferSize = waterMesh.indices.size() * sizeof(uint32_t);
+    vks::Buffer vertexStaging, indexStaging;
+
+    // 3. Store for rendering
+    VK_CHECK_RESULT(vulkanDevice->createBuffer(
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        &vertexStaging, vertexBufferSize, waterMesh.vertices.data()));
+
+    VK_CHECK_RESULT(vulkanDevice->createBuffer(
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        &indexStaging, indexBufferSize, waterMesh.indices.data()));
+
+    VK_CHECK_RESULT(vulkanDevice->createBuffer(
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &waveMeshBuffers.vertexBuffer,
+        vertexBufferSize));
+
+    VK_CHECK_RESULT(vulkanDevice->createBuffer(
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &waveMeshBuffers.indexBuffer,
+        indexBufferSize));
+
+    // Copy from staging buffers
+    VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(
+        VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+
+    VkBufferCopy copyRegion = {};
+
+    copyRegion.size = vertexBufferSize;
+    vkCmdCopyBuffer(copyCmd, vertexStaging.buffer,
+                    waveMeshBuffers.vertexBuffer.buffer, 1, &copyRegion);
+
+    copyRegion.size = indexBufferSize;
+    vkCmdCopyBuffer(copyCmd, indexStaging.buffer,
+                    waveMeshBuffers.indexBuffer.buffer, 1, &copyRegion);
+
+    vulkanDevice->flushCommandBuffer(copyCmd, queue, true);
+
+    vkDestroyBuffer(device, vertexStaging.buffer, nullptr);
+    vkFreeMemory(device, vertexStaging.memory, nullptr);
+    vkDestroyBuffer(device, indexStaging.buffer, nullptr);
+    vkFreeMemory(device, indexStaging.memory, nullptr);
+  }
+
   void prepare() override {
     VulkanExampleBase::prepare();
     loadAssets();
+    setupWaterMesh();
     prepareUniformBuffers();
     setupDescriptors();
     preparePipelines();

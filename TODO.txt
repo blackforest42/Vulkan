@@ -3,7 +3,8 @@ TODO:
 
 Vulkan Water Simulation Pipeline
 High-Level Architecture
-The modern Vulkan approach splits this into compute shader preprocessing followed by graphics pipeline rendering. This leverages GPU parallelism better than the legacy DirectX 9 approach shown in the code.
+The modern Vulkan approach splits this into compute shader preprocessing followed by graphics pipeline rendering.
+This leverages GPU parallelism better than the legacy DirectX 9 approach shown in the code.
 
 Pipeline Overview
 Phase 1: Compute Shader Wave Simulation
@@ -17,21 +18,18 @@ Calculate Gerstner wave displacements for the water mesh vertices.
 Resources
 
 Input Buffers:
-
 Base mesh vertex positions (storage buffer, read-only)
 Wave parameters (uniform buffer): directions, frequencies, amplitudes, phases, K values
 Time uniform
 
 
 Output Buffers:
-
 Displaced vertex positions (storage buffer, write)
 Tangent basis vectors (storage buffer, write) - Binormal, Tangent, Normal per vertex
 
 
 
 Compute Shader Dispatch
-
 Work Groups: Divide mesh vertices across compute work groups (e.g., 256 threads per group)
 Per-Thread Work: Each thread processes one vertex
 
@@ -46,7 +44,6 @@ Write tangent basis vectors
 
 
 Synchronization
-
 Compute shader completion barrier before graphics pipeline reads
 
 
@@ -56,7 +53,6 @@ Generate high-frequency detail normal map for pixel shader sampling.
 Resources
 
 Input:
-
 Texture-space wave parameters (uniform buffer): 16+ small-scale directional waves
 Cosine lookup texture (precomputed)
 Noise texture (for randomness)
@@ -64,12 +60,10 @@ Time uniform for animation
 
 
 Output:
-
 Normal map render target (2D image, e.g., 512x512 RGBA)
 
 
 Compute Shader Dispatch
-
 Work Groups: 2D dispatch covering normal map dimensions (e.g., 16x16 thread groups)
 Per-Thread Work: Each thread processes one texel
 
@@ -89,14 +83,12 @@ Option A: Single compute pass with all waves
 Option B: Multiple dispatches with image blend operations (if you need true accumulation blending)
 
 Synchronization
-
 Image memory barrier: transition normal map from GENERAL (compute write) to SHADER_READ_ONLY_OPTIMAL (fragment shader read)
 
 
 Phase 3: Graphics Pipeline Rendering
 Vertex Shader Stage
 Input:
-
 Vertex attributes (might just be index or minimal data)
 Displaced positions from compute (via vertex buffer binding)
 Tangent basis from compute (via vertex buffer binding)
@@ -104,17 +96,15 @@ Camera matrices (uniform)
 Wave parameters for additional calculations
 
 Responsibilities:
-
-Read pre-computed displaced position from storage buffer
-Transform to clip space (MVP matrix)
-Calculate texture coordinates for bump map sampling
-Pass tangent-space basis to fragment shader
-Calculate eye ray direction
-Compute depth-based filtering values (for LOD)
-Calculate fog factor
+-Read pre-computed displaced position from storage buffer
+-Transform to clip space (MVP matrix)
+-Calculate texture coordinates for bump map sampling
+-Pass tangent-space basis to fragment shader
+-Calculate eye ray direction
+-Compute depth-based filtering values (for LOD)
+-Calculate fog factor
 
 Output to Fragment Shader:
-
 Position (clip space)
 Tangent basis matrix (3 vectors as separate varyings)
 Bump map UVs
@@ -125,7 +115,6 @@ Vertex color modulation
 
 Fragment Shader Stage
 Input Textures:
-
 Normal/bump map (from compute phase 2)
 Environment cube map (for reflections)
 Optional: caustics, foam, depth textures
@@ -137,7 +126,6 @@ UV coordinates
 Attenuation factors
 
 Responsibilities:
-
 Normal Perturbation:
 Sample bump/normal map
 Decode normal from RGB
@@ -164,7 +152,5 @@ Apply Fresnel effect
 Fog blending based on distance
 
 
-
 Output:
 RGBA color with alpha for blending
-
