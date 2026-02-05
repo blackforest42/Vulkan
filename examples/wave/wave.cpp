@@ -8,6 +8,8 @@
 #include <ktxvulkan.h>
 
 #include <array>
+#include <cmath>
+#include <random>
 #include <vector>
 
 #include "VulkanglTFModel.h"
@@ -50,8 +52,8 @@ struct WaterMesh {
   std::vector<WaterVertex> vertices;
   std::vector<uint32_t> indices;
 
-  // Alternative: Generate patch list for tessellation (4 vertices per patch)
-  void generatePatchGrid(uint32_t gridSize, float worldSize) {
+  // Generate patch list for tessellation (4 vertices per patch)
+  void generatePatchGrid(const uint32_t gridSize, const float worldSize) {
     vertices.clear();
     indices.clear();
 
@@ -93,6 +95,224 @@ struct WaterMesh {
   }
 };
 
+struct WaveParams {
+  // Wave parameters organized for efficient GPU access (vec4 alignment)
+  glm::vec4 frequency[4];   // 16 waves total (4 frequencies per vec4)
+  glm::vec4 amplitude[4];   // Amplitudes for all 16 waves
+  glm::vec4 directionX[4];  // X components of wave directions
+  glm::vec4 directionY[4];  // Y components of wave directions
+  glm::vec4 phase[4];       // Phase offsets for all 16 waves
+
+  // Global parameters
+  float time;           // Current simulation time
+  float chopiness;      // Wave sharpness (Gerstner chop factor)
+  float noiseStrength;  // Noise contribution
+  float rippleScale;    // UV scaling for normal map
+
+  // Wind/wave generation parameters
+  glm::vec2 windDirection;    // Primary wind direction
+  float angleDeviation;       // Max angle deviation from wind (degrees)
+  float speedDeviation;       // Random speed variation
+                              // Physical constants
+  float gravity;              // Gravity constant (affects wave speed)
+  float minWavelength;        // Minimum wave length
+  float maxWavelength;        // Maximum wave length
+  float amplitudeOverLength;  // Ratio of amplitude to wavelength
+
+  // Padding for alignment
+  float _padding[2];
+};
+
+class WaveGenerator {
+ private:
+  static constexpr int NUM_WAVES = 16;
+  static constexpr float PI = 3.14159265359f;
+  static constexpr float GRAVITY = 9.81f;  // Or 30.0f from original code
+
+  std::mt19937 rng;
+  std::uniform_real_distribution<float> dist;
+
+ public:
+  WaveGenerator() : rng(std::random_device{}()), dist(-1.0f, 1.0f) {}
+
+  float randomMinusOneToOne() { return dist(rng); }
+
+  float randomZeroToOne() { return (dist(rng) + 1.0f) * 0.5f; }
+
+  // Initialize wave parameters with physically-based values
+  WaveParams initializeWaveParams() {
+    WaveParams params{};
+
+    // Global configuration (matching original code's InitTexState)
+    params.time = 0.0f;
+    params.chopiness = 1.0f;      // Original: m_TexState.m_Chop
+    params.noiseStrength = 0.2f;  // Original: m_TexState.m_Noise
+    params.rippleScale = 25.0f;   // Original: m_TexState.m_RippleScale
+
+    // Wind parameters
+    params.windDirection = glm::vec2(0.0f, 1.0f);  // North
+    params.angleDeviation = 15.0f;  // Original: m_TexState.m_AngleDeviation
+    params.speedDeviation = 0.1f;   // Original: m_TexState.m_SpeedDeviation
+
+    // Physical parameters
+    params.gravity = 30.0f;             // Original: kGravConst
+    params.minWavelength = 1.0f;        // Original: m_TexState.m_MinLength
+    params.maxWavelength = 10.0f;       // Original: m_TexState.m_MaxLength
+    params.amplitudeOverLength = 0.1f;  // Original: m_TexState.m_AmpOverLen
+
+    // Generate individual waves
+    generateWaves(params);
+
+    return params;
+  }
+
+  void generateWaves(WaveParams& params) {
+    const float bumpTexSize = 256.0f;  // Original: kBumpTexSize
+
+    for (int i = 0; i < NUM_WAVES; ++i) {
+      // Calculate which vec4 and component this wave belongs to
+      int vec4Index = i / 4;
+      int component = i % 4;
+
+      // 1. Calculate wave direction with random deviation
+      // Original code: InitTexWave
+      float angleRads =
+          randomMinusOneToOne() * params.angleDeviation * PI / 180.0f;
+
+      float dx = std::sin(angleRads);
+      float dy = std::cos(angleRads);
+
+      // Rotate by wind direction
+      float tx = dx;
+      dx = params.windDirection.y * dx - params.windDirection.x * dy;
+      dy = params.windDirection.x * tx + params.windDirection.y * dy;
+
+      // 2. Calculate wavelength (linearly distributed across range)
+      float wavelength = float(i) / float(NUM_WAVES - 1) *
+                             (params.maxWavelength - params.minWavelength) +
+                         params.minWavelength;
+
+      // Convert to texture space
+      float maxLen = params.maxWavelength * bumpTexSize / params.rippleScale;
+      float minLen = params.minWavelength * bumpTexSize / params.rippleScale;
+      float len = float(i) / float(NUM_WAVES - 1) * (maxLen - minLen) + minLen;
+
+      // 3. Quantize direction to texture pixels
+      float reps = bumpTexSize / len;
+      dx *= reps;
+      dy *= reps;
+      dx = std::round(dx);  // Snap to integers
+      dy = std::round(dy);
+
+      // Store direction (normalized will happen in shader if needed)
+      params.directionX[vec4Index][component] = dx;
+      params.directionY[vec4Index][component] = dy;
+
+      // 4. Calculate effective wavelength after quantization
+      float effectiveK = 1.0f / std::sqrt(dx * dx + dy * dy);
+      float effectiveLen = bumpTexSize * effectiveK;
+
+      // 5. Calculate frequency (k = 2π/λ)
+      params.frequency[vec4Index][component] = 2.0f * PI / effectiveLen;
+
+      // 6. Calculate amplitude (proportional to wavelength)
+      params.amplitude[vec4Index][component] =
+          effectiveLen * params.amplitudeOverLength;
+
+      // 7. Random initial phase
+      params.phase[vec4Index][component] = randomZeroToOne();
+
+      // Note: Speed calculation for animation
+      // ω = √(gk) where g is gravity, k is frequency
+      // For dispersion relation: ω = √(g * 2π/λ)
+      // Speed = ω/k = √(g/(2π/λ)) = √(gλ/(2π))
+      // This is handled in update function
+    }
+  }
+
+  // Update wave parameters each frame
+  void updateWaveParams(WaveParams& params, float deltaTime) {
+    params.time += deltaTime;
+
+    // Update phases based on dispersion relation: ω = √(gk)
+    for (int i = 0; i < NUM_WAVES; ++i) {
+      int vec4Index = i / 4;
+      int component = i % 4;
+
+      float freq = params.frequency[vec4Index][component];
+      float wavelength = 2.0f * PI / freq;
+
+      // Dispersion relation for deep water waves: ω = √(gk)
+      // But original code uses: speed = √(λ/(2π*g)) / 3
+      float speed = std::sqrt(wavelength / (2.0f * PI * params.gravity)) / 3.0f;
+
+      // Apply random speed deviation
+      float speedVariation =
+          1.0f + randomMinusOneToOne() * params.speedDeviation;
+      speed *= speedVariation;
+
+      // Update phase (phase decreases over time in original)
+      params.phase[vec4Index][component] -= deltaTime * speed;
+
+      // Keep phase in [0, 1] range
+      params.phase[vec4Index][component] =
+          std::fmod(params.phase[vec4Index][component] + 1.0f, 1.0f);
+    }
+  }
+
+  // Calm water
+  static WaveParams createCalmWater() {
+    WaveGenerator gen;
+    WaveParams params = gen.initializeWaveParams();
+
+    params.minWavelength = 2.0f;
+    params.maxWavelength = 8.0f;
+    params.amplitudeOverLength = 0.05f;  // Small waves
+    params.angleDeviation = 10.0f;       // Uniform direction
+    params.noiseStrength = 0.1f;
+    params.chopiness = 0.5f;
+
+    gen.generateWaves(params);
+    return params;
+  }
+
+  // Stormy ocean
+  static WaveParams createStormyOcean() {
+    WaveGenerator gen;
+    WaveParams params = gen.initializeWaveParams();
+
+    params.minWavelength = 5.0f;
+    params.maxWavelength = 25.0f;
+    params.amplitudeOverLength = 0.15f;  // Larger waves
+    params.angleDeviation = 30.0f;       // Chaotic directions
+    params.noiseStrength = 0.4f;
+    params.chopiness = 2.0f;  // Sharp peaks
+
+    gen.generateWaves(params);
+    return params;
+  }
+
+  // Original DirectX demo settings
+  static WaveParams createOriginalSettings() {
+    WaveGenerator gen;
+    WaveParams params = gen.initializeWaveParams();
+    // Texture waves (for bump map)
+    params.minWavelength = 1.0f;
+    params.maxWavelength = 10.0f;
+    params.amplitudeOverLength = 0.1f;
+    params.angleDeviation = 15.0f;
+    params.windDirection = glm::vec2(0.0f, 1.0f);
+    params.noiseStrength = 0.2f;
+    params.chopiness = 1.0f;
+    params.rippleScale = 25.0f;
+    params.speedDeviation = 0.1f;
+    params.gravity = 30.0f;
+
+    gen.generateWaves(params);
+    return params;
+  }
+};
+
 class VulkanExample : public VulkanExampleBase {
  public:
   // Enable Vulkan 1.3
@@ -106,9 +326,14 @@ class VulkanExample : public VulkanExampleBase {
 
   // Command to enable dynamic states during rendering
   PFN_vkCmdSetPolygonModeEXT vkCmdSetPolygonModeEXT{VK_NULL_HANDLE};
+ struct Compute {
+  } compute_;
 
   struct Graphics {
-    // Holds the buffers for rendering
+    uint32_t GRID_SIZE = 32;
+    uint32_t PATCH_COUNT = GRID_SIZE * GRID_SIZE;
+    float GRID_SCALE = 1000.0f;
+
     struct {
       vks::Buffer vertex_buffer;
       vks::Buffer index_buffer;
@@ -425,7 +650,7 @@ class VulkanExample : public VulkanExampleBase {
   void setupWaterMesh() {
     // 1. Generate the mesh
     WaterMesh waterMesh;
-    waterMesh.generatePatchGrid(16, 100.0f);  // 16x16 patches
+    waterMesh.generatePatchGrid(graphics_.GRID_SIZE, graphics_.GRID_SCALE);
 
     // 2. Create Vulkan buffers
     graphics_.wave_mesh_buffers.index_count = waterMesh.indices.size();

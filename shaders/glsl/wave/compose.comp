@@ -1,0 +1,72 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 0, rgba16f) uniform writeonly image2D normalMap;
+
+layout(binding = 1) uniform WaveParams {
+// Match C++ structure exactly (std140 layout)
+    vec4 frequency[4];
+    vec4 amplitude[4];
+    vec4 directionX[4];
+    vec4 directionY[4];
+    vec4 phase[4];
+
+    float time;
+    float chopiness;
+    float noiseStrength;
+    float rippleScale;
+
+    vec2 windDirection;
+    float angleDeviation;
+    float speedDeviation;
+
+    float gravity;
+    float minWavelength;
+    float maxWavelength;
+    float amplitudeOverLength;
+
+    float _padding[2];
+} waves;
+
+void main() {
+    ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
+    vec2 uv = vec2(texCoord) / vec2(imageSize(normalMap));
+
+    vec3 normal = vec3(0.0, 0.0, 1.0);
+
+    // Composite all 16 waves
+    for (int i = 0; i < 16; i++) {
+        int vecIdx = i / 4;
+        int comp = i % 4;
+
+        float freq = waves.frequency[vecIdx][comp];
+        float amp = waves.amplitude[vecIdx][comp];
+        vec2 dir = vec2(waves.directionX[vecIdx][comp],
+        waves.directionY[vecIdx][comp]);
+        float ph = waves.phase[vecIdx][comp];
+
+        // Normalize direction
+        dir = normalize(dir);
+
+        // Wave calculation: k·x + ωt
+        float wavePhase = dot(dir, uv) * freq + ph * 2.0 * 3.14159;
+
+        // Apply chopiness (original used pow(sin, chop))
+        float s = sin(wavePhase);
+        s = s * 0.5 + 0.5;// Map to [0,1]
+        s = pow(s, waves.chopiness);
+        s = s * 2.0 - 1.0;// Map back to [-1,1]
+
+        float c = cos(wavePhase);
+        c *= s;// Modulate by shaped sine
+
+        // Accumulate normal contribution
+        normal.xy -= dir * amp * freq * c;
+    }
+
+    normal = normalize(normal);
+
+    // Store as [0,1] range for texture
+    imageStore(normalMap, texCoord, vec4(normal * 0.5 + 0.5, 1.0));
+}
