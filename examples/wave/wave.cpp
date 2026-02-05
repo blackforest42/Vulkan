@@ -357,7 +357,7 @@ class VulkanExample : public VulkanExampleBase {
     };
     std::array<ComputeSemaphores, maxConcurrentFrames> semaphores{};
 
-    // Contains all Vulkan objects that are required to store and use a 3D
+    // Contains all Vulkan objects that are required to store and use a 2D
     // texture
     struct Texture2D {
       VkSampler sampler = VK_NULL_HANDLE;
@@ -822,7 +822,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void createComputeTexture(Compute::Texture2D& texture,
                             VkFormat texture_format) const {
-    // A 3D texture is described as width x height x depth
+    // A 2D texture is described as width x height x depth
     texture.width = COMPUTE_TEXTURE_DIMENSION;
     texture.height = COMPUTE_TEXTURE_DIMENSION;
     texture.depth = 1;
@@ -830,7 +830,7 @@ class VulkanExample : public VulkanExampleBase {
     texture.format = texture_format;
 
     // Format support check
-    // 3D texture support in Vulkan is mandatory (in contrast to OpenGL) so no
+    // 2D texture support in Vulkan is mandatory (in contrast to OpenGL) so no
     // need to check if it's supported
     VkFormatProperties formatProperties;
     vkGetPhysicalDeviceFormatProperties(physicalDevice, texture.format,
@@ -846,7 +846,7 @@ class VulkanExample : public VulkanExampleBase {
 
     // Create optimal tiled target image
     VkImageCreateInfo imageCreateInfo = vks::initializers::imageCreateInfo();
-    imageCreateInfo.imageType = VK_IMAGE_TYPE_3D;
+    imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
     imageCreateInfo.format = texture.format;
     imageCreateInfo.mipLevels = texture.mipLevels;
     imageCreateInfo.arrayLayers = 1;
@@ -927,7 +927,7 @@ class VulkanExample : public VulkanExampleBase {
     // Create image view
     VkImageViewCreateInfo view = vks::initializers::imageViewCreateInfo();
     view.image = texture.image;
-    view.viewType = VK_IMAGE_VIEW_TYPE_3D;
+    view.viewType = VK_IMAGE_VIEW_TYPE_2D;
     view.format = texture.format;
     view.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     view.subresourceRange.baseMipLevel = 0;
@@ -1122,14 +1122,15 @@ class VulkanExample : public VulkanExampleBase {
 
   void buildComputeCommandBuffer() {
     const VkCommandBuffer cmdBuffer = compute_.commandBuffers[currentBuffer];
-
     const VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
-
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
+
     composeCmd(cmdBuffer);
+
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
+
   void composeCmd(const VkCommandBuffer& cmdBuffer) {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines.compose);
@@ -1256,19 +1257,18 @@ class VulkanExample : public VulkanExampleBase {
       // Compute
       // Use a fence to ensure that compute command buffer has finished
       // executing before using it again
-      // VK_CHECK_RESULT(vkWaitForFences(
-      //     device, 1, &compute_.fences[currentBuffer], VK_TRUE, UINT64_MAX));
-      // VK_CHECK_RESULT(
-      //     vkResetFences(device, 1, &compute_.fences[currentBuffer]));
-      //
-      // buildComputeCommandBuffer();
-      //
-      // VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
-      // computeSubmitInfo.commandBufferCount = 1;
-      // computeSubmitInfo.pCommandBuffers =
-      //     &compute_.commandBuffers[currentBuffer];
-      // VK_CHECK_RESULT(vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo,
-      //                               compute_.fences[currentBuffer]));
+      VK_CHECK_RESULT(vkWaitForFences(
+          device, 1, &compute_.fences[currentBuffer], VK_TRUE, UINT64_MAX));
+      VK_CHECK_RESULT(
+          vkResetFences(device, 1, &compute_.fences[currentBuffer]));
+      buildComputeCommandBuffer();
+
+      VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
+      computeSubmitInfo.commandBufferCount = 1;
+      computeSubmitInfo.pCommandBuffers =
+          &compute_.commandBuffers[currentBuffer];
+      VK_CHECK_RESULT(vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo,
+                                    compute_.fences[currentBuffer]));
     }
     {
       // Graphics
