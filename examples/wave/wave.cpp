@@ -377,15 +377,14 @@ class VulkanExample : public VulkanExampleBase {
 
     struct {
       WaveParams compose;
-    } ubos_;
+    } ubos;
 
     struct UniformBuffers {
       vks::Buffer compose;
     };
-    std::array<UniformBuffers, maxConcurrentFrames> uniformBuffers_;
 
     // Buffers
-    std::array<vks::Buffer, maxConcurrentFrames> uniformBuffers;
+    std::array<UniformBuffers, maxConcurrentFrames> uniform_buffers;
 
     // Pipelines
     struct {
@@ -400,13 +399,13 @@ class VulkanExample : public VulkanExampleBase {
     // Descriptor Layout
     struct {
       VkDescriptorSetLayout compose{VK_NULL_HANDLE};
-    } descriptorSetLayouts_;
+    } descriptor_set_layouts;
 
     // Descriptor Sets
     struct DescriptorSets {
       VkDescriptorSet compose{VK_NULL_HANDLE};
     };
-    std::array<DescriptorSets, maxConcurrentFrames> descriptorSets_{};
+    std::array<DescriptorSets, maxConcurrentFrames> descriptor_sets{};
   } compute_;
 
   // Handles graphics rendering pipelines
@@ -817,12 +816,12 @@ class VulkanExample : public VulkanExampleBase {
   void prepareComputeTextures() {
     // Create a compute capable device queue
     vkGetDeviceQueue(device, compute_.queueFamilyIndex, 0, &compute_.queue);
-    prepareComputeTexture(compute_.wave_normal_map, VECTOR_FIELD_FORMAT);
+    createComputeTexture(compute_.wave_normal_map, VECTOR_FIELD_FORMAT);
     clearAllComputeTextures();
   }
 
-  void prepareComputeTexture(Compute::Texture2D& texture,
-                             VkFormat texture_format) const {
+  void createComputeTexture(Compute::Texture2D& texture,
+                            VkFormat texture_format) const {
     // A 3D texture is described as width x height x depth
     texture.width = COMPUTE_TEXTURE_DIMENSION;
     texture.height = COMPUTE_TEXTURE_DIMENSION;
@@ -958,9 +957,62 @@ class VulkanExample : public VulkanExampleBase {
     vulkanDevice->flushCommandBuffer(clearCmd, queue, true);
   }
 
-  void prepareComputeUniformBuffers() {}
+  void prepareComputeUniformBuffers() {
+    for (auto& buffer : compute_.uniform_buffers) {
+      VK_CHECK_RESULT(vulkanDevice->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.compose, sizeof(compute_.ubos.compose)));
+      VK_CHECK_RESULT(buffer.compose.map());
+    }
+  }
 
-  void prepareComputeDescriptors() {}
+  void prepareComputeDescriptors() {
+    // Layouts
+    VkDescriptorSetLayoutCreateInfo descriptorLayout;
+    std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
+
+    // Compose
+    setLayoutBindings = {
+        // Binding 0 : Ubo
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 0),
+        // Binding 1 : Wave normal map (write only)
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 1),
+    };
+    descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
+        setLayoutBindings.data(),
+        static_cast<uint32_t>(setLayoutBindings.size()));
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr,
+                                    &compute_.descriptor_set_layouts.compose));
+
+    for (auto i = 0; i < compute_.uniform_buffers.size(); i++) {
+      // Normal
+      VkDescriptorSetAllocateInfo allocInfo =
+          vks::initializers::descriptorSetAllocateInfo(
+              descriptorPool, &compute_.descriptor_set_layouts.compose, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device, &allocInfo, &compute_.descriptor_sets[i].compose));
+      std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].compose,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
+              &compute_.uniform_buffers[i].compose.descriptor),
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].compose,
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
+              &compute_.wave_normal_map.descriptor),
+      };
+      vkUpdateDescriptorSets(device,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
+    }
+  }
 
   void prepareComputePipelines() {}
 
@@ -1215,10 +1267,14 @@ class VulkanExample : public VulkanExampleBase {
                               nullptr);
       vkDestroyPipelineLayout(device, graphics_.pipeline_layouts.wave, nullptr);
 
-      // Buffers
+      // Buffers: Graphics
       for (auto& buffer : graphics_.uniform_buffers) {
         buffer.sky_box.destroy();
         buffer.wave.destroy();
+      }
+      // Buffers: Compose
+      for (auto& buffer : compute_.uniform_buffers) {
+        buffer.compose.destroy();
       }
 
       // Vertex buffers
@@ -1230,6 +1286,8 @@ class VulkanExample : public VulkanExampleBase {
           device, graphics_.descriptor_set_layouts.sky_box, nullptr);
       vkDestroyDescriptorSetLayout(
           device, graphics_.descriptor_set_layouts.wave, nullptr);
+      vkDestroyDescriptorSetLayout(
+          device, compute_.descriptor_set_layouts.compose, nullptr);
 
       // Cube map
       graphics_.textures.cube_map.destroy();
