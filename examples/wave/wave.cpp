@@ -16,6 +16,8 @@
 #include "frustum.hpp"
 #include "vulkanexamplebase.h"
 
+#define VECTOR_FIELD_FORMAT VK_FORMAT_R32G32B32A32_SFLOAT
+
 constexpr uint32_t COMPUTE_TEXTURE_DIMENSION = 256;
 
 // Vertex structure with position and texture coordinates
@@ -357,7 +359,7 @@ class VulkanExample : public VulkanExampleBase {
 
     // Contains all Vulkan objects that are required to store and use a 3D
     // texture
-    struct Texture3D {
+    struct Texture2D {
       VkSampler sampler = VK_NULL_HANDLE;
       VkImage image = VK_NULL_HANDLE;
       VkImageLayout imageLayout{};
@@ -370,6 +372,8 @@ class VulkanExample : public VulkanExampleBase {
       uint32_t depth{0};
       uint32_t mipLevels{0};
     };
+
+    Texture2D wave_normal_map;
 
     struct {
       WaveParams compose;
@@ -810,7 +814,149 @@ class VulkanExample : public VulkanExampleBase {
     preparePipelines();
   }
 
-  void prepareComputeTextures() {}
+  void prepareComputeTextures() {
+    // Create a compute capable device queue
+    vkGetDeviceQueue(device, compute_.queueFamilyIndex, 0, &compute_.queue);
+    prepareComputeTexture(compute_.wave_normal_map, VECTOR_FIELD_FORMAT);
+    clearAllComputeTextures();
+  }
+
+  void prepareComputeTexture(Compute::Texture2D& texture,
+                             VkFormat texture_format) const {
+    // A 3D texture is described as width x height x depth
+    texture.width = COMPUTE_TEXTURE_DIMENSION;
+    texture.height = COMPUTE_TEXTURE_DIMENSION;
+    texture.depth = 1;
+    texture.mipLevels = 1;
+    texture.format = texture_format;
+
+    // Format support check
+    // 3D texture support in Vulkan is mandatory (in contrast to OpenGL) so no
+    // need to check if it's supported
+    VkFormatProperties formatProperties;
+    vkGetPhysicalDeviceFormatProperties(physicalDevice, texture.format,
+                                        &formatProperties);
+    // Check if format supports transfer
+    if (!(formatProperties.optimalTilingFeatures &
+          VK_FORMAT_FEATURE_TRANSFER_DST_BIT)) {
+      std::cout << "Error: Device does not support flag TRANSFER_DST for "
+                   "selected texture format!"
+                << std::endl;
+      return;
+    }
+
+    // Create optimal tiled target image
+    VkImageCreateInfo imageCreateInfo = vks::initializers::imageCreateInfo();
+    imageCreateInfo.imageType = VK_IMAGE_TYPE_3D;
+    imageCreateInfo.format = texture.format;
+    imageCreateInfo.mipLevels = texture.mipLevels;
+    imageCreateInfo.arrayLayers = 1;
+    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageCreateInfo.extent.width = texture.width;
+    imageCreateInfo.extent.height = texture.height;
+    imageCreateInfo.extent.depth = 1;
+    // Set initial layout of the image to undefined
+    imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageCreateInfo.usage =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+        VK_IMAGE_USAGE_STORAGE_BIT;
+
+    VK_CHECK_RESULT(
+        vkCreateImage(device, &imageCreateInfo, nullptr, &texture.image));
+
+    // Device local memory to back up image
+    VkMemoryAllocateInfo memAllocInfo = vks::initializers::memoryAllocateInfo();
+    VkMemoryRequirements memReqs = {};
+    vkGetImageMemoryRequirements(device, texture.image, &memReqs);
+    memAllocInfo.allocationSize = memReqs.size;
+    memAllocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(
+        memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    VK_CHECK_RESULT(vkAllocateMemory(device, &memAllocInfo, nullptr,
+                                     &texture.deviceMemory));
+    VK_CHECK_RESULT(
+        vkBindImageMemory(device, texture.image, texture.deviceMemory, 0));
+
+    // Transition read textures
+    VkCommandBuffer layoutCmd = vulkanDevice->createCommandBuffer(
+        VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+    texture.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    vks::tools::setImageLayout(layoutCmd, texture.image,
+                               VK_IMAGE_ASPECT_COLOR_BIT,
+                               VK_IMAGE_LAYOUT_UNDEFINED, texture.imageLayout);
+    if (vulkanDevice->queueFamilyIndices.graphics !=
+        vulkanDevice->queueFamilyIndices.compute) {
+      VkImageMemoryBarrier imageMemoryBarrier = {};
+      imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+      imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+      imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+      imageMemoryBarrier.image = texture.image;
+      imageMemoryBarrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0,
+                                             1};
+      imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+      imageMemoryBarrier.dstAccessMask = 0;
+      imageMemoryBarrier.srcQueueFamilyIndex =
+          vulkanDevice->queueFamilyIndices.graphics;
+      imageMemoryBarrier.dstQueueFamilyIndex =
+          vulkanDevice->queueFamilyIndices.compute;
+      vkCmdPipelineBarrier(layoutCmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                           VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_FLAGS_NONE,
+                           0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+    }
+
+    vulkanDevice->flushCommandBuffer(layoutCmd, queue, true);
+
+    VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
+    sampler.magFilter = VK_FILTER_LINEAR;
+    sampler.minFilter = VK_FILTER_LINEAR;
+    sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler.mipLodBias = 0.0f;
+    sampler.compareOp = VK_COMPARE_OP_NEVER;
+    sampler.minLod = 0.0f;
+    sampler.maxLod = 0.0f;
+    sampler.maxAnisotropy = 1.0;
+    sampler.anisotropyEnable = VK_FALSE;
+    sampler.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+    VK_CHECK_RESULT(
+        vkCreateSampler(device, &sampler, nullptr, &texture.sampler));
+
+    // Create image view
+    VkImageViewCreateInfo view = vks::initializers::imageViewCreateInfo();
+    view.image = texture.image;
+    view.viewType = VK_IMAGE_VIEW_TYPE_3D;
+    view.format = texture.format;
+    view.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    view.subresourceRange.baseMipLevel = 0;
+    view.subresourceRange.baseArrayLayer = 0;
+    view.subresourceRange.layerCount = 1;
+    view.subresourceRange.levelCount = 1;
+    VK_CHECK_RESULT(vkCreateImageView(device, &view, nullptr, &texture.view));
+
+    texture.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    texture.descriptor.imageView = texture.view;
+    texture.descriptor.sampler = texture.sampler;
+  }
+
+  void clearAllComputeTextures() const {
+    // Clear all textures
+    const VkCommandBuffer clearCmd = vulkanDevice->createCommandBuffer(
+        VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+    constexpr VkClearColorValue clearColor = {{0.0f, 0.0f, 0.0f, 0.0f}};
+    VkImageSubresourceRange range{};
+    range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    range.baseMipLevel = 0;
+    range.levelCount = 1;
+    range.baseArrayLayer = 0;
+    range.layerCount = 1;
+    vkCmdClearColorImage(clearCmd, compute_.wave_normal_map.image,
+                         VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
+    vulkanDevice->flushCommandBuffer(clearCmd, queue, true);
+  }
 
   void prepareComputeUniformBuffers() {}
 
@@ -1087,6 +1233,12 @@ class VulkanExample : public VulkanExampleBase {
 
       // Cube map
       graphics_.textures.cube_map.destroy();
+
+      // Compute textures
+      vkDestroyImageView(device, compute_.wave_normal_map.view, nullptr);
+      vkDestroyImage(device, compute_.wave_normal_map.image, nullptr);
+      vkDestroySampler(device, compute_.wave_normal_map.sampler, nullptr);
+      vkFreeMemory(device, compute_.wave_normal_map.deviceMemory, nullptr);
     }
   }
 };
