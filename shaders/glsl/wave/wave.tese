@@ -1,0 +1,30 @@
+#version 450
+
+// in
+layout (location = 0) in vec2 inUV[];
+
+// out
+layout (location = 0) out vec2 outUV;
+
+layout (set = 0, binding = 0) uniform UBO
+{
+    mat4 perspective;
+    mat4 view;
+} ubo;
+
+layout(quads, equal_spacing, cw) in;
+
+void main()
+{
+    // Interpolate UV coordinates
+    vec2 uv1 = mix(inUV[0], inUV[1], gl_TessCoord.x);
+    vec2 uv2 = mix(inUV[3], inUV[2], gl_TessCoord.x);
+    outUV = mix(uv1, uv2, gl_TessCoord.y);
+
+    // Interpolate positions
+    vec4 pos1 = mix(gl_in[0].gl_Position, gl_in[1].gl_Position, gl_TessCoord.x);
+    vec4 pos2 = mix(gl_in[3].gl_Position, gl_in[2].gl_Position, gl_TessCoord.x);
+    vec4 pos = mix(pos1, pos2, gl_TessCoord.y);
+
+    gl_Position = ubo.perspective * ubo.view * pos;
+}

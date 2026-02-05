@@ -16,8 +16,8 @@
 
 // Vertex structure with position and texture coordinates
 struct WaterVertex {
-  float position[3];  // x, y, z
-  float texCoord[2];  // u, v
+  glm::vec3 position;  // x, y, z
+  glm::vec2 uv;        // u, v
 
   // Vulkan vertex input description
   static VkVertexInputBindingDescription getBindingDescription() {
@@ -40,7 +40,7 @@ struct WaterVertex {
     attributeDescriptions[1].binding = 0;
     attributeDescriptions[1].location = 1;
     attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
-    attributeDescriptions[1].offset = offsetof(WaterVertex, texCoord);
+    attributeDescriptions[1].offset = offsetof(WaterVertex, uv);
 
     return attributeDescriptions;
   }
@@ -74,8 +74,8 @@ struct WaterMesh {
         vertex.position[2] = (float(z) / gridSize - 0.5f) * worldSize;
 
         // Texture coordinates: [0, 1] range
-        vertex.texCoord[0] = float(x) / gridSize;
-        vertex.texCoord[1] = float(z) / gridSize;
+        vertex.uv[0] = float(x) / gridSize;
+        vertex.uv[1] = float(z) / gridSize;
 
         vertices.push_back(vertex);
       }
@@ -128,8 +128,8 @@ struct WaterMesh {
           vertex.position[0] = (gridX - 0.5f) * worldSize;
           vertex.position[1] = 0.0f;
           vertex.position[2] = (gridZ - 0.5f) * worldSize;
-          vertex.texCoord[0] = gridX;
-          vertex.texCoord[1] = gridZ;
+          vertex.uv[0] = gridX;
+          vertex.uv[1] = gridZ;
 
           vertices.push_back(vertex);
         }
@@ -149,7 +149,15 @@ class VulkanExample : public VulkanExampleBase {
  public:
   // Enable Vulkan 1.3
   VkPhysicalDeviceVulkan13Features enabledFeatures13_{
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+  };
+
+  // Dynamic state feature
+  VkPhysicalDeviceExtendedDynamicState3FeaturesEXT dynamicState3Features{
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT};
+
+  // Command to enable dynamic states during rendering
+  PFN_vkCmdSetPolygonModeEXT vkCmdSetPolygonModeEXT{VK_NULL_HANDLE};
 
   struct Graphics {
     // Holds the buffers for rendering
@@ -250,7 +258,9 @@ class VulkanExample : public VulkanExampleBase {
     setLayoutBindings = {
         // Binding 0 : Vertex shader ubo
         vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT,
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT |
+                VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
             /*binding id*/ 0),
     };
     descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
@@ -334,29 +344,44 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::pipelineMultisampleStateCreateInfo(
             VK_SAMPLE_COUNT_1_BIT, 0);
     std::vector<VkDynamicState> dynamicStateEnables = {
-        VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+        VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR,
+        VK_DYNAMIC_STATE_POLYGON_MODE_EXT,
+        VK_DYNAMIC_STATE_LINE_RASTERIZATION_MODE_EXT};
     VkPipelineDynamicStateCreateInfo dynamicState =
         vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
     std::array<VkPipelineShaderStageCreateInfo, 4> shaderStages{};
 
+    // We render the terrain as a grid of quad patches
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
         vks::initializers::pipelineInputAssemblyStateCreateInfo(
-            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
+            VK_PRIMITIVE_TOPOLOGY_PATCH_LIST, 0, VK_FALSE);
+    VkPipelineTessellationStateCreateInfo tessellationState =
+        vks::initializers::pipelineTessellationStateCreateInfo(4);
+    // Wave mesh tessellation pipeline
+    shaderStages[0] = loadShader(getShadersPath() + "wave/wave.vert.spv",
+                                 VK_SHADER_STAGE_VERTEX_BIT);
+    shaderStages[1] = loadShader(getShadersPath() + "wave/wave.frag.spv",
+                                 VK_SHADER_STAGE_FRAGMENT_BIT);
+    shaderStages[2] = loadShader(getShadersPath() + "wave/wave.tesc.spv",
+                                 VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT);
+    shaderStages[3] = loadShader(getShadersPath() + "wave/wave.tese.spv",
+                                 VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
 
     VkGraphicsPipelineCreateInfo pipelineCI =
         vks::initializers::pipelineCreateInfo();
-    pipelineCI.layout = graphics_.pipeline_layouts.sky_box;
+    pipelineCI.layout = graphics_.pipeline_layouts.wave;
     pipelineCI.pInputAssemblyState = &inputAssemblyState;
+    rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
+    rasterizationState.polygonMode = VK_POLYGON_MODE_LINE;
     pipelineCI.pRasterizationState = &rasterizationState;
     pipelineCI.pColorBlendState = &colorBlendState;
     pipelineCI.pMultisampleState = &multisampleState;
     pipelineCI.pViewportState = &viewportState;
     pipelineCI.pDepthStencilState = &depthStencilState;
     pipelineCI.pDynamicState = &dynamicState;
+    pipelineCI.pTessellationState = &tessellationState;
     pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineCI.pStages = shaderStages.data();
-    pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState(
-        {vkglTF::VertexComponent::Position, vkglTF::VertexComponent::UV});
 
     // Dynamic rendering. New create info to define color, depth and stencil
     // attachments at pipeline create time
@@ -371,15 +396,41 @@ class VulkanExample : public VulkanExampleBase {
     // Chain into the pipeline create info
     pipelineCI.pNext = &pipelineRenderingCreateInfo;
 
-    // Skybox (cubemap) pipeline
+    auto bindingDescription = WaterVertex::getBindingDescription();
+    auto attributeDescription = WaterVertex::getAttributeDescriptions();
+    VkPipelineVertexInputStateCreateInfo vertexInputCI =
+        vks::initializers::pipelineVertexInputStateCreateInfo();
+    vertexInputCI.vertexBindingDescriptionCount = 1;
+    vertexInputCI.vertexAttributeDescriptionCount =
+        static_cast<uint32_t>(attributeDescription.size());
+    vertexInputCI.pVertexBindingDescriptions = &bindingDescription;
+    vertexInputCI.pVertexAttributeDescriptions = attributeDescription.data();
+    pipelineCI.pVertexInputState = &vertexInputCI;
+
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1,
+                                              &pipelineCI, nullptr,
+                                              &graphics_.pipelines.wave));
+
+    // Skybox
+    pipelineCI.layout = graphics_.pipeline_layouts.sky_box;
+    pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState(
+        {vkglTF::VertexComponent::Position, vkglTF::VertexComponent::UV});
+
     depthStencilState.depthWriteEnable = VK_FALSE;
     depthStencilState.depthTestEnable = VK_TRUE;
     rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
     rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
     // Revert to triangle list topology
+    inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    // Remove unused dynamic states (wireframe)
+    dynamicStateEnables = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR,
+                           VK_DYNAMIC_STATE_POLYGON_MODE_EXT};
+    dynamicState =
+        vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
     // Reset tessellation state
     pipelineCI.pTessellationState = nullptr;
     pipelineCI.stageCount = 2;
+    pipelineCI.pStages = shaderStages.data();
     shaderStages[0] = loadShader(getShadersPath() + "wave/skybox.vert.spv",
                                  VK_SHADER_STAGE_VERTEX_BIT);
     shaderStages[1] = loadShader(getShadersPath() + "wave/skybox.frag.spv",
@@ -477,6 +528,8 @@ class VulkanExample : public VulkanExampleBase {
 
   void prepare() override {
     VulkanExampleBase::prepare();
+    vkCmdSetPolygonModeEXT = reinterpret_cast<PFN_vkCmdSetPolygonModeEXT>(
+        vkGetDeviceProcAddr(device, "vkCmdSetPolygonModeEXT"));
     loadAssets();
     setupWaterMesh();
     prepareUniformBuffers();
@@ -497,7 +550,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void buildCommandBuffer() {
-    VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+    const VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
 
     const VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
@@ -568,6 +621,7 @@ class VulkanExample : public VulkanExampleBase {
                             graphics_.pipeline_layouts.sky_box, 0, 1,
                             &graphics_.descriptor_sets[currentBuffer].sky_box,
                             0, nullptr);
+    vkCmdSetPolygonModeEXT(cmdBuffer, VK_POLYGON_MODE_FILL);
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       graphics_.pipelines.sky_box);
     graphics_.models.sky_box.draw(cmdBuffer);
@@ -623,8 +677,31 @@ class VulkanExample : public VulkanExampleBase {
 
     // Dynamic rendering
     enabledFeatures13_.dynamicRendering = VK_TRUE;
+    enabledFeatures13_.pNext = &dynamicState3Features;
+
+    // Dynamic states
+    dynamicState3Features.extendedDynamicState3PolygonMode = VK_TRUE;
+    dynamicState3Features.extendedDynamicState3LineRasterizationMode = VK_TRUE;
+    enabledDeviceExtensions.push_back(
+        VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME);
 
     deviceCreatepNextChain = &enabledFeatures13_;
+  }
+
+  // Enable physical device features required for this example
+  void getEnabledFeatures() override {
+    // Tessellation shader support is required for this example
+    if (deviceFeatures.tessellationShader) {
+      enabledFeatures.tessellationShader = VK_TRUE;
+    } else {
+      vks::tools::exitFatal(
+          "Selected GPU does not support tessellation shaders!",
+          VK_ERROR_FEATURE_NOT_PRESENT);
+    }
+    // Fill mode non-solid is required for wireframe display
+    if (deviceFeatures.fillModeNonSolid) {
+      enabledFeatures.fillModeNonSolid = VK_TRUE;
+    };
   }
 
   ~VulkanExample() override {
