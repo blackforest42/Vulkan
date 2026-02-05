@@ -1217,6 +1217,7 @@ class VulkanExample : public VulkanExampleBase {
                                            nullptr,
                                            &compute_.pipelineLayouts_.jacobi));
 
+    // Gradient
     pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
         &compute_.descriptorSetLayouts_.gradient, 1);
     VK_CHECK_RESULT(

@@ -389,12 +389,12 @@ class VulkanExample : public VulkanExampleBase {
     // Pipelines
     struct {
       VkPipeline compose;
-    } pipelines_{};
+    } pipelines{};
 
     // Pipeline Layout
     struct {
       VkPipelineLayout compose{VK_NULL_HANDLE};
-    } pipelineLayouts_;
+    } pipeline_layouts;
 
     // Descriptor Layout
     struct {
@@ -975,13 +975,13 @@ class VulkanExample : public VulkanExampleBase {
 
     // Compose
     setLayoutBindings = {
-        // Binding 0 : Ubo
-        vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-            /*binding id*/ 0),
-        // Binding 1 : Wave normal map (write only)
+        // Binding 0 : Wave normal map (write only)
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 0),
+        // Binding 1 : Ubo
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
             /*binding id*/ 1),
     };
     descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
@@ -1001,12 +1001,12 @@ class VulkanExample : public VulkanExampleBase {
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
           vks::initializers::writeDescriptorSet(
               compute_.descriptor_sets[i].compose,
-              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
-              &compute_.uniform_buffers[i].compose.descriptor),
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0,
+              &compute_.wave_normal_map.descriptor),
           vks::initializers::writeDescriptorSet(
               compute_.descriptor_sets[i].compose,
-              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
-              &compute_.wave_normal_map.descriptor),
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
+              &compute_.uniform_buffers[i].compose.descriptor),
       };
       vkUpdateDescriptorSets(device,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -1014,7 +1014,43 @@ class VulkanExample : public VulkanExampleBase {
     }
   }
 
-  void prepareComputePipelines() {}
+  void prepareComputePipelines() {
+    // Create pipelines
+    // Compose
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
+        vks::initializers::pipelineLayoutCreateInfo(
+            &compute_.descriptor_set_layouts.compose, 1);
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo,
+                                           nullptr,
+                                           &compute_.pipeline_layouts.compose));
+
+    // Compose
+    VkComputePipelineCreateInfo computePipelineCreateInfo =
+        vks::initializers::computePipelineCreateInfo(
+            compute_.pipeline_layouts.compose, 0);
+    computePipelineCreateInfo.stage =
+        loadShader(getShadersPath() + "wave/compose.comp.spv",
+                   VK_SHADER_STAGE_COMPUTE_BIT);
+
+    // We want to use as much shared memory for the compute shader invocations
+    // as available, so we calculate it based on the device limits and pass it
+    // to the shader via specialization constants
+    uint32_t sharedDataSize = std::min(
+        static_cast<uint32_t>(1024),
+        static_cast<uint32_t>(
+            (vulkanDevice->properties.limits.maxComputeSharedMemorySize /
+             sizeof(glm::vec4))));
+    VkSpecializationMapEntry specializationMapEntry =
+        vks::initializers::specializationMapEntry(0, 0, sizeof(uint32_t));
+    VkSpecializationInfo specializationInfo =
+        vks::initializers::specializationInfo(1, &specializationMapEntry,
+                                              sizeof(int32_t), &sharedDataSize);
+    computePipelineCreateInfo.stage.pSpecializationInfo = &specializationInfo;
+
+    VK_CHECK_RESULT(vkCreateComputePipelines(
+        device, pipelineCache, 1, &computePipelineCreateInfo, nullptr,
+        &compute_.pipelines.compose));
+  }
 
   void prepareCompute() {
     prepareComputeTextures();
@@ -1261,11 +1297,14 @@ class VulkanExample : public VulkanExampleBase {
       // Pipelines
       vkDestroyPipeline(device, graphics_.pipelines.sky_box, nullptr);
       vkDestroyPipeline(device, graphics_.pipelines.wave, nullptr);
+      vkDestroyPipeline(device, compute_.pipelines.compose, nullptr);
 
       // Pipeline Layouts
       vkDestroyPipelineLayout(device, graphics_.pipeline_layouts.sky_box,
                               nullptr);
       vkDestroyPipelineLayout(device, graphics_.pipeline_layouts.wave, nullptr);
+      vkDestroyPipelineLayout(device, compute_.pipeline_layouts.compose,
+                              nullptr);
 
       // Buffers: Graphics
       for (auto& buffer : graphics_.uniform_buffers) {
