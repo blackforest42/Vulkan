@@ -316,6 +316,7 @@ class WaveGenerator {
 
 struct UiFeatures {
   bool pause_wave{false};
+  bool show_mesh{false};
 } ui_features;
 
 class VulkanExample : public VulkanExampleBase {
@@ -1306,7 +1307,11 @@ class VulkanExample : public VulkanExampleBase {
                             graphics_.pipeline_layouts.wave, 0, 1,
                             &graphics_.descriptor_sets[currentBuffer].wave, 0,
                             nullptr);
-    vkCmdSetPolygonModeEXT(cmdBuffer, VK_POLYGON_MODE_LINE);
+    if (ui_features.show_mesh) {
+      vkCmdSetPolygonModeEXT(cmdBuffer, VK_POLYGON_MODE_LINE);
+    } else {
+      vkCmdSetPolygonModeEXT(cmdBuffer, VK_POLYGON_MODE_FILL);
+    }
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       graphics_.pipelines.wave);
     VkDeviceSize offsets[1] = {0};
@@ -1360,6 +1365,7 @@ class VulkanExample : public VulkanExampleBase {
   void OnUpdateUIOverlay(vks::UIOverlay* overlay) override {
     if (deviceFeatures.fillModeNonSolid) {
       overlay->checkBox("Pause Wave", &ui_features.pause_wave);
+      overlay->checkBox("Show Mesh", &ui_features.show_mesh);
     }
   }
 
