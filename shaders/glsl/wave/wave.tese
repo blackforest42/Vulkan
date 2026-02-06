@@ -6,7 +6,7 @@ layout (location = 0) in vec2 inUV[];
 // out
 layout (location = 0) out vec2 outUV;
 layout (location = 1) out vec3 outWorldCoord;
-layout (location = 2) out mat3 outTBN;// Tangent-Bitangent-Normal matrix
+layout (location = 2) out mat3 outTBN;
 
 layout(quads, fractional_odd_spacing, ccw) in;
 
@@ -16,11 +16,10 @@ layout(set = 0, binding = 0) uniform UBO
     mat4 view;
     vec3 camera_pos;
     vec2 screen_res;
-    float pixelsPerEdge;
+    float pixels_per_edge;
 } ubo;
 
 layout(binding = 2) uniform WaveParams {
-// Match C++ structure exactly (std140 layout)
     vec4 frequency[4];
     vec4 amplitude[4];
     vec4 directionX[4];
@@ -64,16 +63,9 @@ void main() {
     vec2 xzPos = outUV * worldSize - worldSize * 0.5;
     vec3 basePos = vec3(xzPos.x, 0.0, xzPos.y);// X and Z horizontal, Y=0
 
-    // Optional: Apply depth filtering if you have a depth map
-    // float depth = texture(depthMap, outUV).r;
-    // float depthFilter = calcDepthFilter(depth, 5.0);
-
     // --- 3. Apply Gerstner Wave Displacement ---
     vec3 tangent, bitangent;
     vec3 waveDisplacement = gerstnerWave(vec2(basePos.x, basePos.z), tangent, bitangent);
-
-    // Optional: Scale by depth filter
-    // waveDisplacement *= depthFilter;
 
     vec3 displacedPos = basePos + waveDisplacement;
 
@@ -169,15 +161,4 @@ vec3 gerstnerWave(vec2 pos, out vec3 tangent, out vec3 bitangent) {
     }
 
     return displacement;
-}
-
-// Alternative: Depth-based wave filtering for shorelines
-// Returns scale factor for wave amplitude based on depth
-float calcDepthFilter(float depth, float depthScale) {
-    // Gradually reduce wave height in shallow water
-    // depth: distance below water surface
-    // depthScale: how quickly waves fade (smaller = faster fade)
-    float depth_filter = depth / depthScale;
-    depth_filter = clamp(depth_filter, 0.0, 1.0);
-    return depth_filter;
 }

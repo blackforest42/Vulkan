@@ -314,6 +314,10 @@ class WaveGenerator {
   }
 };
 
+struct UiFeatures {
+  bool pause_wave{false};
+} ui_features;
+
 class VulkanExample : public VulkanExampleBase {
  public:
   // Enable Vulkan 1.3
@@ -754,8 +758,10 @@ class VulkanExample : public VulkanExampleBase {
 
   void updateUniformBuffers() {
     // Compute: Compose
-    compute_.wave_generator.updateWaveParams(compute_.ubos.compose,
-                                             compute_.TIME_DELTA);
+    if (!ui_features.pause_wave) {
+      compute_.wave_generator.updateWaveParams(compute_.ubos.compose,
+                                               compute_.TIME_DELTA);
+    }
     memcpy(compute_.uniform_buffers[currentBuffer].compose.mapped,
            &compute_.ubos.compose, sizeof(WaveParams));
 
@@ -1353,6 +1359,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void OnUpdateUIOverlay(vks::UIOverlay* overlay) override {
     if (deviceFeatures.fillModeNonSolid) {
+      overlay->checkBox("Pause Wave", &ui_features.pause_wave);
     }
   }
 
