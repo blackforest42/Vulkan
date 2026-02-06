@@ -19,12 +19,12 @@ layout(set = 0, binding = 0) uniform UBO
 // Tessellation configuration
 layout(set = 0, binding = 1) uniform TessellationConfig
 {
-    float minTessLevel;
-    float maxTessLevel;
-    float minDistance;
-    float maxDistance;
-    float frustumCullMargin;
-} tessConfig;
+    float min_tess_level;
+    float max_tess_level;
+    float min_distance;
+    float max_distance;
+    float frustum_cull_margin;
+} tess_config;
 
 
 const float EPSILON = 0.001;
@@ -54,38 +54,43 @@ void main(void)
         {
             // --- Calculate Tessellation Levels ---
 
-            // Get world space positions
-            vec3 worldPos[4];
-            worldPos[0] = gl_in[0].gl_Position.xyz;
-            worldPos[1] = gl_in[1].gl_Position.xyz;
-            worldPos[2] = gl_in[2].gl_Position.xyz;
-            worldPos[3] = gl_in[3].gl_Position.xyz;
+            // Step 1: transform each vertex into camera space
+            vec4 eyeSpacePos00 = ubo.view * gl_in[0].gl_Position;
+            vec4 eyeSpacePos01 = ubo.view * gl_in[1].gl_Position;
+            vec4 eyeSpacePos10 = ubo.view * gl_in[2].gl_Position;
+            vec4 eyeSpacePos11 = ubo.view * gl_in[3].gl_Position;
 
-            // Calculate edge tessellation levels
-            // Edge 0: vertex 0 -> vertex 2 (left edge in standard quad layout)
-            // Edge 1: vertex 0 -> vertex 1 (bottom edge)
-            // Edge 2: vertex 1 -> vertex 3 (right edge)
-            // Edge 3: vertex 2 -> vertex 3 (top edge)
 
-            float tessLevel0 = calculateEdgeTessLevel(worldPos[0], worldPos[2]);
-            float tessLevel1 = calculateEdgeTessLevel(worldPos[0], worldPos[1]);
-            float tessLevel2 = calculateEdgeTessLevel(worldPos[1], worldPos[3]);
-            float tessLevel3 = calculateEdgeTessLevel(worldPos[2], worldPos[3]);
+            // Step 2: "distance" from camera scaled between 0 and 1
+            float distance00 = clamp(
+            (abs(eyeSpacePos00.z) - tess_config.min_distance) / (tess_config.max_distance - tess_config.min_distance),
+            0.0, 1.0);
+            float distance01 = clamp(
+            (abs(eyeSpacePos01.z) - tess_config.min_distance) / (tess_config.max_distance - tess_config.min_distance),
+            0.0, 1.0);
+            float distance10 = clamp(
+            (abs(eyeSpacePos10.z) - tess_config.min_distance) / (tess_config.max_distance - tess_config.min_distance),
+            0.0, 1.0);
+            float distance11 = clamp(
+            (abs(eyeSpacePos11.z) - tess_config.min_distance) / (tess_config.max_distance - tess_config.min_distance),
+            0.0, 1.0);
 
-            // Set outer tessellation levels
+            // Step 3: interpolate edge tessellation level based on closer vertex
+            float tessLevel0 = mix(tess_config.max_tess_level, tess_config.min_tess_level, min(distance10, distance00));
+            float tessLevel1 = mix(tess_config.max_tess_level, tess_config.min_tess_level, min(distance00, distance01));
+            float tessLevel2 = mix(tess_config.max_tess_level, tess_config.min_tess_level, min(distance01, distance11));
+            float tessLevel3 = mix(tess_config.max_tess_level, tess_config.min_tess_level, min(distance11, distance10));
+
+
+            // Step 4: Set tessellation levels
             gl_TessLevelOuter[0] = tessLevel0;
             gl_TessLevelOuter[1] = tessLevel1;
             gl_TessLevelOuter[2] = tessLevel2;
             gl_TessLevelOuter[3] = tessLevel3;
 
-            // Set inner tessellation levels
-            // Use maximum of opposite edges to prevent cracks
+            // Step 5: set the inner tessellation levels to the max of the two parallel edges
             gl_TessLevelInner[0] = max(tessLevel1, tessLevel3);
             gl_TessLevelInner[1] = max(tessLevel0, tessLevel2);
-
-            // Alternative: Use average for smoother transitions
-            //            gl_TessLevelInner[0] = (tessLevel1 + tessLevel3) * 0.5;
-            //            gl_TessLevelInner[1] = (tessLevel0 + tessLevel2) * 0.5;
         }
     }
 
@@ -102,8 +107,8 @@ float calculateTessLevel(vec3 worldPos)
 
     // Normalize distance between min and max range
     float normalizedDistance = clamp(
-    (distance - tessConfig.minDistance) /
-    (tessConfig.maxDistance - tessConfig.minDistance),
+    (distance - tess_config.min_distance) /
+    (tess_config.max_distance - tess_config.min_distance),
     0.0, 1.0
     );
 
@@ -111,7 +116,7 @@ float calculateTessLevel(vec3 worldPos)
     normalizedDistance = smoothstep(0.0, 1.0, normalizedDistance);
 
     // Interpolate between max and min tessellation levels
-    return mix(tessConfig.maxTessLevel, tessConfig.minTessLevel, normalizedDistance);
+    return mix(tess_config.max_tess_level, tess_config.min_tess_level, normalizedDistance);
 }
 
 // Calculate tessellation level for an edge based on both vertices
@@ -130,7 +135,7 @@ float calculateEdgeTessLevel(vec3 worldPos0, vec3 worldPos1)
 bool isInFrustum(vec4 clipSpacePos)
 {
     // Add small margin to prevent popping at frustum edges
-    float margin = tessConfig.frustumCullMargin;
+    float margin = tess_config.frustum_cull_margin;
 
     // Check all 6 frustum planes (simplified)
     return clipSpacePos.x >= -clipSpacePos.w - margin &&

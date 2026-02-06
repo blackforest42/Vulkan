@@ -445,9 +445,9 @@ class VulkanExample : public VulkanExampleBase {
 
     struct TessellationConfigUBO {
       float minTessLevel{1.f};
-      float maxTessLevel{16.f};
-      float minDistance{1.f};
-      float maxDistance{200.f};
+      float maxTessLevel{32.f};
+      float minDistance{10.f};
+      float maxDistance{256.f};
       float frustumCullMargin{1.f};
     };
 
