@@ -1,4 +1,6 @@
 Feb 5
 TODO:
-    - wave.frag + normal map for surface rendering
-    - fix dynamic tess in tesc shader.
+    - reflections looks really weird, too specular, also oscillating
+    - update frustum culling in wave.tesc to be smoother (bounding sphere)
+    - add wave params to UI
+    - add reset button to UI

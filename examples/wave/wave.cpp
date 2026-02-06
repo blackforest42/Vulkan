@@ -317,7 +317,7 @@ class WaveGenerator {
 struct UiFeatures {
   bool pause_wave{false};
   bool show_mesh{false};
-  int time_step{360};
+  int time_step{720};
 } ui_features;
 
 class VulkanExample : public VulkanExampleBase {

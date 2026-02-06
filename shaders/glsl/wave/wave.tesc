@@ -50,7 +50,7 @@ void main(void)
             gl_TessLevelInner[0] = 0.0;
             gl_TessLevelInner[1] = 0.0;
         }
-
+        else
         {
             // --- Calculate Tessellation Levels ---
 
