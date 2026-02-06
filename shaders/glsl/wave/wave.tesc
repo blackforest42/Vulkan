@@ -17,7 +17,7 @@ layout(set = 0, binding = 0) uniform UBO
 } ubo;
 
 // Tessellation configuration
-layout(set = 0, binding = 1) uniform TessellationConfig
+layout(binding = 1) uniform TessellationConfig
 {
     float min_tess_level;
     float max_tess_level;
@@ -50,7 +50,7 @@ void main(void)
             gl_TessLevelInner[0] = 0.0;
             gl_TessLevelInner[1] = 0.0;
         }
-        else
+
         {
             // --- Calculate Tessellation Levels ---
 

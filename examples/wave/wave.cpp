@@ -18,7 +18,7 @@
 
 #define VECTOR_FIELD_FORMAT VK_FORMAT_R32G32B32A32_SFLOAT
 
-constexpr uint32_t COMPUTE_TEXTURE_DIMENSION = 256;
+constexpr uint32_t COMPUTE_TEXTURE_DIMENSION = 512;
 
 // Vertex structure with position and texture coordinates
 struct WaterVertex {
@@ -317,6 +317,7 @@ class WaveGenerator {
 struct UiFeatures {
   bool pause_wave{false};
   bool show_mesh{false};
+  int time_step{360};
 } ui_features;
 
 class VulkanExample : public VulkanExampleBase {
@@ -336,7 +337,6 @@ class VulkanExample : public VulkanExampleBase {
   // Handles all compute pipelines
   struct Compute {
     static constexpr int WORKGROUP_SIZE = 16;
-    static constexpr float TIME_DELTA = 1.f / 360;
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
@@ -419,7 +419,7 @@ class VulkanExample : public VulkanExampleBase {
     uint32_t queueFamilyIndex{0};
     uint32_t GRID_SIZE = 32;
     uint32_t PATCH_COUNT = GRID_SIZE * GRID_SIZE;
-    float GRID_SCALE = 100.0f;
+    float GRID_SCALE = 128.0f;
 
     struct {
       vks::Buffer vertex_buffer;
@@ -451,8 +451,8 @@ class VulkanExample : public VulkanExampleBase {
     struct TessellationConfigUBO {
       float minTessLevel{1.f};
       float maxTessLevel{32.f};
-      float minDistance{10.f};
-      float maxDistance{256.f};
+      float minDistance{1.f};
+      float maxDistance{1024.f};
       float frustumCullMargin{1.f};
     };
 
@@ -522,7 +522,8 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT |
-                VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
+                VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT |
+                VK_SHADER_STAGE_FRAGMENT_BIT,
             /*binding id*/ 0),
         // Binding 1 : Tess. Control Config
         vks::initializers::descriptorSetLayoutBinding(
@@ -534,6 +535,16 @@ class VulkanExample : public VulkanExampleBase {
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
             /*binding id*/ 2),
+        // Binding 3 : Normal Map
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding id*/ 3),
+        // Binding 3 : Cube map / skybox
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding id*/ 4),
     };
     descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
         setLayoutBindings.data(),
@@ -569,20 +580,35 @@ class VulkanExample : public VulkanExampleBase {
       VK_CHECK_RESULT(vkAllocateDescriptorSets(
           device, &allocInfo, &graphics_.descriptor_sets[i].wave));
       writeDescriptorSets = {
+          // MVP ubo
           vks::initializers::writeDescriptorSet(
               graphics_.descriptor_sets[i].wave,
               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
               &graphics_.uniform_buffers[i].wave.descriptor),
 
+          // tess. control ubo
           vks::initializers::writeDescriptorSet(
               graphics_.descriptor_sets[i].wave,
               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
               &graphics_.uniform_buffers[i].tess_config.descriptor),
 
+          // tess. eval ubo
           vks::initializers::writeDescriptorSet(
               graphics_.descriptor_sets[i].wave,
               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2,
               &graphics_.uniform_buffers[i].wave_params.descriptor),
+
+          // normal map
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptor_sets[i].wave,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3,
+              &compute_.wave_normal_map.descriptor),
+
+          // cube map / skybox
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptor_sets[i].wave,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4,
+              &graphics_.textures.cube_map.descriptor),
       };
       vkUpdateDescriptorSets(device,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -761,7 +787,7 @@ class VulkanExample : public VulkanExampleBase {
     // Compute: Compose
     if (!ui_features.pause_wave) {
       compute_.wave_generator.updateWaveParams(compute_.ubos.compose,
-                                               compute_.TIME_DELTA);
+                                               1.f / ui_features.time_step);
     }
     memcpy(compute_.uniform_buffers[currentBuffer].compose.mapped,
            &compute_.ubos.compose, sizeof(WaveParams));
@@ -860,7 +886,7 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             /*total texture count (across all pipelines) */ (
-                /*graphics*/ 1 + /*compute textures*/ 0) *
+                /*graphics*/ 2 + /*compute textures*/ 0) *
                 maxConcurrentFrames),
         vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
                                               1 * maxConcurrentFrames)};
@@ -1366,6 +1392,7 @@ class VulkanExample : public VulkanExampleBase {
     if (deviceFeatures.fillModeNonSolid) {
       overlay->checkBox("Pause Wave", &ui_features.pause_wave);
       overlay->checkBox("Show Mesh", &ui_features.show_mesh);
+      overlay->sliderInt("Time Step", &ui_features.time_step, 100, 1000);
     }
   }
 
