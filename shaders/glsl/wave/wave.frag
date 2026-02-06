@@ -39,8 +39,9 @@ void main() {
     // Fresnel approximation
     float fresnel = pow(1.0 - max(dot(-viewDir, normal), 0.0), 5.0);
 
-    // Final color
-    vec3 color = mix(waterTint.rgb, envSample, fresnel * 0.8);
+    // Reduce reflection strength for a less specular surface
+    float reflectivity = mix(0.02, 0.35, fresnel);
+    vec3 color = mix(waterTint.rgb, envSample * 0.85, reflectivity);
 
     // Depth-based alpha for shorelines (requires depth texture)
     float alpha = waterTint.a;

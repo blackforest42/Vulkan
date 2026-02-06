@@ -31,8 +31,8 @@ const float EPSILON = 0.001;
 
 float calculateTessLevel(vec3 worldPos);
 float calculateEdgeTessLevel(vec3 worldPos0, vec3 worldPos1);
-bool isInFrustum(vec4 clipSpacePos);
-bool shouldCullPatch();
+float frustumVisibility(vec4 clipSpacePos);
+float patchVisibility();
 
 void main(void)
 {
@@ -40,7 +40,8 @@ void main(void)
     if (gl_InvocationID == 0)
     {
         // --- Frustum Culling ---
-        if (shouldCullPatch())
+        float visibility = patchVisibility();
+        if (visibility <= EPSILON)
         {
             // Set tessellation levels to 0 to cull the patch
             gl_TessLevelOuter[0] = 0.0;
@@ -83,14 +84,14 @@ void main(void)
 
 
             // Step 4: Set tessellation levels
-            gl_TessLevelOuter[0] = tessLevel0;
-            gl_TessLevelOuter[1] = tessLevel1;
-            gl_TessLevelOuter[2] = tessLevel2;
-            gl_TessLevelOuter[3] = tessLevel3;
+            gl_TessLevelOuter[0] = tessLevel0 * visibility;
+            gl_TessLevelOuter[1] = tessLevel1 * visibility;
+            gl_TessLevelOuter[2] = tessLevel2 * visibility;
+            gl_TessLevelOuter[3] = tessLevel3 * visibility;
 
             // Step 5: set the inner tessellation levels to the max of the two parallel edges
-            gl_TessLevelInner[0] = max(tessLevel1, tessLevel3);
-            gl_TessLevelInner[1] = max(tessLevel0, tessLevel2);
+            gl_TessLevelInner[0] = max(tessLevel1, tessLevel3) * visibility;
+            gl_TessLevelInner[1] = max(tessLevel0, tessLevel2) * visibility;
         }
     }
 
@@ -132,22 +133,20 @@ float calculateEdgeTessLevel(vec3 worldPos0, vec3 worldPos1)
 }
 
 // Check if a point is inside the view frustum (approximate)
-bool isInFrustum(vec4 clipSpacePos)
+float frustumVisibility(vec4 clipSpacePos)
 {
     // Add small margin to prevent popping at frustum edges
     float margin = tess_config.frustum_cull_margin;
 
-    // Check all 6 frustum planes (simplified)
-    return clipSpacePos.x >= -clipSpacePos.w - margin &&
-    clipSpacePos.x <=  clipSpacePos.w + margin &&
-    clipSpacePos.y >= -clipSpacePos.w - margin &&
-    clipSpacePos.y <=  clipSpacePos.w + margin &&
-    clipSpacePos.z >= -clipSpacePos.w - margin &&
-    clipSpacePos.z <=  clipSpacePos.w + margin;
+    float w = clipSpacePos.w;
+    vec3 absPos = abs(clipSpacePos.xyz);
+    float maxOutside = max(max(absPos.x - w, absPos.y - w), absPos.z - w);
+    float fade = smoothstep(0.0, margin, maxOutside);
+    return clamp(1.0 - fade, 0.0, 1.0);
 }
 
 // Check if entire patch should be culled
-bool shouldCullPatch()
+float patchVisibility()
 {
     mat4 mvp = ubo.perspective * ubo.view;
 
@@ -158,18 +157,11 @@ bool shouldCullPatch()
     clipPos[2] = mvp * gl_in[2].gl_Position;
     clipPos[3] = mvp * gl_in[3].gl_Position;
 
-    // If all vertices are outside any single frustum plane, cull the patch
-    bool allOutside = true;
-
-    // Check each frustum plane
+    float visibility = 0.0;
     for (int i = 0; i < 4; i++)
     {
-        if (isInFrustum(clipPos[i]))
-        {
-            allOutside = false;
-            break;
-        }
+        visibility = max(visibility, frustumVisibility(clipPos[i]));
     }
 
-    return allOutside;
+    return visibility;
 }

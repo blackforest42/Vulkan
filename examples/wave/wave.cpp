@@ -1162,7 +1162,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void prepareInitialWaveState() {
-    compute_.ubos.compose = compute_.wave_generator.initializeWaveParams();
+    compute_.ubos.compose = compute_.wave_generator.createCalmWater();
   }
 
   void prepareComputeCommandPoolBuffersFencesAndSemaphores() {
