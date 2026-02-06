@@ -334,7 +334,7 @@ class VulkanExample : public VulkanExampleBase {
   // Handles all compute pipelines
   struct Compute {
     static constexpr int WORKGROUP_SIZE = 16;
-    static constexpr float TIME_DELTA = 0.5f;
+    static constexpr float TIME_DELTA = 1.f / 360;
 
     // Used to check if compute and graphics queue
     // families differ and require additional barriers
@@ -446,11 +446,13 @@ class VulkanExample : public VulkanExampleBase {
     struct {
       ModelViewPerspectiveUBO sky_box;
       WaveUBO wave;
+      WaveParams wave_params;
     } ubos;
 
     struct UniformBuffers {
       vks::Buffer sky_box;
       vks::Buffer wave;
+      vks::Buffer wave_params;
     };
     std::array<UniformBuffers, maxConcurrentFrames> uniform_buffers;
 
@@ -501,12 +503,17 @@ class VulkanExample : public VulkanExampleBase {
 
     // Wave
     setLayoutBindings = {
-        // Binding 0 : Vertex shader ubo
+        // Binding 0 : MVP UBO
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT |
                 VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
             /*binding id*/ 0),
+        // Binding 1 : WaveParams UBO
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
+            /*binding id*/ 1),
     };
     descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
         setLayoutBindings.data(),
@@ -546,6 +553,11 @@ class VulkanExample : public VulkanExampleBase {
               graphics_.descriptor_sets[i].wave,
               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
               &graphics_.uniform_buffers[i].wave.descriptor),
+
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptor_sets[i].wave,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
+              &graphics_.uniform_buffers[i].wave_params.descriptor),
       };
       vkUpdateDescriptorSets(device,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -615,7 +627,6 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::pipelineCreateInfo();
     pipelineCI.layout = graphics_.pipeline_layouts.wave;
     pipelineCI.pInputAssemblyState = &inputAssemblyState;
-    rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
     rasterizationState.polygonMode = VK_POLYGON_MODE_LINE;
     pipelineCI.pRasterizationState = &rasterizationState;
     pipelineCI.pColorBlendState = &colorBlendState;
@@ -702,10 +713,24 @@ class VulkanExample : public VulkanExampleBase {
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
           &buffer.wave, sizeof(graphics_.ubos.wave)));
       VK_CHECK_RESULT(buffer.wave.map());
+
+      // Wave Params
+      VK_CHECK_RESULT(vulkanDevice->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.wave_params, sizeof(graphics_.ubos.wave_params)));
+      VK_CHECK_RESULT(buffer.wave_params.map());
     }
   }
 
   void updateUniformBuffers() {
+    // Compute: Compose
+    compute_.wave_generator.updateWaveParams(compute_.ubos.compose,
+                                             compute_.TIME_DELTA);
+    memcpy(compute_.uniform_buffers[currentBuffer].compose.mapped,
+           &compute_.ubos.compose, sizeof(WaveParams));
+
     // Skybox
     graphics_.ubos.sky_box.perspective = camera.matrices.perspective;
     graphics_.ubos.sky_box.view = glm::mat4(glm::mat3(camera.matrices.view));
@@ -718,10 +743,10 @@ class VulkanExample : public VulkanExampleBase {
     memcpy(graphics_.uniform_buffers[currentBuffer].wave.mapped,
            &graphics_.ubos.wave, sizeof(Graphics::WaveUBO));
 
-    // Compute: Compose
-    compute_.wave_generator.updateWaveParams(compute_.ubos.compose,
-                                             compute_.TIME_DELTA);
-    memcpy(compute_.uniform_buffers[currentBuffer].compose.mapped,
+    // Wave params
+    // graphics_.ubos.wave_params
+    // NOTE: wave params are shared from compute_.ubos.compose AFTER updating
+    memcpy(graphics_.uniform_buffers[currentBuffer].wave_params.mapped,
            &compute_.ubos.compose, sizeof(WaveParams));
   }
 
@@ -789,16 +814,15 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            /*total ubo count */ (/*graphics*/ 2 + /*compute*/ 1) *
+            /*total ubo count */ (/*graphics*/ 3 + /*compute*/ 1) *
                 maxConcurrentFrames),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             /*total texture count (across all pipelines) */ (
                 /*graphics*/ 1 + /*compute textures*/ 0) *
                 maxConcurrentFrames),
-        vks::initializers::descriptorPoolSize(
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            static_cast<uint32_t>(1) * maxConcurrentFrames)};
+        vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                              1 * maxConcurrentFrames)};
 
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
@@ -1370,6 +1394,7 @@ class VulkanExample : public VulkanExampleBase {
       for (auto& buffer : graphics_.uniform_buffers) {
         buffer.sky_box.destroy();
         buffer.wave.destroy();
+        buffer.wave_params.destroy();
       }
       // Buffers: Compose
       for (auto& buffer : compute_.uniform_buffers) {
@@ -1397,6 +1422,7 @@ class VulkanExample : public VulkanExampleBase {
       vkDestroySampler(device, compute_.wave_normal_map.sampler, nullptr);
       vkFreeMemory(device, compute_.wave_normal_map.deviceMemory, nullptr);
 
+      // Compute Commands
       vkDestroyCommandPool(device, compute_.commandPool, nullptr);
       for (const auto& fence : compute_.fences) {
         vkDestroyFence(device, fence, nullptr);

@@ -5,6 +5,10 @@ layout (location = 0) in vec2 inUV[];
 
 // out
 layout (location = 0) out vec2 outUV;
+layout (location = 1) out vec3 outWorldCoord;
+layout (location = 2) out mat3 outTBN;// Tangent-Bitangent-Normal matrix
+
+layout(quads, fractional_odd_spacing, ccw) in;
 
 layout (set = 0, binding = 0) uniform UBO
 {
@@ -12,98 +16,165 @@ layout (set = 0, binding = 0) uniform UBO
     mat4 view;
 } ubo;
 
-layout(quads, equal_spacing, cw) in;
+layout(binding = 1) uniform WaveParams {
+// Match C++ structure exactly (std140 layout)
+    vec4 frequency[4];
+    vec4 amplitude[4];
+    vec4 directionX[4];
+    vec4 directionY[4];
+    vec4 phase[4];
 
-void main()
-{
-    // Interpolate UV coordinates
+    float time;
+    float chopiness;
+    float noiseStrength;
+    float rippleScale;
+
+    vec2 windDirection;
+    float angleDeviation;
+    float speedDeviation;
+
+    float gravity;
+    float minWavelength;
+    float maxWavelength;
+    float amplitudeOverLength;
+
+    float _padding[2];
+} waves;
+
+const float PI = 3.14159265359;
+const int NUM_GEO_WAVES = 4;// Use first 4 waves for geometry
+
+vec3 gerstnerWave(vec2 pos, out vec3 tangent, out vec3 bitangent);
+float calcDepthFilter(float depth, float depthScale);
+
+void main() {
+    // --- 1. Bilinear Interpolation of Patch Corners ---
+    // Interpolate texture coordinates from the 4 patch control points
     vec2 uv1 = mix(inUV[0], inUV[1], gl_TessCoord.x);
     vec2 uv2 = mix(inUV[3], inUV[2], gl_TessCoord.x);
     outUV = mix(uv1, uv2, gl_TessCoord.y);
 
-    // Interpolate positions
-    vec4 pos1 = mix(gl_in[0].gl_Position, gl_in[1].gl_Position, gl_TessCoord.x);
-    vec4 pos2 = mix(gl_in[3].gl_Position, gl_in[2].gl_Position, gl_TessCoord.x);
-    vec4 pos = mix(pos1, pos2, gl_TessCoord.y);
+    // --- 2. Calculate Base World Position ---
+    // Scale texture coordinates to world space
+    // Assuming the base mesh spans [-worldSize/2, worldSize/2] on XZ plane
+    const float worldSize = 100.0;
+    vec2 xzPos = outUV * worldSize - worldSize * 0.5;
+    vec3 basePos = vec3(xzPos.x, 0.0, xzPos.y);// X and Z horizontal, Y=0
 
-    gl_Position = ubo.perspective * ubo.view * pos;
+    // Optional: Apply depth filtering if you have a depth map
+    // float depth = texture(depthMap, outUV).r;
+    // float depthFilter = calcDepthFilter(depth, 5.0);
+
+    // --- 3. Apply Gerstner Wave Displacement ---
+    vec3 tangent, bitangent;
+    vec3 waveDisplacement = gerstnerWave(vec2(basePos.x, basePos.z), tangent, bitangent);
+
+    // Optional: Scale by depth filter
+    // waveDisplacement *= depthFilter;
+
+    vec3 displacedPos = basePos + waveDisplacement;
+
+    // --- 4. Transform to World Space ---
+    outWorldCoord = displacedPos;
+
+    // --- 5. Build Tangent-Bitangent-Normal Matrix ---
+    // The geometric normal from Gerstner waves
+    vec3 geometricNormal = normalize(cross(tangent, bitangent));
+
+    // Normalize tangent space basis vectors
+    tangent = normalize(tangent);
+    bitangent = normalize(bitangent);
+
+    // Construct TBN matrix for transforming normal map to world space
+    outTBN = mat3(tangent, bitangent, geometricNormal);
+
+    // --- 6. Calculate Final Screen Position ---
+    gl_Position = ubo.perspective * ubo.view * vec4(outWorldCoord, 1.0);
 }
 
-/*
-From Claude
-// water.tese
-#version 450
-
-layout(quads, fractional_odd_spacing, ccw) in;
-
-in vec2 tcTexCoord[];
-out vec3 teWorldPos;
-out vec2 teTexCoord;
-out mat3 teTBN;  // Tangent-Bitangent-Normal matrix
-
-uniform mat4 modelMatrix;
-uniform mat4 viewProjMatrix;
-
-// Wave parameters (same as compute shader)
-layout(binding = 0) uniform WaveParams {
-    vec4 frequency[4];
-    // ... same structure
-} waves;
-
+// Calculate Gerstner wave displacement and derivatives
+// Returns: displacement vector and modifies tangent/bitangent for TBN
+// pos: 2D horizontal position (X, Z)
+// Returns: displacement in (dx, dy, dz) where Y is vertical
 vec3 gerstnerWave(vec2 pos, out vec3 tangent, out vec3 bitangent) {
     vec3 displacement = vec3(0.0);
-    tangent = vec3(1.0, 0.0, 0.0);
-    bitangent = vec3(0.0, 1.0, 0.0);
+    tangent = vec3(1.0, 0.0, 0.0);// Initially along X axis
+    bitangent = vec3(0.0, 0.0, 1.0);// Initially along Z axis
 
-    // Calculate 4 primary geometric waves
-    for(int i = 0; i < 4; i++) {
-        float freq = waves.frequency[0][i];
-        float amp = waves.amplitude[0][i];
-        vec2 dir = waves.direction[i].xy;
-        float phase = waves.phase[0][i];
+    // Calculate only the first 4 waves for geometric displacement
+    // (The remaining 12 are handled by the normal map in the fragment shader)
+    for (int i = 0; i < NUM_GEO_WAVES; i++) {
+        int vecIdx = i / 4;// Always 0 for first 4 waves
+        int comp = i % 4;
 
-        float wave = dot(dir, pos) * freq + phase;
-        float sinW = sin(wave);
-        float cosW = cos(wave);
+        // Extract wave parameters
+        float freq = waves.frequency[vecIdx][comp];
+        float amp = waves.amplitude[vecIdx][comp];
+        vec2 dir = vec2(waves.directionX[vecIdx][comp],
+        waves.directionY[vecIdx][comp]);
+        float ph = waves.phase[vecIdx][comp];
 
-        // Vertical displacement
-        displacement.z += amp * sinW;
+        // Normalize direction vector (this is horizontal direction in XZ plane)
+        dir = normalize(dir);
 
-        // Horizontal displacement (chop)
-        float chop = 2.5;  // Same as m_GeoState.m_Chop in original
-        displacement.xy += dir * amp * cosW * chop;
+        // Calculate wave phase: k·position + ωt
+        // pos is (X, Z) horizontal coordinates
+        float wavePhase = dot(dir, pos) * freq + ph * 2.0 * PI;
 
-        // Tangent space derivatives
-        float wa = freq * amp;
-        tangent.xy -= dir * dir.x * wa * sinW;
-        tangent.z += dir.x * wa * cosW;
+        float sinWave = sin(wavePhase);
+        float cosWave = cos(wavePhase);
 
-        bitangent.xy -= dir * dir.y * wa * sinW;
-        bitangent.z += dir.y * wa * cosW;
+        // --- Vertical Displacement (Height) ---
+        // Y is up, so we modify the Y component
+        displacement.y += amp * sinWave;
+
+        // --- Horizontal Displacement (Chop/Steepness) ---
+        // This creates the sharp wave peaks characteristic of Gerstner waves
+        // K factor limits maximum chop to prevent self-intersection
+        float K = waves.chopiness;
+
+        // Limit K to prevent folding: K_max = 1/(2π * amp_sum)
+        if (waves.amplitudeOverLength > 0.0) {
+            float maxK = waves.chopiness /
+            (2.0 * PI * waves.amplitudeOverLength * float(NUM_GEO_WAVES));
+            K = min(K, maxK);
+        }
+
+        // Horizontal displacement in XZ plane
+        // dir.x affects X, dir.y affects Z
+        displacement.x += dir.x * K * amp * cosWave;
+        displacement.z += dir.y * K * amp * cosWave;
+
+        // --- Tangent Space Derivatives ---
+        // These are needed to compute the geometric normal
+
+        // Precompute common terms
+        float wa = freq * amp;// ω * A
+        float kwa = K * wa;// K * ω * A
+
+        // Tangent (derivative with respect to X)
+        // ∂P/∂x in (X, Y, Z) coordinates
+        tangent.x -= dir.x * dir.x * kwa * sinWave;// X component
+        tangent.y += dir.x * wa * cosWave;// Y component (vertical)
+        tangent.z -= dir.x * dir.y * kwa * sinWave;// Z component
+
+        // Bitangent (derivative with respect to Z)
+        // ∂P/∂z in (X, Y, Z) coordinates
+        bitangent.x -= dir.x * dir.y * kwa * sinWave;// X component
+        bitangent.y += dir.y * wa * cosWave;// Y component (vertical)
+        bitangent.z -= dir.y * dir.y * kwa * sinWave;// Z component
     }
 
     return displacement;
 }
 
-void main() {
-    // Bilinear interpolation of patch corners
-    vec2 uv1 = mix(tcTexCoord[0], tcTexCoord[1], gl_TessCoord.x);
-    vec2 uv2 = mix(tcTexCoord[3], tcTexCoord[2], gl_TessCoord.x);
-    teTexCoord = mix(uv1, uv2, gl_TessCoord.y);
-
-    // Base world position
-    vec3 pos = vec3(teTexCoord * 100.0 - 50.0, 0.0);  // Scale to world space
-
-    // Apply Gerstner waves
-    vec3 tangent, bitangent;
-    pos += gerstnerWave(pos.xy, tangent, bitangent);
-
-    teWorldPos = (modelMatrix * vec4(pos, 1.0)).xyz;
-
-    // Build TBN matrix for normal mapping
-    vec3 normal = normalize(cross(tangent, bitangent));
-    teTBN = mat3(normalize(tangent), normalize(bitangent), normal);
-
-    gl_Position = viewProjMatrix * vec4(teWorldPos, 1.0);
+// Alternative: Depth-based wave filtering for shorelines
+// Returns scale factor for wave amplitude based on depth
+float calcDepthFilter(float depth, float depthScale) {
+    // Gradually reduce wave height in shallow water
+    // depth: distance below water surface
+    // depthScale: how quickly waves fade (smaller = faster fade)
+    float depth_filter = depth / depthScale;
+    depth_filter = clamp(depth_filter, 0.0, 1.0);
+    return depth_filter;
 }
-*/

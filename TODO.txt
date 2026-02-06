@@ -1,6 +1,5 @@
-Feb 4
+Feb 5
 TODO:
-    - mesh and skybox done
-    - start on compute shader pipelines
-        1. gerstner wave
-        2. normal maps
+    - compute shader + wave normal map done
+    - wave.tese (eval) shader needs to implement gerstner
+    - wave.frag + normal map for surface rendering
