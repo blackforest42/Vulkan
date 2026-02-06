@@ -10,13 +10,16 @@ layout (location = 2) out mat3 outTBN;// Tangent-Bitangent-Normal matrix
 
 layout(quads, fractional_odd_spacing, ccw) in;
 
-layout (set = 0, binding = 0) uniform UBO
+layout(set = 0, binding = 0) uniform UBO
 {
     mat4 perspective;
     mat4 view;
+    vec3 camera_pos;
+    vec2 screen_res;
+    float pixelsPerEdge;
 } ubo;
 
-layout(binding = 1) uniform WaveParams {
+layout(binding = 2) uniform WaveParams {
 // Match C++ structure exactly (std140 layout)
     vec4 frequency[4];
     vec4 amplitude[4];

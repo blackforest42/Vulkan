@@ -1,5 +1,4 @@
 Feb 5
 TODO:
-    - compute shader + wave normal map done
-    - wave.tese (eval) shader needs to implement gerstner
     - wave.frag + normal map for surface rendering
+    - fix dynamic tess in tesc shader.

@@ -122,9 +122,6 @@ struct WaveParams {
   float minWavelength;        // Minimum wave length
   float maxWavelength;        // Maximum wave length
   float amplitudeOverLength;  // Ratio of amplitude to wavelength
-
-  // Padding for alignment
-  float _padding[2];
 };
 
 class WaveGenerator {
@@ -417,7 +414,7 @@ class VulkanExample : public VulkanExampleBase {
     uint32_t queueFamilyIndex{0};
     uint32_t GRID_SIZE = 32;
     uint32_t PATCH_COUNT = GRID_SIZE * GRID_SIZE;
-    float GRID_SCALE = 1000.0f;
+    float GRID_SCALE = 100.0f;
 
     struct {
       vks::Buffer vertex_buffer;
@@ -433,7 +430,7 @@ class VulkanExample : public VulkanExampleBase {
       vks::TextureCubeMap cube_map{};
     } textures;
 
-    struct ModelViewPerspectiveUBO {
+    struct SkyBoxUBO {
       glm::mat4 perspective;
       glm::mat4 view;
     };
@@ -441,18 +438,31 @@ class VulkanExample : public VulkanExampleBase {
     struct WaveUBO {
       glm::mat4 perspective;
       glm::mat4 view;
+      alignas(16) glm::vec3 camera_position;
+      glm::vec2 screen_res;
+      float pixels_per_edge{20.f};
+    };
+
+    struct TessellationConfigUBO {
+      float minTessLevel{1.f};
+      float maxTessLevel{16.f};
+      float minDistance{1.f};
+      float maxDistance{200.f};
+      float frustumCullMargin{1.f};
     };
 
     struct {
-      ModelViewPerspectiveUBO sky_box;
+      SkyBoxUBO sky_box;
       WaveUBO wave;
       WaveParams wave_params;
+      TessellationConfigUBO tess_config;
     } ubos;
 
     struct UniformBuffers {
       vks::Buffer sky_box;
       vks::Buffer wave;
       vks::Buffer wave_params;
+      vks::Buffer tess_config;
     };
     std::array<UniformBuffers, maxConcurrentFrames> uniform_buffers;
 
@@ -509,11 +519,16 @@ class VulkanExample : public VulkanExampleBase {
             VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT |
                 VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
             /*binding id*/ 0),
-        // Binding 1 : WaveParams UBO
+        // Binding 1 : Tess. Control Config
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT,
+            /*binding id*/ 1),
+        // Binding 2 : WaveParams UBO
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
-            /*binding id*/ 1),
+            /*binding id*/ 2),
     };
     descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
         setLayoutBindings.data(),
@@ -557,6 +572,11 @@ class VulkanExample : public VulkanExampleBase {
           vks::initializers::writeDescriptorSet(
               graphics_.descriptor_sets[i].wave,
               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
+              &graphics_.uniform_buffers[i].tess_config.descriptor),
+
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptor_sets[i].wave,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2,
               &graphics_.uniform_buffers[i].wave_params.descriptor),
       };
       vkUpdateDescriptorSets(device,
@@ -721,6 +741,14 @@ class VulkanExample : public VulkanExampleBase {
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
           &buffer.wave_params, sizeof(graphics_.ubos.wave_params)));
       VK_CHECK_RESULT(buffer.wave_params.map());
+
+      // Tessellation Config
+      VK_CHECK_RESULT(vulkanDevice->createBuffer(
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          &buffer.tess_config, sizeof(graphics_.ubos.tess_config)));
+      VK_CHECK_RESULT(buffer.tess_config.map());
     }
   }
 
@@ -735,19 +763,25 @@ class VulkanExample : public VulkanExampleBase {
     graphics_.ubos.sky_box.perspective = camera.matrices.perspective;
     graphics_.ubos.sky_box.view = glm::mat4(glm::mat3(camera.matrices.view));
     memcpy(graphics_.uniform_buffers[currentBuffer].sky_box.mapped,
-           &graphics_.ubos.sky_box, sizeof(Graphics::ModelViewPerspectiveUBO));
+           &graphics_.ubos.sky_box, sizeof(Graphics::SkyBoxUBO));
 
     // Wave
     graphics_.ubos.wave.perspective = camera.matrices.perspective;
     graphics_.ubos.wave.view = camera.matrices.view;
+    graphics_.ubos.wave.camera_position = camera.position;
+    graphics_.ubos.wave.screen_res = glm::vec2(this->width, this->height);
     memcpy(graphics_.uniform_buffers[currentBuffer].wave.mapped,
            &graphics_.ubos.wave, sizeof(Graphics::WaveUBO));
 
     // Wave params
-    // graphics_.ubos.wave_params
-    // NOTE: wave params are shared from compute_.ubos.compose AFTER updating
+    // NOTE: WaveParams are shared from compute AFTER updating
     memcpy(graphics_.uniform_buffers[currentBuffer].wave_params.mapped,
            &compute_.ubos.compose, sizeof(WaveParams));
+
+    // Tess Config
+    memcpy(graphics_.uniform_buffers[currentBuffer].tess_config.mapped,
+           &graphics_.ubos.tess_config,
+           sizeof(Graphics::TessellationConfigUBO));
   }
 
   void setupWaterMesh() {
@@ -1342,8 +1376,8 @@ class VulkanExample : public VulkanExampleBase {
   VulkanExample() : VulkanExampleBase() {
     title = "Wave Simulation";
     camera.type_ = Camera::CameraType::firstperson;
-    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 1024.0f);
-    camera.setTranslation(glm::vec3(18.0f, 64.5f, 57.5f));
+    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
+    camera.setTranslation(glm::vec3(68.0f, 50.0f, 4.0f));
     camera.movementSpeed = 100.0f;
 
     apiVersion = VK_API_VERSION_1_3;
@@ -1395,6 +1429,7 @@ class VulkanExample : public VulkanExampleBase {
         buffer.sky_box.destroy();
         buffer.wave.destroy();
         buffer.wave_params.destroy();
+        buffer.tess_config.destroy();
       }
       // Buffers: Compose
       for (auto& buffer : compute_.uniform_buffers) {
