@@ -8,6 +8,7 @@
 #include <ktxvulkan.h>
 
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <vector>
@@ -79,9 +80,8 @@ struct OceanParams {
 struct UiFeatures {
   bool pause_wave{false};
   bool show_mesh_only{false};
-  float patch_scale{256.f};
-  int time_step{720};
-  glm::vec3 patch_rotation{0.0f, 0.0f, 0.0f};
+  float patch_scale{512.f};
+  float time_step{1};
   float sun_scale{100.0f};
 } ui_features;
 
@@ -98,6 +98,10 @@ class VulkanExample : public VulkanExampleBase {
 
   // Command to enable dynamic states during rendering
   PFN_vkCmdSetPolygonModeEXT vkCmdSetPolygonModeEXT{VK_NULL_HANDLE};
+
+  // Time tracking for simulation
+  std::chrono::steady_clock::time_point last_sim_time_{};
+  bool sim_time_initialized_{false};
 
   // Debug labeling ext
   static constexpr std::array<float, 4> debugColor_ = {.7f, 0.4f, 0.4f, 1.0f};
@@ -220,7 +224,6 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 camera_position;
       alignas(8) glm::vec2 screen_res;
       alignas(8) float patch_scale{};
-      alignas(16) glm::vec3 patch_rotation;
       alignas(16) glm::vec3 sun_position;
       alignas(16) glm::vec3 sun_color;
     };
@@ -659,9 +662,19 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateComputeUniformBuffers() {
+    const auto now = std::chrono::steady_clock::now();
+    if (!sim_time_initialized_) {
+      last_sim_time_ = now;
+      sim_time_initialized_ = true;
+    }
+    const std::chrono::duration<float> dt = now - last_sim_time_;
+    last_sim_time_ = now;
     if (!ui_features.pause_wave) {
-      compute_.ubos.ocean.time_patch_chop_height.x +=
-          1.f / ui_features.time_step;
+      float scale = 1.0f;
+      if (ui_features.time_step > 0) {
+        scale = 1.0f / static_cast<float>(ui_features.time_step);
+      }
+      compute_.ubos.ocean.time_patch_chop_height.x += dt.count() * scale;
     }
     compute_.ubos.ocean.time_patch_chop_height.y = ui_features.patch_scale;
     memcpy(compute_.uniform_buffers[currentBuffer].ocean.mapped,
@@ -681,9 +694,8 @@ class VulkanExample : public VulkanExampleBase {
     graphics_.ubos.wave.camera_position = camera.position;
     graphics_.ubos.wave.screen_res = glm::vec2(this->width, this->height);
     graphics_.ubos.wave.patch_scale = ui_features.patch_scale;
-    graphics_.ubos.wave.patch_rotation = ui_features.patch_rotation;
 
-    // Sun: passive orbit synced with wave time
+    // Sun params for wave
     float sunAngle = compute_.ubos.ocean.time_patch_chop_height.x * 0.1f;
     const float sunRadius = 600.0f;
     glm::vec3 basePos = glm::vec3(0.0f, 0.0f, sunRadius);
@@ -696,6 +708,7 @@ class VulkanExample : public VulkanExampleBase {
     memcpy(graphics_.uniform_buffers[currentBuffer].wave.mapped,
            &graphics_.ubos.wave, sizeof(Graphics::WaveUBO));
 
+    // Sun params
     graphics_.ubos.sun.color = glm::vec4(sunColor, 1.0f);
     glm::mat4 sunModel =
         glm::translate(glm::mat4(1.0f), sunPos) *
@@ -1470,10 +1483,11 @@ class VulkanExample : public VulkanExampleBase {
     fillComputeReadBarrier(computeReadBarriers[0], compute_.height_map.image);
     fillComputeReadBarrier(computeReadBarriers[1], compute_.normal_map.image);
     if (graphics_.queueFamilyIndex != compute_.queueFamilyIndex) {
-      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                           VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
-                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                           0, 0, nullptr, 0, nullptr, 2, computeReadBarriers);
+      vkCmdPipelineBarrier(
+          cmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+          VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
+              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+          0, 0, nullptr, 0, nullptr, 2, computeReadBarriers);
     } else {
       // Same queue family: keep ownership ignored and use proper access sync
       for (auto& barrier : computeReadBarriers) {
@@ -1481,10 +1495,11 @@ class VulkanExample : public VulkanExampleBase {
         barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
       }
-      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                           VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
-                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                           0, 0, nullptr, 0, nullptr, 2, computeReadBarriers);
+      vkCmdPipelineBarrier(
+          cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
+              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+          0, 0, nullptr, 0, nullptr, 2, computeReadBarriers);
     }
 
     // With dynamic rendering there are no subpass dependencies, so we need to
@@ -1624,11 +1639,12 @@ class VulkanExample : public VulkanExampleBase {
       };
       fillBarrier(barriers[0], compute_.height_map.image);
       fillBarrier(barriers[1], compute_.normal_map.image);
-      vkCmdPipelineBarrier(cmdBuffer,
-                           VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
-                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                           VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr,
-                           0, nullptr, 2, barriers);
+      vkCmdPipelineBarrier(
+          cmdBuffer,
+          VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
+              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+          VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 2,
+          barriers);
     }
 
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
@@ -1726,17 +1742,14 @@ class VulkanExample : public VulkanExampleBase {
 
   void OnUpdateUIOverlay(vks::UIOverlay* overlay) override {
     if (deviceFeatures.fillModeNonSolid) {
+      if (overlay->checkBox("VSync", &settings.vsync)) {
+        windowResize();
+      }
       overlay->checkBox("Pause", &ui_features.pause_wave);
       overlay->checkBox("Show Mesh Only", &ui_features.show_mesh_only);
-      overlay->sliderInt("Time Step", &ui_features.time_step, 100, 1000);
+      overlay->sliderFloat("Time Step", &ui_features.time_step, 0.01, 2);
       overlay->sliderFloat("Patch Scale", &ui_features.patch_scale, 10,
                            1 << (10));
-      overlay->sliderFloat("Patch Pitch", &ui_features.patch_rotation.x, -89.0f,
-                           89.0f);
-      overlay->sliderFloat("Patch Yaw", &ui_features.patch_rotation.y, -180.0f,
-                           180.0f);
-      overlay->sliderFloat("Patch Roll", &ui_features.patch_rotation.z, -180.0f,
-                           180.0f);
       overlay->sliderFloat("Sun Scale", &ui_features.sun_scale, 10.0f, 200.0f);
       overlay->sliderFloat("Tess Min Level",
                            &graphics_.ubos.tess_config.minTessLevel, 1.0f,
@@ -1750,15 +1763,6 @@ class VulkanExample : public VulkanExampleBase {
       overlay->sliderFloat("Tess Max Distance",
                            &graphics_.ubos.tess_config.maxDistance, 1.0f,
                            4096.0f);
-      overlay->sliderFloat("Tess Frustum Margin",
-                           &graphics_.ubos.tess_config.frustumCullMargin, 0.0f,
-                           2.0f);
-      overlay->sliderFloat(
-          "Wind Dir X", &compute_.ubos.ocean.wind_dir_speed_amp.x, -1.0f, 1.0f);
-      overlay->sliderFloat(
-          "Wind Dir Y", &compute_.ubos.ocean.wind_dir_speed_amp.y, -1.0f, 1.0f);
-      overlay->sliderFloat(
-          "Wind Speed", &compute_.ubos.ocean.wind_dir_speed_amp.z, 0.0f, 50.0f);
       overlay->sliderFloat(
           "Chop", &compute_.ubos.ocean.time_patch_chop_height.z, 0.0f, 10.0f);
       overlay->sliderFloat("Height Scale",

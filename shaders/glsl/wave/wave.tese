@@ -17,7 +17,6 @@ layout(set = 0, binding = 0) uniform UBO
     vec3 camera_pos;
     vec2 screen_res;
     float patch_scale;
-    vec3 patch_rotation;
     vec3 sun_position;
     vec3 sun_color;
 } ubo;
@@ -71,30 +70,7 @@ void main() {
     vec3 bitangent = normalize(vec3(0.0, hU - hD, dz));
     vec3 geometricNormal = normalize(cross(tangent, bitangent));
 
-    // Apply patch rotation (pitch, yaw, roll) in degrees
-    vec3 rotRad = radians(ubo.patch_rotation);
-    float cx = cos(rotRad.x);
-    float sx = sin(rotRad.x);
-    float cy = cos(rotRad.y);
-    float sy = sin(rotRad.y);
-    float cz = cos(rotRad.z);
-    float sz = sin(rotRad.z);
-    mat3 rotX = mat3(1.0, 0.0, 0.0,
-    0.0, cx, -sx,
-    0.0, sx, cx);
-    mat3 rotY = mat3(cy, 0.0, sy,
-    0.0, 1.0, 0.0,
-    -sy, 0.0, cy);
-    mat3 rotZ = mat3(cz, -sz, 0.0,
-    sz, cz, 0.0,
-    0.0, 0.0, 1.0);
-    mat3 rotM = rotZ * rotY * rotX;
-    vec3 rotatedPos = rotM * displacedPos;
-    outWorldCoord = rotatedPos;
-
-    tangent = normalize(rotM * tangent);
-    bitangent = normalize(rotM * bitangent);
-    geometricNormal = normalize(rotM * geometricNormal);
+    outWorldCoord = displacedPos;
     outTBN = mat3(tangent, bitangent, geometricNormal);
 
     // --- 4. Calculate Final Screen Position ---
