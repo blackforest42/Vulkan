@@ -78,10 +78,11 @@ struct OceanParams {
 
 struct UiFeatures {
   bool pause_wave{false};
-  bool show_mesh{false};
-  float grid_scale{1024.f};
+  bool show_mesh_only{false};
+  float patch_scale{256.f};
   int time_step{720};
   glm::vec3 patch_rotation{0.0f, 0.0f, 0.0f};
+  float sun_scale{100.0f};
 } ui_features;
 
 class VulkanExample : public VulkanExampleBase {
@@ -201,6 +202,7 @@ class VulkanExample : public VulkanExampleBase {
 
     struct {
       vkglTF::Model sky_box{};
+      vkglTF::Model sun{};
     } models;
 
     struct {
@@ -217,8 +219,15 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::mat4 view;
       alignas(16) glm::vec3 camera_position;
       alignas(8) glm::vec2 screen_res;
-      alignas(8) float grid_scale{};
+      alignas(8) float patch_scale{};
       alignas(16) glm::vec3 patch_rotation;
+      alignas(16) glm::vec3 sun_position;
+      alignas(16) glm::vec3 sun_color;
+    };
+
+    struct SunUBO {
+      glm::mat4 mvp;
+      glm::vec4 color;
     };
 
     struct TessellationConfigUBO {
@@ -232,6 +241,7 @@ class VulkanExample : public VulkanExampleBase {
     struct {
       SkyBoxUBO sky_box;
       WaveUBO wave;
+      SunUBO sun;
       OceanParams ocean_params;
       TessellationConfigUBO tess_config;
     } ubos;
@@ -239,6 +249,7 @@ class VulkanExample : public VulkanExampleBase {
     struct UniformBuffers {
       vks::Buffer sky_box;
       vks::Buffer wave;
+      vks::Buffer sun;
       vks::Buffer ocean_params;
       vks::Buffer tess_config;
     };
@@ -247,21 +258,25 @@ class VulkanExample : public VulkanExampleBase {
     struct Pipelines {
       VkPipeline sky_box{VK_NULL_HANDLE};
       VkPipeline wave{VK_NULL_HANDLE};
+      VkPipeline sun{VK_NULL_HANDLE};
     } pipelines;
 
     struct {
       VkDescriptorSetLayout sky_box{VK_NULL_HANDLE};
       VkDescriptorSetLayout wave{VK_NULL_HANDLE};
+      VkDescriptorSetLayout sun{VK_NULL_HANDLE};
     } descriptor_set_layouts;
 
     struct {
       VkPipelineLayout sky_box{VK_NULL_HANDLE};
       VkPipelineLayout wave{VK_NULL_HANDLE};
+      VkPipelineLayout sun{VK_NULL_HANDLE};
     } pipeline_layouts;
 
     struct DescriptorSets {
       VkDescriptorSet sky_box{VK_NULL_HANDLE};
       VkDescriptorSet wave{VK_NULL_HANDLE};
+      VkDescriptorSet sun{VK_NULL_HANDLE};
     };
     std::array<DescriptorSets, maxConcurrentFrames> descriptor_sets;
   } graphics_;
@@ -297,6 +312,21 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(
         vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr,
                                     &graphics_.descriptor_set_layouts.sky_box));
+
+    // Sun
+    setLayoutBindings = {
+        // Binding 0 : Vertex/fragment shader ubo
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding id*/ 0),
+    };
+    descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
+        setLayoutBindings.data(),
+        static_cast<uint32_t>(setLayoutBindings.size()));
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr,
+                                    &graphics_.descriptor_set_layouts.sun));
 
     // Wave
     setLayoutBindings = {
@@ -361,6 +391,21 @@ class VulkanExample : public VulkanExampleBase {
                              static_cast<uint32_t>(writeDescriptorSets.size()),
                              writeDescriptorSets.data(), 0, nullptr);
 
+      // Sun
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool, &graphics_.descriptor_set_layouts.sun, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device, &allocInfo, &graphics_.descriptor_sets[i].sun));
+      writeDescriptorSets = {
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptor_sets[i].sun,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
+              &graphics_.uniform_buffers[i].sun.descriptor),
+      };
+      vkUpdateDescriptorSets(device,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
+
       // Wave
       allocInfo = vks::initializers::descriptorSetAllocateInfo(
           descriptorPool, &graphics_.descriptor_set_layouts.wave, 1);
@@ -419,6 +464,12 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(
         vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr,
                                &graphics_.pipeline_layouts.sky_box));
+    // Sun
+    pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
+        &graphics_.descriptor_set_layouts.sun, 1);
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo,
+                                           nullptr,
+                                           &graphics_.pipeline_layouts.sun));
     // Wave
     pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
         &graphics_.descriptor_set_layouts.wave, 1);
@@ -537,6 +588,29 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1,
                                               &pipelineCI, nullptr,
                                               &graphics_.pipelines.sky_box));
+
+    // Sun
+    pipelineCI.layout = graphics_.pipeline_layouts.sun;
+    pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState(
+        {vkglTF::VertexComponent::Position, vkglTF::VertexComponent::Normal,
+         vkglTF::VertexComponent::UV});
+    depthStencilState.depthWriteEnable = VK_FALSE;
+    depthStencilState.depthTestEnable = VK_TRUE;
+    rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
+    inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    // Remove tessellation state
+    pipelineCI.pTessellationState = nullptr;
+    // Shader stages
+    shaderStages[0] = loadShader(getShadersPath() + "wave/sun.vert.spv",
+                                 VK_SHADER_STAGE_VERTEX_BIT);
+    shaderStages[1] = loadShader(getShadersPath() + "wave/sun.frag.spv",
+                                 VK_SHADER_STAGE_FRAGMENT_BIT);
+    pipelineCI.stageCount = 2;
+    pipelineCI.pStages = shaderStages.data();
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1,
+                                              &pipelineCI, nullptr,
+                                              &graphics_.pipelines.sun));
   }
 
   // Prepare and initialize uniform buffer containing shader uniforms
@@ -557,6 +631,14 @@ class VulkanExample : public VulkanExampleBase {
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
           &buffer.wave, sizeof(graphics_.ubos.wave)));
       VK_CHECK_RESULT(buffer.wave.map());
+
+      // Sun
+      VK_CHECK_RESULT(
+          vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                     &buffer.sun, sizeof(graphics_.ubos.sun)));
+      VK_CHECK_RESULT(buffer.sun.map());
 
       // Wave Params
       VK_CHECK_RESULT(vulkanDevice->createBuffer(
@@ -581,7 +663,7 @@ class VulkanExample : public VulkanExampleBase {
       compute_.ubos.ocean.time_patch_chop_height.x +=
           1.f / ui_features.time_step;
     }
-    compute_.ubos.ocean.time_patch_chop_height.y = ui_features.grid_scale;
+    compute_.ubos.ocean.time_patch_chop_height.y = ui_features.patch_scale;
     memcpy(compute_.uniform_buffers[currentBuffer].ocean.mapped,
            &compute_.ubos.ocean, sizeof(OceanParams));
   }
@@ -598,10 +680,32 @@ class VulkanExample : public VulkanExampleBase {
     graphics_.ubos.wave.view = camera.matrices.view;
     graphics_.ubos.wave.camera_position = camera.position;
     graphics_.ubos.wave.screen_res = glm::vec2(this->width, this->height);
-    graphics_.ubos.wave.grid_scale = ui_features.grid_scale;
+    graphics_.ubos.wave.patch_scale = ui_features.patch_scale;
     graphics_.ubos.wave.patch_rotation = ui_features.patch_rotation;
+
+    // Sun: passive orbit synced with wave time
+    float sunAngle = compute_.ubos.ocean.time_patch_chop_height.x * 0.1f;
+    const float sunRadius = 600.0f;
+    glm::vec3 basePos = glm::vec3(0.0f, 0.0f, sunRadius);
+    glm::mat4 rotX =
+        glm::rotate(glm::mat4(1.0f), sunAngle, glm::vec3(1.0f, 0.0f, 0.0f));
+    glm::vec3 sunPos = glm::vec3(rotX * glm::vec4(basePos, 1.0f));
+    glm::vec3 sunColor = glm::vec3(1.0f, 0.95f, 0.7f);
+    graphics_.ubos.wave.sun_position = sunPos;
+    graphics_.ubos.wave.sun_color = sunColor;
     memcpy(graphics_.uniform_buffers[currentBuffer].wave.mapped,
            &graphics_.ubos.wave, sizeof(Graphics::WaveUBO));
+
+    graphics_.ubos.sun.color = glm::vec4(sunColor, 1.0f);
+    glm::mat4 sunModel =
+        glm::translate(glm::mat4(1.0f), sunPos) *
+        glm::scale(glm::mat4(1.0f),
+                   glm::vec3(ui_features.sun_scale, ui_features.sun_scale,
+                             ui_features.sun_scale));
+    graphics_.ubos.sun.mvp =
+        graphics_.ubos.wave.perspective * graphics_.ubos.wave.view * sunModel;
+    memcpy(graphics_.uniform_buffers[currentBuffer].sun.mapped,
+           &graphics_.ubos.sun, sizeof(Graphics::SunUBO));
 
     // Ocean params
     graphics_.ubos.ocean_params = compute_.ubos.ocean;
@@ -678,12 +782,12 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            /*total ubo count */ (/*graphics*/ 4 + /*compute*/ 1) *
+            /*total ubo count */ (/*graphics*/ 5 + /*compute*/ 1) *
                 maxConcurrentFrames),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             /*total texture count (across all pipelines) */ (
-                /*graphics*/ 3 + /*compute textures*/ 0) *
+                /*graphics*/ 4 + /*compute textures*/ 0) *
                 maxConcurrentFrames),
         vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
                                               5 * maxConcurrentFrames)};
@@ -691,7 +795,7 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
             poolSizes,
-            /*total descriptor count*/ (/*graphics*/ 2 + /*compute*/ 1) *
+            /*total descriptor count*/ (/*graphics*/ 3 + /*compute*/ 1) *
                 maxConcurrentFrames);
     // Needed if using VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT in
     // descriptor bindings
@@ -1084,7 +1188,7 @@ class VulkanExample : public VulkanExampleBase {
     compute_.ubos.ocean.wind_dir_speed_amp =
         glm::vec4(1.0f, 0.0f, 20.0f, 0.05f);
     compute_.ubos.ocean.time_patch_chop_height =
-        glm::vec4(0.0f, ui_features.grid_scale, 1.0f, 128.0f);
+        glm::vec4(0.0f, ui_features.patch_scale, 1.0f, 128.0f);
     compute_.ubos.ocean.grid =
         glm::ivec4(COMPUTE_TEXTURE_DIMENSION, logN, 0, 0);
     for (auto& buffer : compute_.uniform_buffers) {
@@ -1379,13 +1483,25 @@ class VulkanExample : public VulkanExampleBase {
     graphics_.models.sky_box.draw(cmdBuffer);
     cmdEndLabel(cmdBuffer);
 
+    // Sun
+    cmdBeginLabel(cmdBuffer, "Graphics Sun");
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            graphics_.pipeline_layouts.sun, 0, 1,
+                            &graphics_.descriptor_sets[currentBuffer].sun, 0,
+                            nullptr);
+    vkCmdSetPolygonModeEXT(cmdBuffer, VK_POLYGON_MODE_FILL);
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      graphics_.pipelines.sun);
+    graphics_.models.sun.draw(cmdBuffer);
+    cmdEndLabel(cmdBuffer);
+
     // Wave
     cmdBeginLabel(cmdBuffer, "Graphics Wave");
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             graphics_.pipeline_layouts.wave, 0, 1,
                             &graphics_.descriptor_sets[currentBuffer].wave, 0,
                             nullptr);
-    if (ui_features.show_mesh) {
+    if (ui_features.show_mesh_only) {
       vkCmdSetPolygonModeEXT(cmdBuffer, VK_POLYGON_MODE_LINE);
     } else {
       vkCmdSetPolygonModeEXT(cmdBuffer, VK_POLYGON_MODE_FILL);
@@ -1484,17 +1600,18 @@ class VulkanExample : public VulkanExampleBase {
 
   void OnUpdateUIOverlay(vks::UIOverlay* overlay) override {
     if (deviceFeatures.fillModeNonSolid) {
-      overlay->checkBox("Pause Wave", &ui_features.pause_wave);
-      overlay->checkBox("Show Mesh", &ui_features.show_mesh);
+      overlay->checkBox("Pause", &ui_features.pause_wave);
+      overlay->checkBox("Show Mesh Only", &ui_features.show_mesh_only);
       overlay->sliderInt("Time Step", &ui_features.time_step, 100, 1000);
-      overlay->sliderFloat("Grid Scale", &ui_features.grid_scale, 10,
-                           1 << (12));
+      overlay->sliderFloat("Patch Scale", &ui_features.patch_scale, 10,
+                           1 << (10));
       overlay->sliderFloat("Patch Pitch", &ui_features.patch_rotation.x, -89.0f,
                            89.0f);
       overlay->sliderFloat("Patch Yaw", &ui_features.patch_rotation.y, -180.0f,
                            180.0f);
       overlay->sliderFloat("Patch Roll", &ui_features.patch_rotation.z, -180.0f,
                            180.0f);
+      overlay->sliderFloat("Sun Scale", &ui_features.sun_scale, 10.0f, 200.0f);
       overlay->sliderFloat("Tess Min Level",
                            &graphics_.ubos.tess_config.minTessLevel, 1.0f,
                            64.0f);
@@ -1520,7 +1637,7 @@ class VulkanExample : public VulkanExampleBase {
           "Chop", &compute_.ubos.ocean.time_patch_chop_height.z, 0.0f, 10.0f);
       overlay->sliderFloat("Height Scale",
                            &compute_.ubos.ocean.time_patch_chop_height.w, 0.0f,
-                           1000.0f);
+                           512.0f);
     }
   }
 
@@ -1535,31 +1652,12 @@ class VulkanExample : public VulkanExampleBase {
     graphics_.models.sky_box.loadFromFile(getAssetPath() + "models/cube.gltf",
                                           vulkanDevice, queue,
                                           glTFLoadingFlags);
+    graphics_.models.sun.loadFromFile(getAssetPath() + "models/sphere.gltf",
+                                      vulkanDevice, queue, glTFLoadingFlags);
     // Skybox textures
     graphics_.textures.cube_map.loadFromFile(
         getExamplesBasePath() + "wave/cartoon_skybox.ktx",
         VK_FORMAT_R8G8B8A8_SRGB, vulkanDevice, queue);
-  }
-
-  VulkanExample() : VulkanExampleBase() {
-    title = "Wave Simulation";
-    camera.type_ = Camera::CameraType::firstperson;
-    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 1024.0f);
-    camera.setTranslation(glm::vec3(68.0f, 20.0f, 4.0f));
-    camera.movementSpeed = 100.0f;
-
-    apiVersion = VK_API_VERSION_1_3;
-
-    // Dynamic rendering
-    enabledFeatures13_.dynamicRendering = VK_TRUE;
-    enabledFeatures13_.pNext = &dynamicState3Features;
-
-    // Dynamic states
-    dynamicState3Features.extendedDynamicState3PolygonMode = VK_TRUE;
-    enabledDeviceExtensions.push_back(
-        VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME);
-
-    deviceCreatepNextChain = &enabledFeatures13_;
   }
 
   // Enable physical device features required for this example
@@ -1578,11 +1676,33 @@ class VulkanExample : public VulkanExampleBase {
     };
   }
 
+  VulkanExample() : VulkanExampleBase() {
+    title = "Wave Simulation";
+    camera.type_ = Camera::CameraType::firstperson;
+    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 1024.0f);
+    camera.setTranslation(glm::vec3(0.0f, 20.0f, 0.0f));
+    camera.movementSpeed = 100.0f;
+
+    apiVersion = VK_API_VERSION_1_3;
+
+    // Dynamic rendering
+    enabledFeatures13_.dynamicRendering = VK_TRUE;
+    enabledFeatures13_.pNext = &dynamicState3Features;
+
+    // Dynamic states
+    dynamicState3Features.extendedDynamicState3PolygonMode = VK_TRUE;
+    enabledDeviceExtensions.push_back(
+        VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME);
+
+    deviceCreatepNextChain = &enabledFeatures13_;
+  }
+
   ~VulkanExample() override {
     if (device) {
       // Pipelines
       vkDestroyPipeline(device, graphics_.pipelines.sky_box, nullptr);
       vkDestroyPipeline(device, graphics_.pipelines.wave, nullptr);
+      vkDestroyPipeline(device, graphics_.pipelines.sun, nullptr);
       vkDestroyPipeline(device, compute_.pipelines.init_spectrum, nullptr);
       vkDestroyPipeline(device, compute_.pipelines.spectrum, nullptr);
       vkDestroyPipeline(device, compute_.pipelines.fft, nullptr);
@@ -1592,6 +1712,7 @@ class VulkanExample : public VulkanExampleBase {
       // Pipeline Layouts
       vkDestroyPipelineLayout(device, graphics_.pipeline_layouts.sky_box,
                               nullptr);
+      vkDestroyPipelineLayout(device, graphics_.pipeline_layouts.sun, nullptr);
       vkDestroyPipelineLayout(device, graphics_.pipeline_layouts.wave, nullptr);
       vkDestroyPipelineLayout(device, compute_.pipeline_layouts.ocean, nullptr);
 
@@ -1599,6 +1720,7 @@ class VulkanExample : public VulkanExampleBase {
       for (auto& buffer : graphics_.uniform_buffers) {
         buffer.sky_box.destroy();
         buffer.wave.destroy();
+        buffer.sun.destroy();
         buffer.ocean_params.destroy();
         buffer.tess_config.destroy();
       }
@@ -1614,6 +1736,8 @@ class VulkanExample : public VulkanExampleBase {
       // Descriptor Layouts
       vkDestroyDescriptorSetLayout(
           device, graphics_.descriptor_set_layouts.sky_box, nullptr);
+      vkDestroyDescriptorSetLayout(device, graphics_.descriptor_set_layouts.sun,
+                                   nullptr);
       vkDestroyDescriptorSetLayout(
           device, graphics_.descriptor_set_layouts.wave, nullptr);
       vkDestroyDescriptorSetLayout(

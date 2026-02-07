@@ -16,8 +16,10 @@ layout(set = 0, binding = 0) uniform UBO
     mat4 view;
     vec3 camera_pos;
     vec2 screen_res;
-    float grid_scale;
+    float patch_scale;
     vec3 patch_rotation;
+    vec3 sun_position;
+    vec3 sun_color;
 } ubo;
 
 layout(binding = 2) uniform OceanParams {
@@ -36,7 +38,7 @@ void main() {
     outUV = mix(uv1, uv2, gl_TessCoord.y);
 
     // --- 2. Calculate Base World Position ---
-    vec2 xzPos = outUV * ubo.grid_scale - ubo.grid_scale * 0.5;
+    vec2 xzPos = outUV * ubo.patch_scale - ubo.patch_scale * 0.5;
 
     float height_scale = ocean.time_patch_chop_height.w;
     float h = texture(heightMap, outUV).r * height_scale;
@@ -55,11 +57,11 @@ void main() {
     float hU = texture(heightMap, uvU).r * height_scale;
     float hD = texture(heightMap, uvD).r * height_scale;
 
-    float dx = 2.0 * du * ubo.grid_scale;
-    float dz = 2.0 * du * ubo.grid_scale;
+    float dx = 2.0 * du * ubo.patch_scale;
+    float dz = 2.0 * du * ubo.patch_scale;
 
     // Apply choppy wave displacement using height gradients
-    float dxWorld = ubo.grid_scale / float(ocean.grid.x);
+    float dxWorld = ubo.patch_scale / float(ocean.grid.x);
     float dhdx = (hR - hL) / (2.0 * dxWorld);
     float dhdz = (hU - hD) / (2.0 * dxWorld);
     float chop = ocean.time_patch_chop_height.z;
@@ -78,14 +80,14 @@ void main() {
     float cz = cos(rotRad.z);
     float sz = sin(rotRad.z);
     mat3 rotX = mat3(1.0, 0.0, 0.0,
-                     0.0, cx, -sx,
-                     0.0, sx, cx);
+    0.0, cx, -sx,
+    0.0, sx, cx);
     mat3 rotY = mat3(cy, 0.0, sy,
-                     0.0, 1.0, 0.0,
-                     -sy, 0.0, cy);
+    0.0, 1.0, 0.0,
+    -sy, 0.0, cy);
     mat3 rotZ = mat3(cz, -sz, 0.0,
-                     sz, cz, 0.0,
-                     0.0, 0.0, 1.0);
+    sz, cz, 0.0,
+    0.0, 0.0, 1.0);
     mat3 rotM = rotZ * rotY * rotX;
     vec3 rotatedPos = rotM * displacedPos;
     outWorldCoord = rotatedPos;

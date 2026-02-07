@@ -13,8 +13,10 @@ layout(set = 0, binding = 0) uniform UBO
     mat4 view;
     vec3 camera_pos;
     vec2 screen_res;
-    float grid_scale;
+    float patch_scale;
     vec3 patch_rotation;
+    vec3 sun_position;
+    vec3 sun_color;
 } ubo;
 
 // Tessellation configuration
