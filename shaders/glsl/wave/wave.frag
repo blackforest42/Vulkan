@@ -15,6 +15,7 @@ layout(set = 0, binding = 0) uniform UBO
     vec3 camera_pos;
     vec2 screen_res;
     float grid_scale;
+    vec3 patch_rotation;
 } ubo;
 
 layout(binding = 4) uniform sampler2D normalMap;
@@ -29,15 +30,17 @@ void main() {
     // Normal map is stored in world space (derived from height map)
     vec3 normal = normalize(bumpNormal);
 
-    // Reflection calculation
-    vec3 viewDir = normalize(inWorldCoord - ubo.camera_pos);
-    vec3 reflectDir = reflect(viewDir, normal);
+    // Reflection calculation (incident vector points toward surface)
+    vec3 viewDir = normalize(ubo.camera_pos - inWorldCoord);
+    vec3 reflectDir = reflect(-viewDir, normal);
 
     // Sample environment map (swap Y and Z for D3D→Vulkan cubemap convention)
-    vec3 envSample = texture(cubeMap, vec3(reflectDir.x, -reflectDir.z, reflectDir.y)).rgb;
+    //vec3 envSample = texture(cubeMap, vec3(reflectDir.x, -reflectDir.z, reflectDir.y)).rgb;
+    vec3 envSample = texture(cubeMap, reflectDir).rgb;
+
 
     // Fresnel approximation
-    float fresnel = pow(1.0 - max(dot(-viewDir, normal), 0.0), 5.0);
+    float fresnel = pow(1.0 - max(dot(viewDir, normal), 0.0), 5.0);
 
     // Reduce reflection strength for a less specular surface
     float reflectivity = mix(0.02, 0.35, fresnel);

@@ -121,11 +121,23 @@ class Camera {
 
   void setRotation(glm::vec3 rotation) {
     this->rotation = rotation;
+    // Clamp pitch to avoid gimbal flip when looking straight up/down
+    if (this->rotation.x > 89.0f) {
+      this->rotation.x = 89.0f;
+    } else if (this->rotation.x < -89.0f) {
+      this->rotation.x = -89.0f;
+    }
     updateViewMatrix();
   }
 
   void rotate(glm::vec3 delta) {
     this->rotation += delta;
+    // Clamp pitch to avoid gimbal flip when looking straight up/down
+    if (this->rotation.x > 89.0f) {
+      this->rotation.x = 89.0f;
+    } else if (this->rotation.x < -89.0f) {
+      this->rotation.x = -89.0f;
+    }
     updateViewMatrix();
   }
 

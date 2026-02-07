@@ -61,10 +61,10 @@ struct WaterMesh {
   void generateUnitQuad() {
     vertices = {
         // Position (x, y, z)              // UV (u, v)
-        {{-1.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},  // Bottom-Left
-        {{1.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},   // Bottom-Right
-        {{1.0f, 1.0f, 0.0f}, {1.0f, 1.0f}},    // Top-Right
-        {{-1.0f, 1.0f, 0.0f}, {0.0f, 1.0f}}    // Top-Left
+        {{-1.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},  // Bottom-Left
+        {{1.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},   // Bottom-Right
+        {{1.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},    // Top-Right
+        {{-1.0f, 0.0f, 1.0f}, {0.0f, 1.0f}}    // Top-Left
     };
     indices = {0, 1, 2, 2, 3, 0};
   }
@@ -82,6 +82,7 @@ struct UiFeatures {
   bool show_mesh{false};
   float grid_scale{1024.f};
   int time_step{720};
+  glm::vec3 patch_rotation{0.0f, 0.0f, 0.0f};
 } ui_features;
 
 class VulkanExample : public VulkanExampleBase {
@@ -213,6 +214,7 @@ class VulkanExample : public VulkanExampleBase {
       alignas(16) glm::vec3 camera_position;
       alignas(8) glm::vec2 screen_res;
       alignas(8) float grid_scale{};
+      alignas(16) glm::vec3 patch_rotation;
     };
 
     struct TessellationConfigUBO {
@@ -593,6 +595,7 @@ class VulkanExample : public VulkanExampleBase {
     graphics_.ubos.wave.camera_position = camera.position;
     graphics_.ubos.wave.screen_res = glm::vec2(this->width, this->height);
     graphics_.ubos.wave.grid_scale = ui_features.grid_scale;
+    graphics_.ubos.wave.patch_rotation = ui_features.patch_rotation;
     memcpy(graphics_.uniform_buffers[currentBuffer].wave.mapped,
            &graphics_.ubos.wave, sizeof(Graphics::WaveUBO));
 
@@ -1437,7 +1440,43 @@ class VulkanExample : public VulkanExampleBase {
       overlay->checkBox("Pause Wave", &ui_features.pause_wave);
       overlay->checkBox("Show Mesh", &ui_features.show_mesh);
       overlay->sliderInt("Time Step", &ui_features.time_step, 100, 1000);
-      overlay->sliderFloat("Grid Scale", &ui_features.grid_scale, 10, 2048);
+      overlay->sliderFloat("Grid Scale", &ui_features.grid_scale, 10,
+                           1 << (12));
+      overlay->sliderFloat("Patch Pitch", &ui_features.patch_rotation.x, -89.0f,
+                           89.0f);
+      overlay->sliderFloat("Patch Yaw", &ui_features.patch_rotation.y, -180.0f,
+                           180.0f);
+      overlay->sliderFloat("Patch Roll", &ui_features.patch_rotation.z, -180.0f,
+                           180.0f);
+      overlay->sliderFloat("Tess Min Level",
+                           &graphics_.ubos.tess_config.minTessLevel, 1.0f,
+                           64.0f);
+      overlay->sliderFloat("Tess Max Level",
+                           &graphics_.ubos.tess_config.maxTessLevel, 1.0f,
+                           512.0f);
+      overlay->sliderFloat("Tess Min Distance",
+                           &graphics_.ubos.tess_config.minDistance, 1.0f,
+                           1024.0f);
+      overlay->sliderFloat("Tess Max Distance",
+                           &graphics_.ubos.tess_config.maxDistance, 1.0f,
+                           4096.0f);
+      overlay->sliderFloat("Tess Frustum Margin",
+                           &graphics_.ubos.tess_config.frustumCullMargin, 0.0f,
+                           2.0f);
+      overlay->sliderFloat(
+          "Wind Dir X", &compute_.ubos.ocean.wind_dir_speed_amp.x, -1.0f, 1.0f);
+      overlay->sliderFloat(
+          "Wind Dir Y", &compute_.ubos.ocean.wind_dir_speed_amp.y, -1.0f, 1.0f);
+      overlay->sliderFloat(
+          "Wind Speed", &compute_.ubos.ocean.wind_dir_speed_amp.z, 0.0f, 50.0f);
+      overlay->sliderFloat("Wave Amplitude",
+                           &compute_.ubos.ocean.wind_dir_speed_amp.w, 0.0f,
+                           0.01f);
+      overlay->sliderFloat(
+          "Chop", &compute_.ubos.ocean.time_patch_chop_height.z, 0.0f, 1000.0f);
+      overlay->sliderFloat("Height Scale",
+                           &compute_.ubos.ocean.time_patch_chop_height.w, 0.0f,
+                           1000.0f);
     }
   }
 
