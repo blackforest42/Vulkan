@@ -1,0 +1,82 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 0, rgba32f) uniform writeonly image2D h0Spectrum;
+
+layout(binding = 5) uniform OceanParams {
+    vec4 wind_dir_speed_amp;
+    vec4 time_patch_chop_height;
+    ivec4 grid;
+} ocean;
+
+const float PI = 3.14159265359;
+const float G = 9.81;
+
+uint hash(uvec2 p) {
+    uint x = p.x * 1664525u + 1013904223u;
+    uint y = p.y * 1664525u + 1013904223u;
+    uint h = x ^ y;
+    h ^= h >> 16;
+    h *= 2246822519u;
+    h ^= h >> 13;
+    h *= 3266489917u;
+    h ^= h >> 16;
+    return h;
+}
+
+float rand(inout uint seed) {
+    seed = 1664525u * seed + 1013904223u;
+    return float(seed) / 4294967296.0;
+}
+
+float gaussian(inout uint seed) {
+    float u1 = max(rand(seed), 1e-6);
+    float u2 = rand(seed);
+    return sqrt(-2.0 * log(u1)) * cos(2.0 * PI * u2);
+}
+
+float phillips(vec2 k, vec2 w_dir, float wind_speed, float amplitude) {
+    float kLen = length(k);
+    if (kLen < 1e-6) {
+        return 0.0;
+    }
+
+    vec2 kUnit = k / kLen;
+    vec2 wUnit = normalize(w_dir);
+    float kDotW = dot(kUnit, wUnit);
+
+    float L = (wind_speed * wind_speed) / G;
+    float L2 = L * L;
+    float kLen2 = kLen * kLen;
+    float kLen4 = kLen2 * kLen2;
+    float damping = 0.001;
+    float damping2 = damping * damping;
+
+    float P = amplitude * exp(-1.0 / (kLen2 * L2)) / kLen4;
+    P *= kDotW * kDotW;
+    P *= exp(-kLen2 * damping2);
+    return P;
+}
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    int N = ocean.grid.x;
+    if (coord.x >= N || coord.y >= N) {
+        return;
+    }
+
+    float patchLength = ocean.time_patch_chop_height.y;
+    vec2 k = (vec2(coord) - vec2(float(N) * 0.5)) * (2.0 * PI / patchLength);
+
+    uint seed = hash(uvec2(coord));
+    float xi_r = gaussian(seed);
+    float xi_i = gaussian(seed);
+
+    float P = phillips(k, ocean.wind_dir_speed_amp.xy,
+                       ocean.wind_dir_speed_amp.z, ocean.wind_dir_speed_amp.w);
+    float scale = sqrt(max(P, 0.0) * 0.5);
+
+    vec2 h0 = vec2(xi_r, xi_i) * scale;
+    imageStore(h0Spectrum, coord, vec4(h0, 0.0, 0.0));
+}

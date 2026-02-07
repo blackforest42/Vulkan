@@ -17,17 +17,17 @@ layout(set = 0, binding = 0) uniform UBO
     float grid_scale;
 } ubo;
 
-layout(binding = 3) uniform sampler2D normalMap;
-layout(binding = 4) uniform samplerCube cubeMap;
+layout(binding = 4) uniform sampler2D normalMap;
+layout(binding = 5) uniform samplerCube cubeMap;
 
 const vec4 waterTint = vec4(0.0, 0.3, 0.4, 0.8);
 
 void main() {
     // Sample high-frequency normals from compute shader
-    vec3 bumpNormal = texture(normalMap, inUV * 25.0).xyz * 2.0 - 1.0;
+    vec3 bumpNormal = texture(normalMap, inUV).xyz * 2.0 - 1.0;
 
-    // Transform to world space
-    vec3 normal = normalize(inTBN * bumpNormal);
+    // Normal map is stored in world space (derived from height map)
+    vec3 normal = normalize(bumpNormal);
 
     // Reflection calculation
     vec3 viewDir = normalize(inWorldCoord - ubo.camera_pos);

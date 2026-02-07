@@ -1,0 +1,82 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 1, rgba32f) uniform image2D pingSpectrum;
+layout(binding = 2, rgba32f) uniform image2D pongSpectrum;
+
+layout(binding = 5) uniform OceanParams {
+    vec4 wind_dir_speed_amp;
+    vec4 time_patch_chop_height;
+    ivec4 grid;
+} ocean;
+
+layout(push_constant) uniform PushConstants {
+    int stage;
+    int direction;
+    int input_is_ping;
+    int output_is_ping;
+    int inverse;
+    int _pad0;
+    int _pad1;
+    int _pad2;
+} pc;
+
+const float PI = 3.14159265359;
+
+vec2 complexMul(vec2 a, vec2 b) {
+    return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
+}
+
+vec2 loadComplex(ivec2 coord) {
+    if (pc.input_is_ping == 1) {
+        return imageLoad(pingSpectrum, coord).xy;
+    }
+    return imageLoad(pongSpectrum, coord).xy;
+}
+
+void storeComplex(ivec2 coord, vec2 value) {
+    if (pc.output_is_ping == 1) {
+        imageStore(pingSpectrum, coord, vec4(value, 0.0, 0.0));
+        return;
+    }
+    imageStore(pongSpectrum, coord, vec4(value, 0.0, 0.0));
+}
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    int N = ocean.grid.x;
+    if (coord.x >= N || coord.y >= N) {
+        return;
+    }
+
+    int i = (pc.direction == 0) ? coord.x : coord.y;
+    int m = 1 << (pc.stage + 1);
+    int half_m = m >> 1;
+    int j = i & (m - 1);
+    int k = i - j;
+    int even_i = k + (j & (half_m - 1));
+    int odd_i = even_i + half_m;
+
+    ivec2 even_coord = (pc.direction == 0) ? ivec2(even_i, coord.y)
+                                           : ivec2(coord.x, even_i);
+    ivec2 odd_coord = (pc.direction == 0) ? ivec2(odd_i, coord.y)
+                                          : ivec2(coord.x, odd_i);
+
+    vec2 even = loadComplex(even_coord);
+    vec2 odd = loadComplex(odd_coord);
+
+    float angle = (pc.inverse == 1 ? 2.0 : -2.0) * PI *
+                  float(j & (half_m - 1)) / float(m);
+    vec2 twiddle = vec2(cos(angle), sin(angle));
+    vec2 t = complexMul(twiddle, odd);
+
+    vec2 outVal = (j < half_m) ? (even + t) : (even - t);
+
+    if (pc.inverse == 1 && pc.direction == 1 &&
+        pc.stage == ocean.grid.y - 1) {
+        outVal /= float(N * N);
+    }
+
+    storeComplex(coord, outVal);
+}

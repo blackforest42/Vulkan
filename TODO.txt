@@ -1,6 +1,3 @@
-Feb 5
+Feb 6
 TODO:
-    - reflections looks really weird, too specular, also oscillating
-    - update frustum culling in wave.tesc to be smoother (bounding sphere)
-    - add wave params to UI
-    - add reset button to UI
+    - Need to implement FFT Ocean

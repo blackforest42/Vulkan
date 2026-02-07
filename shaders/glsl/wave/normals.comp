@@ -1,0 +1,42 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 3, r32f) uniform readonly image2D heightMap;
+layout(binding = 4, rgba16f) uniform writeonly image2D normalMap;
+
+layout(binding = 5) uniform OceanParams {
+    vec4 wind_dir_speed_amp;
+    vec4 time_patch_chop_height;
+    ivec4 grid;
+} ocean;
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    int N = ocean.grid.x;
+    if (coord.x >= N || coord.y >= N) {
+        return;
+    }
+
+    int x = coord.x;
+    int y = coord.y;
+    int xm = (x - 1 + N) % N;
+    int xp = (x + 1) % N;
+    int ym = (y - 1 + N) % N;
+    int yp = (y + 1) % N;
+
+    float height_scale = ocean.time_patch_chop_height.w;
+
+    float hL = imageLoad(heightMap, ivec2(xm, y)).x * height_scale;
+    float hR = imageLoad(heightMap, ivec2(xp, y)).x * height_scale;
+    float hD = imageLoad(heightMap, ivec2(x, ym)).x * height_scale;
+    float hU = imageLoad(heightMap, ivec2(x, yp)).x * height_scale;
+
+    float patchLength = ocean.time_patch_chop_height.y;
+    float dx = patchLength / float(N);
+
+    vec3 n = normalize(vec3(-(hR - hL) / (2.0 * dx), 1.0,
+                            -(hU - hD) / (2.0 * dx)));
+
+    imageStore(normalMap, coord, vec4(n * 0.5 + 0.5, 1.0));
+}

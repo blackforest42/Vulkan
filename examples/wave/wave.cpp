@@ -9,16 +9,18 @@
 
 #include <array>
 #include <cmath>
-#include <random>
+#include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "VulkanglTFModel.h"
 #include "frustum.hpp"
 #include "vulkanexamplebase.h"
 
-#define VECTOR_FIELD_FORMAT VK_FORMAT_R32G32B32A32_SFLOAT
-
 constexpr uint32_t COMPUTE_TEXTURE_DIMENSION = 512;
+static_assert((COMPUTE_TEXTURE_DIMENSION & (COMPUTE_TEXTURE_DIMENSION - 1)) ==
+                  0,
+              "COMPUTE_TEXTURE_DIMENSION must be power of two for FFT");
 
 // Vertex structure with position and texture coordinates
 struct WaterVertex {
@@ -59,192 +61,20 @@ struct WaterMesh {
   void generateUnitQuad() {
     vertices = {
         // Position (x, y, z)              // UV (u, v)
-        {{-1.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},  // Bottom-Left
-        {{1.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},   // Bottom-Right
-        {{1.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},    // Top-Right
-        {{-1.0f, 0.0f, 1.0f}, {0.0f, 1.0f}}    // Top-Left
+        {{-1.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},  // Bottom-Left
+        {{1.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},   // Bottom-Right
+        {{1.0f, 1.0f, 0.0f}, {1.0f, 1.0f}},    // Top-Right
+        {{-1.0f, 1.0f, 0.0f}, {0.0f, 1.0f}}    // Top-Left
     };
     indices = {0, 1, 2, 2, 3, 0};
   }
 };
 
-struct WaveParams {
-  // Wave parameters organized for efficient GPU access (vec4 alignment)
-  glm::vec4 frequency[4];   // 16 waves total (4 frequencies per vec4)
-  glm::vec4 amplitude[4];   // Amplitudes for all 16 waves
-  glm::vec4 directionX[4];  // X components of wave directions
-  glm::vec4 directionY[4];  // Y components of wave directions
-  glm::vec4 phase[4];       // Phase offsets for all 16 waves
-
-  // Global parameters
-  float time;           // Current simulation time
-  float chopiness;      // Wave sharpness (Gerstner chop factor)
-  float noiseStrength;  // Noise contribution
-  float rippleScale;    // UV scaling for normal map
-
-  // Wind/wave generation parameters
-  glm::vec2 windDirection;    // Primary wind direction
-  float angleDeviation;       // Max angle deviation from wind (degrees)
-  float speedDeviation;       // Random speed variation
-                              // Physical constants
-  float gravity;              // Gravity constant (affects wave speed)
-  float minWavelength;        // Minimum wave length
-  float maxWavelength;        // Maximum wave length
-  float amplitudeOverLength;  // Ratio of amplitude to wavelength
-};
-
-class WaveGenerator {
- private:
-  static constexpr int NUM_WAVES = 16;
-  static constexpr float PI = 3.14159265359f;
-  static constexpr float GRAVITY = 9.81f;  // Or 30.0f from original code
-
-  std::mt19937 rng;
-  std::uniform_real_distribution<float> dist;
-
-  void generateWaves(WaveParams& params) {
-    const float bumpTexSize = 1.f * COMPUTE_TEXTURE_DIMENSION;
-
-    for (int i = 0; i < NUM_WAVES; ++i) {
-      // Calculate which vec4 and component this wave belongs to
-      int vec4Index = i / 4;
-      int component = i % 4;
-
-      // 1. Calculate wave direction with random deviation
-      // Original code: InitTexWave
-      float angleRads =
-          randomMinusOneToOne() * params.angleDeviation * PI / 180.0f;
-
-      float dx = std::sin(angleRads);
-      float dy = std::cos(angleRads);
-
-      // Rotate by wind direction
-      float tx = dx;
-      dx = params.windDirection.y * dx - params.windDirection.x * dy;
-      dy = params.windDirection.x * tx + params.windDirection.y * dy;
-
-      // 2. Calculate wavelength (linearly distributed across range)
-      float wavelength = float(i) / float(NUM_WAVES - 1) *
-                             (params.maxWavelength - params.minWavelength) +
-                         params.minWavelength;
-
-      // Convert to texture space
-      float maxLen = params.maxWavelength * bumpTexSize / params.rippleScale;
-      float minLen = params.minWavelength * bumpTexSize / params.rippleScale;
-      float len = float(i) / float(NUM_WAVES - 1) * (maxLen - minLen) + minLen;
-
-      // 3. Quantize direction to texture pixels
-      float reps = bumpTexSize / len;
-      dx *= reps;
-      dy *= reps;
-      dx = std::round(dx);  // Snap to integers
-      dy = std::round(dy);
-
-      // Store direction (normalized will happen in shader if needed)
-      params.directionX[vec4Index][component] = dx;
-      params.directionY[vec4Index][component] = dy;
-
-      // 4. Calculate effective wavelength after quantization
-      float effectiveK = 1.0f / std::sqrt(dx * dx + dy * dy);
-      float effectiveLen = bumpTexSize * effectiveK;
-
-      // 5. Calculate frequency (k = 2π/λ)
-      params.frequency[vec4Index][component] = 2.0f * PI / effectiveLen;
-
-      // 6. Calculate amplitude (proportional to wavelength)
-      params.amplitude[vec4Index][component] =
-          effectiveLen * params.amplitudeOverLength;
-
-      // 7. Random initial phase
-      params.phase[vec4Index][component] = randomZeroToOne();
-
-      // Note: Speed calculation for animation
-      // ω = √(gk) where g is gravity, k is frequency
-      // For dispersion relation: ω = √(g * 2π/λ)
-      // Speed = ω/k = √(g/(2π/λ)) = √(gλ/(2π))
-      // This is handled in update function
-    }
-  }
-
- public:
-  WaveGenerator() : rng(std::random_device{}()), dist(-1.0f, 1.0f) {}
-
-  float randomMinusOneToOne() { return dist(rng); }
-
-  float randomZeroToOne() { return (dist(rng) + 1.0f) * 0.5f; }
-
-  // Initialize wave parameters with physically-based values
-  WaveParams initializeWaveParams() {
-    WaveParams params{};
-
-    // Global configuration (matching original code's InitTexState)
-    params.time = 0.0f;
-    params.chopiness = 1.0f;      // Original: m_TexState.m_Chop
-    params.noiseStrength = 0.2f;  // Original: m_TexState.m_Noise
-    params.rippleScale = 25.0f;   // Original: m_TexState.m_RippleScale
-
-    // Wind parameters
-    params.windDirection = glm::vec2(0.0f, 1.0f);  // North
-    params.angleDeviation = 15.0f;  // Original: m_TexState.m_AngleDeviation
-    params.speedDeviation = 0.1f;   // Original: m_TexState.m_SpeedDeviation
-
-    // Physical parameters
-    params.gravity = 30.0f;             // Original: kGravConst
-    params.minWavelength = 1.0f;        // Original: m_TexState.m_MinLength
-    params.maxWavelength = 10.0f;       // Original: m_TexState.m_MaxLength
-    params.amplitudeOverLength = 0.1f;  // Original: m_TexState.m_AmpOverLen
-
-    // Generate individual waves
-    generateWaves(params);
-
-    return params;
-  }
-
-  // Update wave parameters each frame
-  void updateWaveParams(WaveParams& params, float deltaTime) {
-    params.time += deltaTime;
-
-    // Update phases based on dispersion relation: ω = √(gk)
-    for (int i = 0; i < NUM_WAVES; ++i) {
-      int vec4Index = i / 4;
-      int component = i % 4;
-
-      float freq = params.frequency[vec4Index][component];
-      float wavelength = 2.0f * PI / freq;
-
-      // Dispersion relation for deep water waves: ω = √(gk)
-      // But original code uses: speed = √(λ/(2π*g)) / 3
-      float speed = std::sqrt(wavelength / (2.0f * PI * params.gravity)) / 3.0f;
-
-      // Apply random speed deviation
-      float speedVariation =
-          1.0f + randomMinusOneToOne() * params.speedDeviation;
-      speed *= speedVariation;
-
-      // Update phase (phase decreases over time in original)
-      params.phase[vec4Index][component] -= deltaTime * speed;
-
-      // Keep phase in [0, 1] range
-      params.phase[vec4Index][component] =
-          std::fmod(params.phase[vec4Index][component] + 1.0f, 1.0f);
-    }
-  }
-
-  // Calm water
-  static WaveParams createCalmWater() {
-    WaveGenerator gen;
-    WaveParams params = gen.initializeWaveParams();
-
-    params.minWavelength = 2.0f;
-    params.maxWavelength = 8.0f;
-    params.amplitudeOverLength = 0.05f;  // Small waves
-    params.angleDeviation = 10.0f;       // Uniform direction
-    params.noiseStrength = 0.1f;
-    params.chopiness = 0.5f;
-
-    gen.generateWaves(params);
-    return params;
-  }
+struct OceanParams {
+  glm::vec4 wind_dir_speed_amp;  // xy: wind dir, z: wind speed, w: amplitude
+  glm::vec4 time_patch_chop_height;  // x: time, y: patch length, z: chop, w:
+                                     // height scale
+  glm::ivec4 grid;                   // x: N, y: logN
 };
 
 struct UiFeatures {
@@ -309,14 +139,18 @@ class VulkanExample : public VulkanExampleBase {
       uint32_t mipLevels{0};
     };
 
-    Texture2D wave_normal_map;
+    Texture2D spectrum_h0;
+    Texture2D spectrum_ht_ping;
+    Texture2D spectrum_ht_pong;
+    Texture2D height_map;
+    Texture2D normal_map;
 
     struct {
-      WaveParams compose;
+      OceanParams ocean;
     } ubos;
 
     struct UniformBuffers {
-      vks::Buffer compose;
+      vks::Buffer ocean;
     };
 
     // Buffers
@@ -324,27 +158,29 @@ class VulkanExample : public VulkanExampleBase {
 
     // Pipelines
     struct {
-      VkPipeline compose;
+      VkPipeline init_spectrum{VK_NULL_HANDLE};
+      VkPipeline spectrum{VK_NULL_HANDLE};
+      VkPipeline fft{VK_NULL_HANDLE};
+      VkPipeline resolve_height{VK_NULL_HANDLE};
+      VkPipeline normals{VK_NULL_HANDLE};
     } pipelines{};
 
     // Pipeline Layout
     struct {
-      VkPipelineLayout compose{VK_NULL_HANDLE};
+      VkPipelineLayout ocean{VK_NULL_HANDLE};
     } pipeline_layouts;
 
     // Descriptor Layout
     struct {
-      VkDescriptorSetLayout compose{VK_NULL_HANDLE};
+      VkDescriptorSetLayout ocean{VK_NULL_HANDLE};
     } descriptor_set_layouts;
 
     // Descriptor Sets
     struct DescriptorSets {
-      VkDescriptorSet compose{VK_NULL_HANDLE};
+      VkDescriptorSet ocean{VK_NULL_HANDLE};
     };
     std::array<DescriptorSets, maxConcurrentFrames> descriptor_sets{};
-
-    WaveGenerator wave_generator;
-
+    bool spectrum_initialized{false};
   } compute_;
 
   // Handles graphics rendering pipelines
@@ -390,14 +226,14 @@ class VulkanExample : public VulkanExampleBase {
     struct {
       SkyBoxUBO sky_box;
       WaveUBO wave;
-      WaveParams wave_params;
+      OceanParams ocean_params;
       TessellationConfigUBO tess_config;
     } ubos;
 
     struct UniformBuffers {
       vks::Buffer sky_box;
       vks::Buffer wave;
-      vks::Buffer wave_params;
+      vks::Buffer ocean_params;
       vks::Buffer tess_config;
     };
     std::array<UniformBuffers, maxConcurrentFrames> uniform_buffers;
@@ -423,6 +259,15 @@ class VulkanExample : public VulkanExampleBase {
     };
     std::array<DescriptorSets, maxConcurrentFrames> descriptor_sets;
   } graphics_;
+
+  struct FFTPushConstants {
+    int32_t stage;
+    int32_t direction;
+    int32_t input_is_ping;
+    int32_t output_is_ping;
+    int32_t inverse;
+    int32_t _padding[3];
+  };
 
   void setupDescriptors() {
     // Layouts
@@ -461,21 +306,26 @@ class VulkanExample : public VulkanExampleBase {
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT,
             /*binding id*/ 1),
-        // Binding 2 : WaveParams UBO
+        // Binding 2 : Ocean params UBO
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
             /*binding id*/ 2),
-        // Binding 3 : Normal Map
+        // Binding 3 : Height Map
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_FRAGMENT_BIT,
+            VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
             /*binding id*/ 3),
-        // Binding 3 : Cube map / skybox
+        // Binding 4 : Normal Map
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_FRAGMENT_BIT,
             /*binding id*/ 4),
+        // Binding 5 : Cube map / skybox
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding id*/ 5),
     };
     descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
         setLayoutBindings.data(),
@@ -523,22 +373,28 @@ class VulkanExample : public VulkanExampleBase {
               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
               &graphics_.uniform_buffers[i].tess_config.descriptor),
 
-          // tess. eval ubo
+          // tess. eval ocean params
           vks::initializers::writeDescriptorSet(
               graphics_.descriptor_sets[i].wave,
               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2,
-              &graphics_.uniform_buffers[i].wave_params.descriptor),
+              &graphics_.uniform_buffers[i].ocean_params.descriptor),
+
+          // height map
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptor_sets[i].wave,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3,
+              &compute_.height_map.descriptor),
 
           // normal map
           vks::initializers::writeDescriptorSet(
               graphics_.descriptor_sets[i].wave,
-              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3,
-              &compute_.wave_normal_map.descriptor),
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4,
+              &compute_.normal_map.descriptor),
 
           // cube map / skybox
           vks::initializers::writeDescriptorSet(
               graphics_.descriptor_sets[i].wave,
-              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 5,
               &graphics_.textures.cube_map.descriptor),
       };
       vkUpdateDescriptorSets(device,
@@ -701,8 +557,8 @@ class VulkanExample : public VulkanExampleBase {
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer.wave_params, sizeof(graphics_.ubos.wave_params)));
-      VK_CHECK_RESULT(buffer.wave_params.map());
+          &buffer.ocean_params, sizeof(graphics_.ubos.ocean_params)));
+      VK_CHECK_RESULT(buffer.ocean_params.map());
 
       // Tessellation Config
       VK_CHECK_RESULT(vulkanDevice->createBuffer(
@@ -714,15 +570,17 @@ class VulkanExample : public VulkanExampleBase {
     }
   }
 
-  void updateUniformBuffers() {
-    // Compute: Compose
+  void updateComputeUniformBuffers() {
     if (!ui_features.pause_wave) {
-      compute_.wave_generator.updateWaveParams(compute_.ubos.compose,
-                                               1.f / ui_features.time_step);
+      compute_.ubos.ocean.time_patch_chop_height.x +=
+          1.f / ui_features.time_step;
     }
-    memcpy(compute_.uniform_buffers[currentBuffer].compose.mapped,
-           &compute_.ubos.compose, sizeof(WaveParams));
+    compute_.ubos.ocean.time_patch_chop_height.y = ui_features.grid_scale;
+    memcpy(compute_.uniform_buffers[currentBuffer].ocean.mapped,
+           &compute_.ubos.ocean, sizeof(OceanParams));
+  }
 
+  void updateGraphicsUniformBuffers() {
     // Skybox
     graphics_.ubos.sky_box.perspective = camera.matrices.perspective;
     graphics_.ubos.sky_box.view = glm::mat4(glm::mat3(camera.matrices.view));
@@ -738,10 +596,10 @@ class VulkanExample : public VulkanExampleBase {
     memcpy(graphics_.uniform_buffers[currentBuffer].wave.mapped,
            &graphics_.ubos.wave, sizeof(Graphics::WaveUBO));
 
-    // Wave params
-    // NOTE: WaveParams are shared from compute AFTER updating
-    memcpy(graphics_.uniform_buffers[currentBuffer].wave_params.mapped,
-           &compute_.ubos.compose, sizeof(WaveParams));
+    // Ocean params
+    graphics_.ubos.ocean_params = compute_.ubos.ocean;
+    memcpy(graphics_.uniform_buffers[currentBuffer].ocean_params.mapped,
+           &compute_.ubos.ocean, sizeof(OceanParams));
 
     // Tess Config
     memcpy(graphics_.uniform_buffers[currentBuffer].tess_config.mapped,
@@ -813,15 +671,15 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            /*total ubo count */ (/*graphics*/ 3 + /*compute*/ 1) *
+            /*total ubo count */ (/*graphics*/ 4 + /*compute*/ 1) *
                 maxConcurrentFrames),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             /*total texture count (across all pipelines) */ (
-                /*graphics*/ 2 + /*compute textures*/ 0) *
+                /*graphics*/ 3 + /*compute textures*/ 0) *
                 maxConcurrentFrames),
         vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                              1 * maxConcurrentFrames)};
+                                              5 * maxConcurrentFrames)};
 
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
@@ -848,7 +706,14 @@ class VulkanExample : public VulkanExampleBase {
   void prepareComputeTextures() {
     // Create a compute capable device queue
     vkGetDeviceQueue(device, compute_.queueFamilyIndex, 0, &compute_.queue);
-    createComputeTexture(compute_.wave_normal_map, VECTOR_FIELD_FORMAT);
+    compute_.spectrum_initialized = false;
+    createComputeTexture(compute_.spectrum_h0, VK_FORMAT_R32G32B32A32_SFLOAT);
+    createComputeTexture(compute_.spectrum_ht_ping,
+                         VK_FORMAT_R32G32B32A32_SFLOAT);
+    createComputeTexture(compute_.spectrum_ht_pong,
+                         VK_FORMAT_R32G32B32A32_SFLOAT);
+    createComputeTexture(compute_.height_map, VK_FORMAT_R32_SFLOAT);
+    createComputeTexture(compute_.normal_map, VK_FORMAT_R16G16B16A16_SFLOAT);
     clearAllComputeTextures();
   }
 
@@ -891,9 +756,8 @@ class VulkanExample : public VulkanExampleBase {
     // Set initial layout of the image to undefined
     imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageCreateInfo.usage =
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-        VK_IMAGE_USAGE_STORAGE_BIT;
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
 
     VK_CHECK_RESULT(
         vkCreateImage(device, &imageCreateInfo, nullptr, &texture.image));
@@ -940,8 +804,13 @@ class VulkanExample : public VulkanExampleBase {
     vulkanDevice->flushCommandBuffer(layoutCmd, queue, true);
 
     VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
-    sampler.magFilter = VK_FILTER_LINEAR;
-    sampler.minFilter = VK_FILTER_LINEAR;
+    const bool supportsLinearFilter =
+        (formatProperties.optimalTilingFeatures &
+         VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) != 0;
+    sampler.magFilter =
+        supportsLinearFilter ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+    sampler.minFilter =
+        supportsLinearFilter ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
     sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
     sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     sampler.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -984,9 +853,42 @@ class VulkanExample : public VulkanExampleBase {
     range.levelCount = 1;
     range.baseArrayLayer = 0;
     range.layerCount = 1;
-    vkCmdClearColorImage(clearCmd, compute_.wave_normal_map.image,
+    vkCmdClearColorImage(clearCmd, compute_.spectrum_h0.image,
+                         VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
+    vkCmdClearColorImage(clearCmd, compute_.spectrum_ht_ping.image,
+                         VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
+    vkCmdClearColorImage(clearCmd, compute_.spectrum_ht_pong.image,
+                         VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
+    vkCmdClearColorImage(clearCmd, compute_.height_map.image,
+                         VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
+    vkCmdClearColorImage(clearCmd, compute_.normal_map.image,
                          VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
     vulkanDevice->flushCommandBuffer(clearCmd, queue, true);
+  }
+
+  void insertComputeBarrier(const VkCommandBuffer& cmdBuffer) const {
+    VkImageMemoryBarrier barriers[5]{};
+    auto fillBarrier = [](VkImageMemoryBarrier& barrier, VkImage image) {
+      barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+      barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+      barrier.dstAccessMask =
+          VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+      barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+      barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+      barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+      barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+      barrier.image = image;
+      barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    };
+    fillBarrier(barriers[0], compute_.spectrum_h0.image);
+    fillBarrier(barriers[1], compute_.spectrum_ht_ping.image);
+    fillBarrier(barriers[2], compute_.spectrum_ht_pong.image);
+    fillBarrier(barriers[3], compute_.height_map.image);
+    fillBarrier(barriers[4], compute_.normal_map.image);
+
+    vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
+                         nullptr, 5, barriers);
   }
 
   void prepareComputeUniformBuffers() {
@@ -995,8 +897,8 @@ class VulkanExample : public VulkanExampleBase {
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer.compose, sizeof(compute_.ubos.compose)));
-      VK_CHECK_RESULT(buffer.compose.map());
+          &buffer.ocean, sizeof(compute_.ubos.ocean)));
+      VK_CHECK_RESULT(buffer.ocean.map());
     }
   }
 
@@ -1005,40 +907,72 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorSetLayoutCreateInfo descriptorLayout;
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
 
-    // Compose
+    // Ocean compute set (shared by all compute pipelines)
     setLayoutBindings = {
-        // Binding 0 : Wave normal map (write only)
+        // Binding 0 : h0 spectrum (rw)
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
             /*binding id*/ 0),
-        // Binding 1 : Ubo
+        // Binding 1 : ht spectrum ping (rw)
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 1),
+        // Binding 2 : ht spectrum pong (rw)
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 2),
+        // Binding 3 : height map (rw)
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 3),
+        // Binding 4 : normal map (rw)
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 4),
+        // Binding 5 : UBO
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-            /*binding id*/ 1),
+            /*binding id*/ 5),
     };
     descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
         setLayoutBindings.data(),
         static_cast<uint32_t>(setLayoutBindings.size()));
     VK_CHECK_RESULT(
         vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr,
-                                    &compute_.descriptor_set_layouts.compose));
+                                    &compute_.descriptor_set_layouts.ocean));
 
     for (auto i = 0; i < compute_.uniform_buffers.size(); i++) {
-      // Normal
+      // Ocean compute set
       VkDescriptorSetAllocateInfo allocInfo =
           vks::initializers::descriptorSetAllocateInfo(
-              descriptorPool, &compute_.descriptor_set_layouts.compose, 1);
+              descriptorPool, &compute_.descriptor_set_layouts.ocean, 1);
       VK_CHECK_RESULT(vkAllocateDescriptorSets(
-          device, &allocInfo, &compute_.descriptor_sets[i].compose));
+          device, &allocInfo, &compute_.descriptor_sets[i].ocean));
       std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
           vks::initializers::writeDescriptorSet(
-              compute_.descriptor_sets[i].compose,
+              compute_.descriptor_sets[i].ocean,
               VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0,
-              &compute_.wave_normal_map.descriptor),
+              &compute_.spectrum_h0.descriptor),
           vks::initializers::writeDescriptorSet(
-              compute_.descriptor_sets[i].compose,
-              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
-              &compute_.uniform_buffers[i].compose.descriptor),
+              compute_.descriptor_sets[i].ocean,
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
+              &compute_.spectrum_ht_ping.descriptor),
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].ocean,
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 2,
+              &compute_.spectrum_ht_pong.descriptor),
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].ocean,
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3,
+              &compute_.height_map.descriptor),
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].ocean,
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 4,
+              &compute_.normal_map.descriptor),
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].ocean,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 5,
+              &compute_.uniform_buffers[i].ocean.descriptor),
       };
       vkUpdateDescriptorSets(device,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -1047,41 +981,57 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void prepareComputePipelines() {
-    // Create pipelines
-    // Compose
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(int32_t) * 8;
+
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
         vks::initializers::pipelineLayoutCreateInfo(
-            &compute_.descriptor_set_layouts.compose, 1);
+            &compute_.descriptor_set_layouts.ocean, 1);
+    pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+    pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
     VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo,
                                            nullptr,
-                                           &compute_.pipeline_layouts.compose));
+                                           &compute_.pipeline_layouts.ocean));
 
-    // Compose
     VkComputePipelineCreateInfo computePipelineCreateInfo =
         vks::initializers::computePipelineCreateInfo(
-            compute_.pipeline_layouts.compose, 0);
+            compute_.pipeline_layouts.ocean, 0);
+
     computePipelineCreateInfo.stage =
-        loadShader(getShadersPath() + "wave/compose.comp.spv",
+        loadShader(getShadersPath() + "wave/init_spectrum.comp.spv",
                    VK_SHADER_STAGE_COMPUTE_BIT);
-
-    // We want to use as much shared memory for the compute shader invocations
-    // as available, so we calculate it based on the device limits and pass it
-    // to the shader via specialization constants
-    uint32_t sharedDataSize = std::min(
-        static_cast<uint32_t>(1024),
-        static_cast<uint32_t>(
-            (vulkanDevice->properties.limits.maxComputeSharedMemorySize /
-             sizeof(glm::vec4))));
-    VkSpecializationMapEntry specializationMapEntry =
-        vks::initializers::specializationMapEntry(0, 0, sizeof(uint32_t));
-    VkSpecializationInfo specializationInfo =
-        vks::initializers::specializationInfo(1, &specializationMapEntry,
-                                              sizeof(int32_t), &sharedDataSize);
-    computePipelineCreateInfo.stage.pSpecializationInfo = &specializationInfo;
-
     VK_CHECK_RESULT(vkCreateComputePipelines(
         device, pipelineCache, 1, &computePipelineCreateInfo, nullptr,
-        &compute_.pipelines.compose));
+        &compute_.pipelines.init_spectrum));
+
+    computePipelineCreateInfo.stage =
+        loadShader(getShadersPath() + "wave/spectrum.comp.spv",
+                   VK_SHADER_STAGE_COMPUTE_BIT);
+    VK_CHECK_RESULT(vkCreateComputePipelines(
+        device, pipelineCache, 1, &computePipelineCreateInfo, nullptr,
+        &compute_.pipelines.spectrum));
+
+    computePipelineCreateInfo.stage = loadShader(
+        getShadersPath() + "wave/fft.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+    VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1,
+                                             &computePipelineCreateInfo,
+                                             nullptr, &compute_.pipelines.fft));
+
+    computePipelineCreateInfo.stage =
+        loadShader(getShadersPath() + "wave/resolve_height.comp.spv",
+                   VK_SHADER_STAGE_COMPUTE_BIT);
+    VK_CHECK_RESULT(vkCreateComputePipelines(
+        device, pipelineCache, 1, &computePipelineCreateInfo, nullptr,
+        &compute_.pipelines.resolve_height));
+
+    computePipelineCreateInfo.stage =
+        loadShader(getShadersPath() + "wave/normals.comp.spv",
+                   VK_SHADER_STAGE_COMPUTE_BIT);
+    VK_CHECK_RESULT(vkCreateComputePipelines(
+        device, pipelineCache, 1, &computePipelineCreateInfo, nullptr,
+        &compute_.pipelines.normals));
   }
 
   void prepareCompute() {
@@ -1094,7 +1044,17 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void prepareInitialWaveState() {
-    compute_.ubos.compose = compute_.wave_generator.createCalmWater();
+    const int32_t logN =
+        static_cast<int32_t>(std::log2(COMPUTE_TEXTURE_DIMENSION));
+    compute_.ubos.ocean.wind_dir_speed_amp =
+        glm::vec4(1.0f, 0.0f, 20.0f, 0.05f);
+    compute_.ubos.ocean.time_patch_chop_height =
+        glm::vec4(0.0f, ui_features.grid_scale, 10.0f, 100.0f);
+    compute_.ubos.ocean.grid =
+        glm::ivec4(COMPUTE_TEXTURE_DIMENSION, logN, 0, 0);
+    for (auto& buffer : compute_.uniform_buffers) {
+      memcpy(buffer.ocean.mapped, &compute_.ubos.ocean, sizeof(OceanParams));
+    }
   }
 
   void prepareComputeCommandPoolBuffersFencesAndSemaphores() {
@@ -1163,24 +1123,135 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::commandBufferBeginInfo();
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
-    composeCmd(cmdBuffer);
+    if (!compute_.spectrum_initialized) {
+      initSpectrumCmd(cmdBuffer);
+      compute_.spectrum_initialized = true;
+      insertComputeBarrier(cmdBuffer);
+    }
+
+    spectrumCmd(cmdBuffer);
+    insertComputeBarrier(cmdBuffer);
+
+    fftCmd(cmdBuffer);
+    insertComputeBarrier(cmdBuffer);
+
+    resolveHeightCmd(cmdBuffer);
+    insertComputeBarrier(cmdBuffer);
+
+    normalsCmd(cmdBuffer);
 
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
 
-  void composeCmd(const VkCommandBuffer& cmdBuffer) {
+  void initSpectrumCmd(const VkCommandBuffer& cmdBuffer) {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                      compute_.pipelines.compose);
+                      compute_.pipelines.init_spectrum);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                            compute_.pipeline_layouts.compose, 0, 1,
-                            &compute_.descriptor_sets[currentBuffer].compose, 0,
+                            compute_.pipeline_layouts.ocean, 0, 1,
+                            &compute_.descriptor_sets[currentBuffer].ocean, 0,
                             nullptr);
     vkCmdDispatch(
         cmdBuffer,
-        compute_.wave_normal_map.width / VulkanExample::Compute::WORKGROUP_SIZE,
-        compute_.wave_normal_map.height /
-            VulkanExample::Compute::WORKGROUP_SIZE,
+        compute_.spectrum_h0.width / VulkanExample::Compute::WORKGROUP_SIZE,
+        compute_.spectrum_h0.height / VulkanExample::Compute::WORKGROUP_SIZE,
         1);
+  }
+
+  void spectrumCmd(const VkCommandBuffer& cmdBuffer) {
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      compute_.pipelines.spectrum);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            compute_.pipeline_layouts.ocean, 0, 1,
+                            &compute_.descriptor_sets[currentBuffer].ocean, 0,
+                            nullptr);
+    vkCmdDispatch(cmdBuffer,
+                  compute_.spectrum_ht_ping.width /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.spectrum_ht_ping.height /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  1);
+  }
+
+  void fftCmd(const VkCommandBuffer& cmdBuffer) {
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      compute_.pipelines.fft);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            compute_.pipeline_layouts.ocean, 0, 1,
+                            &compute_.descriptor_sets[currentBuffer].ocean, 0,
+                            nullptr);
+
+    const int32_t logN = compute_.ubos.ocean.grid.y;
+    FFTPushConstants pc{};
+    pc.inverse = 1;
+
+    int32_t input_is_ping = 1;
+    int32_t output_is_ping = 0;
+
+    for (int32_t stage = 0; stage < logN; stage++) {
+      pc.stage = stage;
+      pc.direction = 0;
+      pc.input_is_ping = input_is_ping;
+      pc.output_is_ping = output_is_ping;
+      vkCmdPushConstants(cmdBuffer, compute_.pipeline_layouts.ocean,
+                         VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+      vkCmdDispatch(cmdBuffer,
+                    compute_.spectrum_ht_ping.width /
+                        VulkanExample::Compute::WORKGROUP_SIZE,
+                    compute_.spectrum_ht_ping.height /
+                        VulkanExample::Compute::WORKGROUP_SIZE,
+                    1);
+      insertComputeBarrier(cmdBuffer);
+      std::swap(input_is_ping, output_is_ping);
+    }
+
+    for (int32_t stage = 0; stage < logN; stage++) {
+      pc.stage = stage;
+      pc.direction = 1;
+      pc.input_is_ping = input_is_ping;
+      pc.output_is_ping = output_is_ping;
+      vkCmdPushConstants(cmdBuffer, compute_.pipeline_layouts.ocean,
+                         VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+      vkCmdDispatch(cmdBuffer,
+                    compute_.spectrum_ht_ping.width /
+                        VulkanExample::Compute::WORKGROUP_SIZE,
+                    compute_.spectrum_ht_ping.height /
+                        VulkanExample::Compute::WORKGROUP_SIZE,
+                    1);
+      insertComputeBarrier(cmdBuffer);
+      std::swap(input_is_ping, output_is_ping);
+    }
+  }
+
+  void resolveHeightCmd(const VkCommandBuffer& cmdBuffer) {
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      compute_.pipelines.resolve_height);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            compute_.pipeline_layouts.ocean, 0, 1,
+                            &compute_.descriptor_sets[currentBuffer].ocean, 0,
+                            nullptr);
+    FFTPushConstants pc{};
+    const int32_t totalStages = compute_.ubos.ocean.grid.y * 2;
+    pc.input_is_ping = (totalStages % 2 == 0) ? 1 : 0;
+    pc.output_is_ping = 0;
+    vkCmdPushConstants(cmdBuffer, compute_.pipeline_layouts.ocean,
+                       VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+    vkCmdDispatch(
+        cmdBuffer,
+        compute_.height_map.width / VulkanExample::Compute::WORKGROUP_SIZE,
+        compute_.height_map.height / VulkanExample::Compute::WORKGROUP_SIZE, 1);
+  }
+
+  void normalsCmd(const VkCommandBuffer& cmdBuffer) {
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      compute_.pipelines.normals);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            compute_.pipeline_layouts.ocean, 0, 1,
+                            &compute_.descriptor_sets[currentBuffer].ocean, 0,
+                            nullptr);
+    vkCmdDispatch(
+        cmdBuffer,
+        compute_.normal_map.width / VulkanExample::Compute::WORKGROUP_SIZE,
+        compute_.normal_map.height / VulkanExample::Compute::WORKGROUP_SIZE, 1);
   }
 
   void buildCommandBuffer() {
@@ -1286,6 +1357,47 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
 
+  void submitFrameWithComputeWait() {
+    const VkSemaphore waitSemaphores[] = {
+        presentCompleteSemaphores[currentBuffer],
+        compute_.semaphores[currentBuffer].complete};
+    const VkPipelineStageFlags waitStages[] = {
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT};
+
+    VkSubmitInfo submitInfo{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = static_cast<uint32_t>(std::size(waitSemaphores)),
+        .pWaitSemaphores = waitSemaphores,
+        .pWaitDstStageMask = waitStages,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &drawCmdBuffers[currentBuffer],
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = &renderCompleteSemaphores[currentImageIndex]};
+
+    VK_CHECK_RESULT(
+        vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
+
+    VkPresentInfoKHR presentInfo{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &renderCompleteSemaphores[currentImageIndex],
+        .swapchainCount = 1,
+        .pSwapchains = &swapChain.swapChain,
+        .pImageIndices = &currentImageIndex};
+    VkResult result = vkQueuePresentKHR(queue, &presentInfo);
+    if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
+      windowResize();
+      if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        return;
+      }
+    } else {
+      VK_CHECK_RESULT(result);
+    }
+    currentBuffer = (currentBuffer + 1) % maxConcurrentFrames;
+  }
+
   void render() override {
     if (!prepared) {
       return;
@@ -1298,21 +1410,25 @@ class VulkanExample : public VulkanExampleBase {
           device, 1, &compute_.fences[currentBuffer], VK_TRUE, UINT64_MAX));
       VK_CHECK_RESULT(
           vkResetFences(device, 1, &compute_.fences[currentBuffer]));
+      updateComputeUniformBuffers();
       buildComputeCommandBuffer();
 
       VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
       computeSubmitInfo.commandBufferCount = 1;
       computeSubmitInfo.pCommandBuffers =
           &compute_.commandBuffers[currentBuffer];
+      computeSubmitInfo.signalSemaphoreCount = 1;
+      computeSubmitInfo.pSignalSemaphores =
+          &compute_.semaphores[currentBuffer].complete;
       VK_CHECK_RESULT(vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo,
                                     compute_.fences[currentBuffer]));
     }
     {
       // Graphics
       VulkanExampleBase::prepareFrame();
-      updateUniformBuffers();
+      updateGraphicsUniformBuffers();
       buildCommandBuffer();
-      VulkanExampleBase::submitFrame();
+      submitFrameWithComputeWait();
     }
   }
 
@@ -1384,25 +1500,28 @@ class VulkanExample : public VulkanExampleBase {
       // Pipelines
       vkDestroyPipeline(device, graphics_.pipelines.sky_box, nullptr);
       vkDestroyPipeline(device, graphics_.pipelines.wave, nullptr);
-      vkDestroyPipeline(device, compute_.pipelines.compose, nullptr);
+      vkDestroyPipeline(device, compute_.pipelines.init_spectrum, nullptr);
+      vkDestroyPipeline(device, compute_.pipelines.spectrum, nullptr);
+      vkDestroyPipeline(device, compute_.pipelines.fft, nullptr);
+      vkDestroyPipeline(device, compute_.pipelines.resolve_height, nullptr);
+      vkDestroyPipeline(device, compute_.pipelines.normals, nullptr);
 
       // Pipeline Layouts
       vkDestroyPipelineLayout(device, graphics_.pipeline_layouts.sky_box,
                               nullptr);
       vkDestroyPipelineLayout(device, graphics_.pipeline_layouts.wave, nullptr);
-      vkDestroyPipelineLayout(device, compute_.pipeline_layouts.compose,
-                              nullptr);
+      vkDestroyPipelineLayout(device, compute_.pipeline_layouts.ocean, nullptr);
 
       // Buffers: Graphics
       for (auto& buffer : graphics_.uniform_buffers) {
         buffer.sky_box.destroy();
         buffer.wave.destroy();
-        buffer.wave_params.destroy();
+        buffer.ocean_params.destroy();
         buffer.tess_config.destroy();
       }
       // Buffers: Compose
       for (auto& buffer : compute_.uniform_buffers) {
-        buffer.compose.destroy();
+        buffer.ocean.destroy();
       }
 
       // Vertex buffers
@@ -1415,16 +1534,36 @@ class VulkanExample : public VulkanExampleBase {
       vkDestroyDescriptorSetLayout(
           device, graphics_.descriptor_set_layouts.wave, nullptr);
       vkDestroyDescriptorSetLayout(
-          device, compute_.descriptor_set_layouts.compose, nullptr);
+          device, compute_.descriptor_set_layouts.ocean, nullptr);
 
       // Cube map
       graphics_.textures.cube_map.destroy();
 
       // Compute textures
-      vkDestroyImageView(device, compute_.wave_normal_map.view, nullptr);
-      vkDestroyImage(device, compute_.wave_normal_map.image, nullptr);
-      vkDestroySampler(device, compute_.wave_normal_map.sampler, nullptr);
-      vkFreeMemory(device, compute_.wave_normal_map.deviceMemory, nullptr);
+      vkDestroyImageView(device, compute_.spectrum_h0.view, nullptr);
+      vkDestroyImage(device, compute_.spectrum_h0.image, nullptr);
+      vkDestroySampler(device, compute_.spectrum_h0.sampler, nullptr);
+      vkFreeMemory(device, compute_.spectrum_h0.deviceMemory, nullptr);
+
+      vkDestroyImageView(device, compute_.spectrum_ht_ping.view, nullptr);
+      vkDestroyImage(device, compute_.spectrum_ht_ping.image, nullptr);
+      vkDestroySampler(device, compute_.spectrum_ht_ping.sampler, nullptr);
+      vkFreeMemory(device, compute_.spectrum_ht_ping.deviceMemory, nullptr);
+
+      vkDestroyImageView(device, compute_.spectrum_ht_pong.view, nullptr);
+      vkDestroyImage(device, compute_.spectrum_ht_pong.image, nullptr);
+      vkDestroySampler(device, compute_.spectrum_ht_pong.sampler, nullptr);
+      vkFreeMemory(device, compute_.spectrum_ht_pong.deviceMemory, nullptr);
+
+      vkDestroyImageView(device, compute_.height_map.view, nullptr);
+      vkDestroyImage(device, compute_.height_map.image, nullptr);
+      vkDestroySampler(device, compute_.height_map.sampler, nullptr);
+      vkFreeMemory(device, compute_.height_map.deviceMemory, nullptr);
+
+      vkDestroyImageView(device, compute_.normal_map.view, nullptr);
+      vkDestroyImage(device, compute_.normal_map.image, nullptr);
+      vkDestroySampler(device, compute_.normal_map.sampler, nullptr);
+      vkFreeMemory(device, compute_.normal_map.deviceMemory, nullptr);
 
       // Compute Commands
       vkDestroyCommandPool(device, compute_.commandPool, nullptr);

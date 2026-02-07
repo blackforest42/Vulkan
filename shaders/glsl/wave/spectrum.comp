@@ -1,0 +1,45 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 0, rgba32f) uniform readonly image2D h0Spectrum;
+layout(binding = 1, rgba32f) uniform writeonly image2D htSpectrum;
+
+layout(binding = 5) uniform OceanParams {
+    vec4 wind_dir_speed_amp;
+    vec4 time_patch_chop_height;
+    ivec4 grid;
+} ocean;
+
+const float PI = 3.14159265359;
+const float G = 9.81;
+
+vec2 complexMul(vec2 a, vec2 b) {
+    return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
+}
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    int N = ocean.grid.x;
+    if (coord.x >= N || coord.y >= N) {
+        return;
+    }
+
+    float patchLength = ocean.time_patch_chop_height.y;
+    vec2 k = (vec2(coord) - vec2(float(N) * 0.5)) * (2.0 * PI / patchLength);
+
+    vec2 h0 = imageLoad(h0Spectrum, coord).xy;
+    ivec2 negCoord = ivec2((N - coord.x) % N, (N - coord.y) % N);
+    vec2 h0_neg = imageLoad(h0Spectrum, negCoord).xy;
+    vec2 h0_conj = vec2(h0_neg.x, -h0_neg.y);
+
+    float kLen = length(k);
+    float omega = sqrt(G * kLen);
+    float t = ocean.time_patch_chop_height.x;
+
+    vec2 expPos = vec2(cos(omega * t), sin(omega * t));
+    vec2 expNeg = vec2(cos(omega * t), -sin(omega * t));
+
+    vec2 ht = complexMul(h0, expPos) + complexMul(h0_conj, expNeg);
+    imageStore(htSpectrum, coord, vec4(ht, 0.0, 0.0));
+}

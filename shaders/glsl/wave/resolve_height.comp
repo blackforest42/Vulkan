@@ -1,0 +1,43 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 1, rgba32f) uniform readonly image2D pingSpectrum;
+layout(binding = 2, rgba32f) uniform readonly image2D pongSpectrum;
+layout(binding = 3, r32f) uniform writeonly image2D heightMap;
+
+layout(binding = 5) uniform OceanParams {
+    vec4 wind_dir_speed_amp;
+    vec4 time_patch_chop_height;
+    ivec4 grid;
+} ocean;
+
+layout(push_constant) uniform PushConstants {
+    int stage;
+    int direction;
+    int input_is_ping;
+    int output_is_ping;
+    int inverse;
+    int _pad0;
+    int _pad1;
+    int _pad2;
+} pc;
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    int N = ocean.grid.x;
+    if (coord.x >= N || coord.y >= N) {
+        return;
+    }
+
+    vec2 ht = (pc.input_is_ping == 1)
+        ? imageLoad(pingSpectrum, coord).xy
+        : imageLoad(pongSpectrum, coord).xy;
+
+    float height = ht.x;
+    if (((coord.x + coord.y) & 1) == 1) {
+        height = -height;
+    }
+
+    imageStore(heightMap, coord, vec4(height, 0.0, 0.0, 0.0));
+}
