@@ -1,0 +1,46 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 0, rg32f) uniform readonly image2D fftInput;
+layout(binding = 1, rg32f) uniform writeonly image2D fftOutput;
+layout(binding = 2, r32f) uniform writeonly image2D heightMap;
+layout(binding = 3, rg32f) uniform writeonly image2D slopeMap;
+
+const float PI = 3.14159265359;
+const int N = 512;
+
+vec2 complexMul(vec2 a, vec2 b) {
+    return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
+}
+
+vec2 dftColumn(int x, int y) {
+    vec2 sum = vec2(0.0);
+    for (int n = 0; n < N; ++n) {
+        vec2 inputVal = imageLoad(fftInput, ivec2(x, n)).xy;
+        float angle = -2.0 * PI * float(y * n) / float(N);
+        vec2 twiddle = vec2(cos(angle), sin(angle));
+        sum += complexMul(inputVal, twiddle);
+    }
+    return sum / float(N);
+}
+
+void main() {
+    ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
+    if (texCoord.x >= N || texCoord.y >= N) {
+        return;
+    }
+
+    vec2 value = dftColumn(texCoord.x, texCoord.y);
+    imageStore(fftOutput, texCoord, vec4(value, 0.0, 0.0));
+
+    float height = value.x;
+    int nextX = (texCoord.x + 1) % N;
+    int nextY = (texCoord.y + 1) % N;
+    float heightX = dftColumn(nextX, texCoord.y).x;
+    float heightY = dftColumn(texCoord.x, nextY).x;
+    vec2 slope = vec2(heightX - height, heightY - height);
+
+    imageStore(heightMap, texCoord, vec4(height, 0.0, 0.0, 0.0));
+    imageStore(slopeMap, texCoord, vec4(slope, 0.0, 0.0));
+}

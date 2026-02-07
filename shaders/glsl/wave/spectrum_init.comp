@@ -1,0 +1,79 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 0, rg32f) uniform writeonly image2D spectrumH0;
+
+layout(std140, binding = 1) uniform SpectrumParams {
+    vec4 wind;      // xy = direction, z = speed, w = amplitude
+    vec4 spectrum;  // x = gravity, y = depth, z = fetch, w = gamma
+    vec4 jonswap;   // x = alpha, y = peakOmega, z = sigmaA, w = sigmaB
+    vec4 time;      // x = time
+} params;
+
+const float PI = 3.14159265359;
+const int N = 512;
+
+float rand01(uint seed) {
+    return fract(sin(float(seed) * 12.9898) * 43758.5453);
+}
+
+vec2 gaussian(uint seed) {
+    float u1 = max(rand01(seed), 1e-6);
+    float u2 = rand01(seed * 1664525u + 1013904223u);
+    float r = sqrt(-2.0 * log(u1));
+    float theta = 2.0 * PI * u2;
+    return r * vec2(cos(theta), sin(theta));
+}
+
+float phillips(vec2 k, vec2 windDir, float windSpeed, float amplitude, float gravity) {
+    float kLen = length(k);
+    if (kLen < 1e-6) {
+        return 0.0;
+    }
+    vec2 kHat = k / kLen;
+    float L = (windSpeed * windSpeed) / gravity;
+    float kL = kLen * L;
+    float kL2 = kL * kL;
+    float damping = 0.001;
+    float l2 = L * L * damping * damping;
+    float alignment = max(dot(kHat, windDir), 0.0);
+    float phillipsBase = amplitude * exp(-1.0 / kL2) / (kLen * kLen * kLen * kLen);
+    phillipsBase *= alignment * alignment;
+    phillipsBase *= exp(-kLen * kLen * l2);
+    return phillipsBase;
+}
+
+float jonswap(float omega, float alpha, float peakOmega, float gamma, float sigmaA, float sigmaB) {
+    float sigma = omega <= peakOmega ? sigmaA : sigmaB;
+    float exponent = -((omega - peakOmega) * (omega - peakOmega)) / (2.0 * sigma * sigma * peakOmega * peakOmega);
+    float peak = exp(exponent);
+    return alpha * pow(gamma, peak);
+}
+
+void main() {
+    ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
+    if (texCoord.x >= N || texCoord.y >= N) {
+        return;
+    }
+
+    vec2 windDir = normalize(params.wind.xy);
+    float windSpeed = max(params.wind.z, 0.1);
+    float amplitude = params.wind.w;
+    float gravity = params.spectrum.x;
+    float depth = params.spectrum.y;
+
+    vec2 k = (vec2(texCoord) - vec2(N) * 0.5) * (2.0 * PI / float(N));
+    float kLen = length(k);
+    float omega = sqrt(gravity * kLen * tanh(kLen * depth));
+
+    float p = phillips(k, windDir, windSpeed, amplitude, gravity);
+    float j = jonswap(omega, params.jonswap.x, params.jonswap.y, params.spectrum.w, params.jonswap.z, params.jonswap.w);
+    float spectrum = max(p * j, 0.0);
+
+    uint seed = uint(texCoord.x + texCoord.y * N);
+    vec2 xi = gaussian(seed);
+    vec2 h0 = xi * sqrt(spectrum * 0.5);
+
+    imageStore(spectrumH0, texCoord, vec4(h0, 0.0, 0.0));
+}
