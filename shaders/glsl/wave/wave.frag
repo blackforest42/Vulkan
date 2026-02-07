@@ -24,7 +24,7 @@ const vec4 waterTint = vec4(0.0, 0.3, 0.4, 0.8);
 
 void main() {
     // Sample high-frequency normals from compute shader
-    vec3 bumpNormal = texture(normalMap, inUV).xyz * 2.0 - 1.0;
+    vec3 bumpNormal = texture(normalMap, inUV * 25.0).xyz * 2.0 - 1.0;
 
     // Transform to world space
     vec3 normal = normalize(inTBN * bumpNormal);
