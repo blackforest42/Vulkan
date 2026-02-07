@@ -56,46 +56,15 @@ struct WaterMesh {
   std::vector<WaterVertex> vertices;
   std::vector<uint32_t> indices;
 
-  // Generate patch list for tessellation (4 vertices per patch)
-  void generatePatchGrid(const uint32_t gridSize, const float worldSize) {
-    vertices.clear();
-    indices.clear();
-
-    const uint32_t patchCount = gridSize * gridSize;
-
-    vertices.reserve(patchCount * 4);
-    indices.reserve(patchCount * 4);
-
-    // Generate patch vertices (each quad is a patch)
-    for (uint32_t z = 0; z < gridSize; ++z) {
-      for (uint32_t x = 0; x < gridSize; ++x) {
-        // Four corners of the patch
-        for (uint32_t corner = 0; corner < 4; ++corner) {
-          WaterVertex vertex{};
-
-          uint32_t localX = (corner == 1 || corner == 2) ? 1 : 0;
-          uint32_t localZ = (corner == 2 || corner == 3) ? 1 : 0;
-
-          float gridX = float(x + localX) / gridSize;
-          float gridZ = float(z + localZ) / gridSize;
-
-          vertex.position[0] = (gridX - 0.5f) * worldSize;
-          vertex.position[1] = 0.0f;
-          vertex.position[2] = (gridZ - 0.5f) * worldSize;
-          vertex.uv[0] = gridX;
-          vertex.uv[1] = gridZ;
-
-          vertices.push_back(vertex);
-        }
-
-        // Indices for this patch (4 vertices)
-        uint32_t baseIndex = (z * gridSize + x) * 4;
-        indices.push_back(baseIndex + 0);
-        indices.push_back(baseIndex + 1);
-        indices.push_back(baseIndex + 2);
-        indices.push_back(baseIndex + 3);
-      }
-    }
+  void generateUnitQuad() {
+    vertices = {
+        // Position (x, y, z)              // UV (u, v)
+        {{-1.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},  // Bottom-Left
+        {{1.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},   // Bottom-Right
+        {{1.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},    // Top-Right
+        {{-1.0f, 0.0f, 1.0f}, {0.0f, 1.0f}}    // Top-Left
+    };
+    indices = {0, 1, 2, 2, 3, 0};
   }
 };
 
@@ -447,9 +416,6 @@ class VulkanExample : public VulkanExampleBase {
   struct Graphics {
     // families differ and require additional barriers
     uint32_t queueFamilyIndex{0};
-    uint32_t GRID_SIZE = 32;
-    uint32_t PATCH_COUNT = GRID_SIZE * GRID_SIZE;
-    float GRID_SCALE = 128.0f;
 
     struct {
       vks::Buffer vertex_buffer;
@@ -480,7 +446,7 @@ class VulkanExample : public VulkanExampleBase {
 
     struct TessellationConfigUBO {
       float minTessLevel{1.f};
-      float maxTessLevel{32.f};
+      float maxTessLevel{128.f};
       float minDistance{1.f};
       float maxDistance{1024.f};
       float frustumCullMargin{1.f};
@@ -872,7 +838,7 @@ class VulkanExample : public VulkanExampleBase {
   void setupWaterMesh() {
     // 1. Generate the mesh
     WaterMesh waterMesh;
-    waterMesh.generatePatchGrid(graphics_.GRID_SIZE, graphics_.GRID_SCALE);
+    waterMesh.generateUnitQuad();
 
     // 2. Create Vulkan buffers
     graphics_.wave_mesh_buffers.index_count = waterMesh.indices.size();
@@ -1745,11 +1711,7 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdBindVertexBuffers(cmdBuffer, 0, 1,
                            &graphics_.wave_mesh_buffers.vertex_buffer.buffer,
                            offsets);
-    vkCmdBindIndexBuffer(cmdBuffer,
-                         graphics_.wave_mesh_buffers.index_buffer.buffer, 0,
-                         VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(cmdBuffer, graphics_.wave_mesh_buffers.index_count, 1, 0,
-                     0, 0);
+    vkCmdDraw(cmdBuffer, 4, 1, 0, 0);
 
     drawUI(cmdBuffer);
 
@@ -1858,7 +1820,7 @@ class VulkanExample : public VulkanExampleBase {
   VulkanExample() : VulkanExampleBase() {
     title = "Wave Simulation";
     camera.type_ = Camera::CameraType::firstperson;
-    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
+    camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 1024.0f);
     camera.setTranslation(glm::vec3(68.0f, 50.0f, 4.0f));
     camera.movementSpeed = 100.0f;
 

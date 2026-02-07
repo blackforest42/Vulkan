@@ -56,7 +56,7 @@ void main() {
     // --- 2. Calculate Base World Position ---
     // Scale texture coordinates to world space
     // Assuming the base mesh spans [-worldSize/2, worldSize/2] on XZ plane
-    const float worldSize = 100.0;
+    const float worldSize = 1000.0;
     vec2 xzPos = outUV * worldSize - worldSize * 0.5;
     vec3 basePos = vec3(xzPos.x, 0.0, xzPos.y);// X and Z horizontal, Y=0
 
