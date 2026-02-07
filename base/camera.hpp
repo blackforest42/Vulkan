@@ -190,16 +190,10 @@ class Camera {
                       moveSpeed;
         }
         if (keys.up) {
-          position += glm::normalize(glm::cross(
-                          -camFront,
-                          glm::cross(camFront, glm::vec3(0.0f, 1.0f, 0.0f)))) *
-                      moveSpeed;
+          position += glm::normalize(glm::vec3(0.0f, 1.0f, 0.0f)) * moveSpeed;
         }
         if (keys.down) {
-          position -= glm::normalize(glm::cross(
-                          -camFront,
-                          glm::cross(camFront, glm::vec3(0.0f, 1.0f, 0.0f)))) *
-                      moveSpeed;
+          position -= glm::normalize(glm::vec3(0.0f, 1.0f, 0.0f)) * moveSpeed;
         }
       }
     }
