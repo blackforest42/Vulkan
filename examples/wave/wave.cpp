@@ -252,47 +252,12 @@ class WaveGenerator {
     gen.generateWaves(params);
     return params;
   }
-
-  // Stormy ocean
-  static WaveParams createStormyOcean() {
-    WaveGenerator gen;
-    WaveParams params = gen.initializeWaveParams();
-
-    params.minWavelength = 5.0f;
-    params.maxWavelength = 25.0f;
-    params.amplitudeOverLength = 0.15f;  // Larger waves
-    params.angleDeviation = 30.0f;       // Chaotic directions
-    params.noiseStrength = 0.4f;
-    params.chopiness = 2.0f;  // Sharp peaks
-
-    gen.generateWaves(params);
-    return params;
-  }
-
-  // Original DirectX demo settings
-  static WaveParams createOriginalSettings() {
-    WaveGenerator gen;
-    WaveParams params = gen.initializeWaveParams();
-    // Texture waves (for bump map)
-    params.minWavelength = 1.0f;
-    params.maxWavelength = 10.0f;
-    params.amplitudeOverLength = 0.1f;
-    params.angleDeviation = 15.0f;
-    params.windDirection = glm::vec2(0.0f, 1.0f);
-    params.noiseStrength = 0.2f;
-    params.chopiness = 1.0f;
-    params.rippleScale = 25.0f;
-    params.speedDeviation = 0.1f;
-    params.gravity = 30.0f;
-
-    gen.generateWaves(params);
-    return params;
-  }
 };
 
 struct UiFeatures {
   bool pause_wave{false};
   bool show_mesh{false};
+  float grid_scale{1024.f};
   int time_step{720};
 } ui_features;
 
@@ -437,11 +402,11 @@ class VulkanExample : public VulkanExampleBase {
     };
 
     struct WaveUBO {
-      glm::mat4 perspective;
-      glm::mat4 view;
+      alignas(16) glm::mat4 perspective;
+      alignas(16) glm::mat4 view;
       alignas(16) glm::vec3 camera_position;
-      glm::vec2 screen_res;
-      float pixels_per_edge{20.f};
+      alignas(8) glm::vec2 screen_res;
+      alignas(8) float grid_scale{};
     };
 
     struct TessellationConfigUBO {
@@ -449,7 +414,7 @@ class VulkanExample : public VulkanExampleBase {
       float maxTessLevel{128.f};
       float minDistance{1.f};
       float maxDistance{1024.f};
-      float frustumCullMargin{1.f};
+      float frustumCullMargin{.4f};
     };
 
     struct {
@@ -821,6 +786,7 @@ class VulkanExample : public VulkanExampleBase {
     graphics_.ubos.wave.view = camera.matrices.view;
     graphics_.ubos.wave.camera_position = camera.position;
     graphics_.ubos.wave.screen_res = glm::vec2(this->width, this->height);
+    graphics_.ubos.wave.grid_scale = ui_features.grid_scale;
     memcpy(graphics_.uniform_buffers[currentBuffer].wave.mapped,
            &graphics_.ubos.wave, sizeof(Graphics::WaveUBO));
 
@@ -1797,6 +1763,7 @@ class VulkanExample : public VulkanExampleBase {
       overlay->checkBox("Pause Wave", &ui_features.pause_wave);
       overlay->checkBox("Show Mesh", &ui_features.show_mesh);
       overlay->sliderInt("Time Step", &ui_features.time_step, 100, 1000);
+      overlay->sliderFloat("Grid Scale", &ui_features.grid_scale, 10, 2048);
     }
   }
 

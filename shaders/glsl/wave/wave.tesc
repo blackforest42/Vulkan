@@ -13,7 +13,7 @@ layout(set = 0, binding = 0) uniform UBO
     mat4 view;
     vec3 camera_pos;
     vec2 screen_res;
-    float pixels_per_edge;
+    float grid_scale;
 } ubo;
 
 // Tessellation configuration
@@ -63,14 +63,14 @@ void main(void)
         float tessLevel3 = mix(tess_config.max_tess_level, tess_config.min_tess_level, min(distance11, distance10));
 
         // Step 4: Set tessellation levels
-        gl_TessLevelOuter[0] = tessLevel0 * visibility;
-        gl_TessLevelOuter[1] = tessLevel1 * visibility;
-        gl_TessLevelOuter[2] = tessLevel2 * visibility;
-        gl_TessLevelOuter[3] = tessLevel3 * visibility;
+        gl_TessLevelOuter[0] = tessLevel0;
+        gl_TessLevelOuter[1] = tessLevel1;
+        gl_TessLevelOuter[2] = tessLevel2;
+        gl_TessLevelOuter[3] = tessLevel3;
 
         // Step 5: set the inner tessellation levels to the max of the two parallel edges
-        gl_TessLevelInner[0] = max(tessLevel1, tessLevel3) * visibility;
-        gl_TessLevelInner[1] = max(tessLevel0, tessLevel2) * visibility;
+        gl_TessLevelInner[0] = max(tessLevel1, tessLevel3);
+        gl_TessLevelInner[1] = max(tessLevel0, tessLevel2);
     }
 
     // Pass through data for all invocations

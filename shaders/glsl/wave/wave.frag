@@ -14,7 +14,7 @@ layout(set = 0, binding = 0) uniform UBO
     mat4 view;
     vec3 camera_pos;
     vec2 screen_res;
-    float pixels_per_edge;
+    float grid_scale;
 } ubo;
 
 layout(binding = 3) uniform sampler2D normalMap;

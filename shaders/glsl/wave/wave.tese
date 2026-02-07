@@ -16,7 +16,7 @@ layout(set = 0, binding = 0) uniform UBO
     mat4 view;
     vec3 camera_pos;
     vec2 screen_res;
-    float pixels_per_edge;
+    float grid_scale;
 } ubo;
 
 layout(binding = 2) uniform WaveParams {
@@ -55,9 +55,7 @@ void main() {
 
     // --- 2. Calculate Base World Position ---
     // Scale texture coordinates to world space
-    // Assuming the base mesh spans [-worldSize/2, worldSize/2] on XZ plane
-    const float worldSize = 1000.0;
-    vec2 xzPos = outUV * worldSize - worldSize * 0.5;
+    vec2 xzPos = outUV * ubo.grid_scale - ubo.grid_scale * 0.5;
     vec3 basePos = vec3(xzPos.x, 0.0, xzPos.y);// X and Z horizontal, Y=0
 
     // --- 3. Apply FFT Heightfield Displacement ---
