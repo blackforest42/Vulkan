@@ -10,7 +10,6 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
-#include <utility>
 #include <vector>
 
 #include "VulkanglTFModel.h"
@@ -425,7 +424,7 @@ class VulkanExample : public VulkanExampleBase {
     // Pipeline
     VkPipelineRasterizationStateCreateInfo rasterizationState =
         vks::initializers::pipelineRasterizationStateCreateInfo(
-            VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT,
+            VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE,
             VK_FRONT_FACE_COUNTER_CLOCKWISE, 0);
     VkPipelineColorBlendAttachmentState blendAttachmentState =
         vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
@@ -1052,7 +1051,7 @@ class VulkanExample : public VulkanExampleBase {
     compute_.ubos.ocean.wind_dir_speed_amp =
         glm::vec4(1.0f, 0.0f, 20.0f, 0.05f);
     compute_.ubos.ocean.time_patch_chop_height =
-        glm::vec4(0.0f, ui_features.grid_scale, 10.0f, 100.0f);
+        glm::vec4(0.0f, ui_features.grid_scale, 1.0f, 128.0f);
     compute_.ubos.ocean.grid =
         glm::ivec4(COMPUTE_TEXTURE_DIMENSION, logN, 0, 0);
     for (auto& buffer : compute_.uniform_buffers) {
@@ -1469,11 +1468,8 @@ class VulkanExample : public VulkanExampleBase {
           "Wind Dir Y", &compute_.ubos.ocean.wind_dir_speed_amp.y, -1.0f, 1.0f);
       overlay->sliderFloat(
           "Wind Speed", &compute_.ubos.ocean.wind_dir_speed_amp.z, 0.0f, 50.0f);
-      overlay->sliderFloat("Wave Amplitude",
-                           &compute_.ubos.ocean.wind_dir_speed_amp.w, 0.0f,
-                           0.01f);
       overlay->sliderFloat(
-          "Chop", &compute_.ubos.ocean.time_patch_chop_height.z, 0.0f, 1000.0f);
+          "Chop", &compute_.ubos.ocean.time_patch_chop_height.z, 0.0f, 10.0f);
       overlay->sliderFloat("Height Scale",
                            &compute_.ubos.ocean.time_patch_chop_height.w, 0.0f,
                            1000.0f);
@@ -1501,7 +1497,7 @@ class VulkanExample : public VulkanExampleBase {
     title = "Wave Simulation";
     camera.type_ = Camera::CameraType::firstperson;
     camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 1024.0f);
-    camera.setTranslation(glm::vec3(68.0f, 50.0f, 4.0f));
+    camera.setTranslation(glm::vec3(68.0f, 20.0f, 4.0f));
     camera.movementSpeed = 100.0f;
 
     apiVersion = VK_API_VERSION_1_3;

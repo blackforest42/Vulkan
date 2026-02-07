@@ -42,25 +42,6 @@ void main() {
     float h = texture(heightMap, outUV).r * height_scale;
 
     vec3 displacedPos = vec3(xzPos.x, h, xzPos.y);
-    // Apply patch rotation (pitch, yaw, roll) in degrees
-    vec3 rotRad = radians(ubo.patch_rotation);
-    float cx = cos(rotRad.x);
-    float sx = sin(rotRad.x);
-    float cy = cos(rotRad.y);
-    float sy = sin(rotRad.y);
-    float cz = cos(rotRad.z);
-    float sz = sin(rotRad.z);
-    mat3 rotX = mat3(1.0, 0.0, 0.0,
-                     0.0, cx, -sx,
-                     0.0, sx, cx);
-    mat3 rotY = mat3(cy, 0.0, sy,
-                     0.0, 1.0, 0.0,
-                     -sy, 0.0, cy);
-    mat3 rotZ = mat3(cz, -sz, 0.0,
-                     sz, cz, 0.0,
-                     0.0, 0.0, 1.0);
-    vec3 rotatedPos = rotZ * rotY * rotX * displacedPos;
-    outWorldCoord = rotatedPos;
 
     // --- 3. Build Tangent-Bitangent-Normal Matrix from height map ---
     float du = 1.0 / float(ocean.grid.x);
@@ -88,6 +69,30 @@ void main() {
     vec3 bitangent = normalize(vec3(0.0, hU - hD, dz));
     vec3 geometricNormal = normalize(cross(tangent, bitangent));
 
+    // Apply patch rotation (pitch, yaw, roll) in degrees
+    vec3 rotRad = radians(ubo.patch_rotation);
+    float cx = cos(rotRad.x);
+    float sx = sin(rotRad.x);
+    float cy = cos(rotRad.y);
+    float sy = sin(rotRad.y);
+    float cz = cos(rotRad.z);
+    float sz = sin(rotRad.z);
+    mat3 rotX = mat3(1.0, 0.0, 0.0,
+                     0.0, cx, -sx,
+                     0.0, sx, cx);
+    mat3 rotY = mat3(cy, 0.0, sy,
+                     0.0, 1.0, 0.0,
+                     -sy, 0.0, cy);
+    mat3 rotZ = mat3(cz, -sz, 0.0,
+                     sz, cz, 0.0,
+                     0.0, 0.0, 1.0);
+    mat3 rotM = rotZ * rotY * rotX;
+    vec3 rotatedPos = rotM * displacedPos;
+    outWorldCoord = rotatedPos;
+
+    tangent = normalize(rotM * tangent);
+    bitangent = normalize(rotM * bitangent);
+    geometricNormal = normalize(rotM * geometricNormal);
     outTBN = mat3(tangent, bitangent, geometricNormal);
 
     // --- 4. Calculate Final Screen Position ---

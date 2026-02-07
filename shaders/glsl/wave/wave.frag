@@ -32,12 +32,10 @@ void main() {
 
     // Reflection calculation (incident vector points toward surface)
     vec3 viewDir = normalize(ubo.camera_pos - inWorldCoord);
-    vec3 reflectDir = reflect(-viewDir, normal);
+    vec3 reflectDir = reflect(viewDir, normal);
 
-    // Sample environment map (swap Y and Z for D3D→Vulkan cubemap convention)
-    //vec3 envSample = texture(cubeMap, vec3(reflectDir.x, -reflectDir.z, reflectDir.y)).rgb;
-    vec3 envSample = texture(cubeMap, reflectDir).rgb;
-
+    // Sample environment map (flip Y to match cubemap orientation)
+    vec3 envSample = texture(cubeMap, vec3(reflectDir.x, -reflectDir.y, reflectDir.z)).rgb;
 
     // Fresnel approximation
     float fresnel = pow(1.0 - max(dot(viewDir, normal), 0.0), 5.0);
