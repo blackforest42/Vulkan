@@ -124,6 +124,13 @@ struct WaveParams {
   float amplitudeOverLength;  // Ratio of amplitude to wavelength
 };
 
+struct SpectrumParams {
+  glm::vec4 wind;      // xy = direction, z = speed, w = amplitude
+  glm::vec4 spectrum;  // x = gravity, y = depth, z = fetch, w = gamma
+  glm::vec4 jonswap;   // x = alpha, y = peakOmega, z = sigmaA, w = sigmaB
+  glm::vec4 time;      // x = time
+};
+
 class WaveGenerator {
  private:
   static constexpr int NUM_WAVES = 16;
@@ -375,14 +382,20 @@ class VulkanExample : public VulkanExampleBase {
       uint32_t mipLevels{0};
     };
 
+    Texture2D spectrum_h0;
+    Texture2D spectrum_ht_ping;
+    Texture2D spectrum_ht_pong;
+    Texture2D height_map;
+    Texture2D slope_map;
     Texture2D wave_normal_map;
 
     struct {
       WaveParams compose;
+      SpectrumParams spectrum;
     } ubos;
 
     struct UniformBuffers {
-      vks::Buffer compose;
+      vks::Buffer spectrum;
     };
 
     // Buffers
@@ -390,26 +403,43 @@ class VulkanExample : public VulkanExampleBase {
 
     // Pipelines
     struct {
-      VkPipeline compose;
+      VkPipeline spectrum_init{VK_NULL_HANDLE};
+      VkPipeline spectrum_update{VK_NULL_HANDLE};
+      VkPipeline fft_horizontal{VK_NULL_HANDLE};
+      VkPipeline fft_vertical{VK_NULL_HANDLE};
+      VkPipeline compose{VK_NULL_HANDLE};
     } pipelines{};
 
     // Pipeline Layout
     struct {
+      VkPipelineLayout spectrum_init{VK_NULL_HANDLE};
+      VkPipelineLayout spectrum_update{VK_NULL_HANDLE};
+      VkPipelineLayout fft_horizontal{VK_NULL_HANDLE};
+      VkPipelineLayout fft_vertical{VK_NULL_HANDLE};
       VkPipelineLayout compose{VK_NULL_HANDLE};
     } pipeline_layouts;
 
     // Descriptor Layout
     struct {
+      VkDescriptorSetLayout spectrum_init{VK_NULL_HANDLE};
+      VkDescriptorSetLayout spectrum_update{VK_NULL_HANDLE};
+      VkDescriptorSetLayout fft_horizontal{VK_NULL_HANDLE};
+      VkDescriptorSetLayout fft_vertical{VK_NULL_HANDLE};
       VkDescriptorSetLayout compose{VK_NULL_HANDLE};
     } descriptor_set_layouts;
 
     // Descriptor Sets
     struct DescriptorSets {
+      VkDescriptorSet spectrum_init{VK_NULL_HANDLE};
+      VkDescriptorSet spectrum_update{VK_NULL_HANDLE};
+      VkDescriptorSet fft_horizontal{VK_NULL_HANDLE};
+      VkDescriptorSet fft_vertical{VK_NULL_HANDLE};
       VkDescriptorSet compose{VK_NULL_HANDLE};
     };
     std::array<DescriptorSets, maxConcurrentFrames> descriptor_sets{};
 
     WaveGenerator wave_generator;
+    bool spectrum_initialized{false};
 
   } compute_;
 
@@ -545,6 +575,17 @@ class VulkanExample : public VulkanExampleBase {
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_FRAGMENT_BIT,
             /*binding id*/ 4),
+        // Binding 5 : Height map
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
+            /*binding id*/ 5),
+        // Binding 6 : Slope map
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT |
+                VK_SHADER_STAGE_FRAGMENT_BIT,
+            /*binding id*/ 6),
     };
     descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
         setLayoutBindings.data(),
@@ -609,6 +650,16 @@ class VulkanExample : public VulkanExampleBase {
               graphics_.descriptor_sets[i].wave,
               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4,
               &graphics_.textures.cube_map.descriptor),
+          // height map
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptor_sets[i].wave,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 5,
+              &compute_.height_map.descriptor),
+          // slope map
+          vks::initializers::writeDescriptorSet(
+              graphics_.descriptor_sets[i].wave,
+              VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 6,
+              &compute_.slope_map.descriptor),
       };
       vkUpdateDescriptorSets(device,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -784,13 +835,14 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void updateUniformBuffers() {
-    // Compute: Compose
+    // Compute: Spectrum params
     if (!ui_features.pause_wave) {
       compute_.wave_generator.updateWaveParams(compute_.ubos.compose,
                                                1.f / ui_features.time_step);
+      compute_.ubos.spectrum.time.x += 1.f / ui_features.time_step;
     }
-    memcpy(compute_.uniform_buffers[currentBuffer].compose.mapped,
-           &compute_.ubos.compose, sizeof(WaveParams));
+    memcpy(compute_.uniform_buffers[currentBuffer].spectrum.mapped,
+           &compute_.ubos.spectrum, sizeof(SpectrumParams));
 
     // Skybox
     graphics_.ubos.sky_box.perspective = camera.matrices.perspective;
@@ -881,21 +933,20 @@ class VulkanExample : public VulkanExampleBase {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            /*total ubo count */ (/*graphics*/ 3 + /*compute*/ 1) *
+            /*total ubo count */ (/*graphics*/ 4 + /*compute*/ 1) *
                 maxConcurrentFrames),
         vks::initializers::descriptorPoolSize(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             /*total texture count (across all pipelines) */ (
-                /*graphics*/ 2 + /*compute textures*/ 0) *
+                /*graphics*/ 5 + /*compute textures*/ 0) *
                 maxConcurrentFrames),
-        vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                              1 * maxConcurrentFrames)};
+        vks::initializers::descriptorPoolSize(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 11 * maxConcurrentFrames)};
 
     VkDescriptorPoolCreateInfo descriptorPoolInfo =
         vks::initializers::descriptorPoolCreateInfo(
             poolSizes,
-            /*total descriptor count*/ (/*graphics*/ 2 + /*compute*/ 1) *
-                maxConcurrentFrames);
+            /*total descriptor count*/ 21 * maxConcurrentFrames);
     // Needed if using VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT in
     // descriptor bindings
     descriptorPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
@@ -916,6 +967,11 @@ class VulkanExample : public VulkanExampleBase {
   void prepareComputeTextures() {
     // Create a compute capable device queue
     vkGetDeviceQueue(device, compute_.queueFamilyIndex, 0, &compute_.queue);
+    createComputeTexture(compute_.spectrum_h0, VK_FORMAT_R32G32_SFLOAT);
+    createComputeTexture(compute_.spectrum_ht_ping, VK_FORMAT_R32G32_SFLOAT);
+    createComputeTexture(compute_.spectrum_ht_pong, VK_FORMAT_R32G32_SFLOAT);
+    createComputeTexture(compute_.height_map, VK_FORMAT_R32_SFLOAT);
+    createComputeTexture(compute_.slope_map, VK_FORMAT_R32G32_SFLOAT);
     createComputeTexture(compute_.wave_normal_map, VECTOR_FIELD_FORMAT);
     clearAllComputeTextures();
   }
@@ -1052,6 +1108,16 @@ class VulkanExample : public VulkanExampleBase {
     range.levelCount = 1;
     range.baseArrayLayer = 0;
     range.layerCount = 1;
+    vkCmdClearColorImage(clearCmd, compute_.spectrum_h0.image,
+                         VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
+    vkCmdClearColorImage(clearCmd, compute_.spectrum_ht_ping.image,
+                         VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
+    vkCmdClearColorImage(clearCmd, compute_.spectrum_ht_pong.image,
+                         VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
+    vkCmdClearColorImage(clearCmd, compute_.height_map.image,
+                         VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
+    vkCmdClearColorImage(clearCmd, compute_.slope_map.image,
+                         VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
     vkCmdClearColorImage(clearCmd, compute_.wave_normal_map.image,
                          VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &range);
     vulkanDevice->flushCommandBuffer(clearCmd, queue, true);
@@ -1063,8 +1129,8 @@ class VulkanExample : public VulkanExampleBase {
           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          &buffer.compose, sizeof(compute_.ubos.compose)));
-      VK_CHECK_RESULT(buffer.compose.map());
+          &buffer.spectrum, sizeof(compute_.ubos.spectrum)));
+      VK_CHECK_RESULT(buffer.spectrum.map());
     }
   }
 
@@ -1073,15 +1139,103 @@ class VulkanExample : public VulkanExampleBase {
     VkDescriptorSetLayoutCreateInfo descriptorLayout;
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
 
+    // Spectrum init
+    setLayoutBindings = {
+        // Binding 0 : H0 spectrum (write)
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 0),
+        // Binding 1 : Spectrum params
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 1),
+    };
+    descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
+        setLayoutBindings.data(),
+        static_cast<uint32_t>(setLayoutBindings.size()));
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr,
+                                    &compute_.descriptor_set_layouts
+                                         .spectrum_init));
+
+    // Spectrum update
+    setLayoutBindings = {
+        // Binding 0 : H0 spectrum (read)
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 0),
+        // Binding 1 : Ht spectrum (write)
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 1),
+        // Binding 2 : Spectrum params
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 2),
+    };
+    descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
+        setLayoutBindings.data(),
+        static_cast<uint32_t>(setLayoutBindings.size()));
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr,
+                                    &compute_.descriptor_set_layouts
+                                         .spectrum_update));
+
+    // FFT horizontal
+    setLayoutBindings = {
+        // Binding 0 : FFT input (read)
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 0),
+        // Binding 1 : FFT output (write)
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 1),
+    };
+    descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
+        setLayoutBindings.data(),
+        static_cast<uint32_t>(setLayoutBindings.size()));
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr,
+                                    &compute_.descriptor_set_layouts
+                                         .fft_horizontal));
+
+    // FFT vertical
+    setLayoutBindings = {
+        // Binding 0 : FFT input (read)
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 0),
+        // Binding 1 : FFT output (write)
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 1),
+        // Binding 2 : Height map (write)
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 2),
+        // Binding 3 : Slope map (write)
+        vks::initializers::descriptorSetLayoutBinding(
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+            /*binding id*/ 3),
+    };
+    descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
+        setLayoutBindings.data(),
+        static_cast<uint32_t>(setLayoutBindings.size()));
+    VK_CHECK_RESULT(
+        vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr,
+                                    &compute_.descriptor_set_layouts
+                                         .fft_vertical));
+
     // Compose
     setLayoutBindings = {
         // Binding 0 : Wave normal map (write only)
         vks::initializers::descriptorSetLayoutBinding(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
             /*binding id*/ 0),
-        // Binding 1 : Ubo
+        // Binding 1 : Slope map (read)
         vks::initializers::descriptorSetLayoutBinding(
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
             /*binding id*/ 1),
     };
     descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
@@ -1092,21 +1246,109 @@ class VulkanExample : public VulkanExampleBase {
                                     &compute_.descriptor_set_layouts.compose));
 
     for (auto i = 0; i < compute_.uniform_buffers.size(); i++) {
-      // Normal
+      // Spectrum init
       VkDescriptorSetAllocateInfo allocInfo =
           vks::initializers::descriptorSetAllocateInfo(
-              descriptorPool, &compute_.descriptor_set_layouts.compose, 1);
+              descriptorPool, &compute_.descriptor_set_layouts.spectrum_init, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device, &allocInfo, &compute_.descriptor_sets[i].spectrum_init));
+      std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].spectrum_init,
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0,
+              &compute_.spectrum_h0.descriptor),
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].spectrum_init,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
+              &compute_.uniform_buffers[i].spectrum.descriptor),
+      };
+      vkUpdateDescriptorSets(device,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
+
+      // Spectrum update
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool, &compute_.descriptor_set_layouts.spectrum_update, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device, &allocInfo, &compute_.descriptor_sets[i].spectrum_update));
+      writeDescriptorSets = {
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].spectrum_update,
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0,
+              &compute_.spectrum_h0.descriptor),
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].spectrum_update,
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
+              &compute_.spectrum_ht_ping.descriptor),
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].spectrum_update,
+              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2,
+              &compute_.uniform_buffers[i].spectrum.descriptor),
+      };
+      vkUpdateDescriptorSets(device,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
+
+      // FFT horizontal
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool, &compute_.descriptor_set_layouts.fft_horizontal, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device, &allocInfo, &compute_.descriptor_sets[i].fft_horizontal));
+      writeDescriptorSets = {
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].fft_horizontal,
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0,
+              &compute_.spectrum_ht_ping.descriptor),
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].fft_horizontal,
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
+              &compute_.spectrum_ht_pong.descriptor),
+      };
+      vkUpdateDescriptorSets(device,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
+
+      // FFT vertical
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool, &compute_.descriptor_set_layouts.fft_vertical, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(
+          device, &allocInfo, &compute_.descriptor_sets[i].fft_vertical));
+      writeDescriptorSets = {
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].fft_vertical,
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0,
+              &compute_.spectrum_ht_pong.descriptor),
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].fft_vertical,
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
+              &compute_.spectrum_ht_ping.descriptor),
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].fft_vertical,
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 2,
+              &compute_.height_map.descriptor),
+          vks::initializers::writeDescriptorSet(
+              compute_.descriptor_sets[i].fft_vertical,
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3,
+              &compute_.slope_map.descriptor),
+      };
+      vkUpdateDescriptorSets(device,
+                             static_cast<uint32_t>(writeDescriptorSets.size()),
+                             writeDescriptorSets.data(), 0, nullptr);
+
+      // Compose
+      allocInfo = vks::initializers::descriptorSetAllocateInfo(
+          descriptorPool, &compute_.descriptor_set_layouts.compose, 1);
       VK_CHECK_RESULT(vkAllocateDescriptorSets(
           device, &allocInfo, &compute_.descriptor_sets[i].compose));
-      std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+      writeDescriptorSets = {
           vks::initializers::writeDescriptorSet(
               compute_.descriptor_sets[i].compose,
               VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0,
               &compute_.wave_normal_map.descriptor),
           vks::initializers::writeDescriptorSet(
               compute_.descriptor_sets[i].compose,
-              VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
-              &compute_.uniform_buffers[i].compose.descriptor),
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
+              &compute_.slope_map.descriptor),
       };
       vkUpdateDescriptorSets(device,
                              static_cast<uint32_t>(writeDescriptorSets.size()),
@@ -1116,37 +1358,83 @@ class VulkanExample : public VulkanExampleBase {
 
   void prepareComputePipelines() {
     // Create pipelines
-    // Compose
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
         vks::initializers::pipelineLayoutCreateInfo(
-            &compute_.descriptor_set_layouts.compose, 1);
+            &compute_.descriptor_set_layouts.spectrum_init, 1);
+    VK_CHECK_RESULT(
+        vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr,
+                               &compute_.pipeline_layouts.spectrum_init));
+
+    pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
+        &compute_.descriptor_set_layouts.spectrum_update, 1);
+    VK_CHECK_RESULT(
+        vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr,
+                               &compute_.pipeline_layouts.spectrum_update));
+
+    pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
+        &compute_.descriptor_set_layouts.fft_horizontal, 1);
+    VK_CHECK_RESULT(
+        vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr,
+                               &compute_.pipeline_layouts.fft_horizontal));
+
+    pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
+        &compute_.descriptor_set_layouts.fft_vertical, 1);
+    VK_CHECK_RESULT(
+        vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr,
+                               &compute_.pipeline_layouts.fft_vertical));
+
+    pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
+        &compute_.descriptor_set_layouts.compose, 1);
     VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo,
                                            nullptr,
                                            &compute_.pipeline_layouts.compose));
 
-    // Compose
     VkComputePipelineCreateInfo computePipelineCreateInfo =
+        vks::initializers::computePipelineCreateInfo(
+            compute_.pipeline_layouts.spectrum_init, 0);
+    computePipelineCreateInfo.stage =
+        loadShader(getShadersPath() + "wave/spectrum_init.comp.spv",
+                   VK_SHADER_STAGE_COMPUTE_BIT);
+    VK_CHECK_RESULT(vkCreateComputePipelines(
+        device, pipelineCache, 1, &computePipelineCreateInfo, nullptr,
+        &compute_.pipelines.spectrum_init));
+
+    computePipelineCreateInfo =
+        vks::initializers::computePipelineCreateInfo(
+            compute_.pipeline_layouts.spectrum_update, 0);
+    computePipelineCreateInfo.stage =
+        loadShader(getShadersPath() + "wave/spectrum_update.comp.spv",
+                   VK_SHADER_STAGE_COMPUTE_BIT);
+    VK_CHECK_RESULT(vkCreateComputePipelines(
+        device, pipelineCache, 1, &computePipelineCreateInfo, nullptr,
+        &compute_.pipelines.spectrum_update));
+
+    computePipelineCreateInfo =
+        vks::initializers::computePipelineCreateInfo(
+            compute_.pipeline_layouts.fft_horizontal, 0);
+    computePipelineCreateInfo.stage =
+        loadShader(getShadersPath() + "wave/fft_horizontal.comp.spv",
+                   VK_SHADER_STAGE_COMPUTE_BIT);
+    VK_CHECK_RESULT(vkCreateComputePipelines(
+        device, pipelineCache, 1, &computePipelineCreateInfo, nullptr,
+        &compute_.pipelines.fft_horizontal));
+
+    computePipelineCreateInfo =
+        vks::initializers::computePipelineCreateInfo(
+            compute_.pipeline_layouts.fft_vertical, 0);
+    computePipelineCreateInfo.stage =
+        loadShader(getShadersPath() + "wave/fft_vertical.comp.spv",
+                   VK_SHADER_STAGE_COMPUTE_BIT);
+    VK_CHECK_RESULT(vkCreateComputePipelines(
+        device, pipelineCache, 1, &computePipelineCreateInfo, nullptr,
+        &compute_.pipelines.fft_vertical));
+
+    computePipelineCreateInfo =
         vks::initializers::computePipelineCreateInfo(
             compute_.pipeline_layouts.compose, 0);
     computePipelineCreateInfo.stage =
         loadShader(getShadersPath() + "wave/compose.comp.spv",
                    VK_SHADER_STAGE_COMPUTE_BIT);
-
-    // We want to use as much shared memory for the compute shader invocations
-    // as available, so we calculate it based on the device limits and pass it
-    // to the shader via specialization constants
-    uint32_t sharedDataSize = std::min(
-        static_cast<uint32_t>(1024),
-        static_cast<uint32_t>(
-            (vulkanDevice->properties.limits.maxComputeSharedMemorySize /
-             sizeof(glm::vec4))));
-    VkSpecializationMapEntry specializationMapEntry =
-        vks::initializers::specializationMapEntry(0, 0, sizeof(uint32_t));
-    VkSpecializationInfo specializationInfo =
-        vks::initializers::specializationInfo(1, &specializationMapEntry,
-                                              sizeof(int32_t), &sharedDataSize);
-    computePipelineCreateInfo.stage.pSpecializationInfo = &specializationInfo;
-
     VK_CHECK_RESULT(vkCreateComputePipelines(
         device, pipelineCache, 1, &computePipelineCreateInfo, nullptr,
         &compute_.pipelines.compose));
@@ -1163,6 +1451,11 @@ class VulkanExample : public VulkanExampleBase {
 
   void prepareInitialWaveState() {
     compute_.ubos.compose = compute_.wave_generator.createCalmWater();
+    compute_.ubos.spectrum.wind = glm::vec4(0.0f, 1.0f, 18.0f, 0.8f);
+    compute_.ubos.spectrum.spectrum = glm::vec4(9.81f, 200.0f, 100000.0f, 3.3f);
+    compute_.ubos.spectrum.jonswap =
+        glm::vec4(0.0081f, 0.8f, 0.07f, 0.09f);
+    compute_.ubos.spectrum.time = glm::vec4(0.0f);
   }
 
   void prepareComputeCommandPoolBuffersFencesAndSemaphores() {
@@ -1231,12 +1524,112 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::commandBufferBeginInfo();
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
+    if (!compute_.spectrum_initialized) {
+      spectrumInitCmd(cmdBuffer);
+      compute_.spectrum_initialized = true;
+    }
+
+    spectrumUpdateCmd(cmdBuffer);
+    fftHorizontalCmd(cmdBuffer);
+    fftVerticalCmd(cmdBuffer);
     composeCmd(cmdBuffer);
 
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
 
+  void spectrumInitCmd(const VkCommandBuffer& cmdBuffer) {
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      compute_.pipelines.spectrum_init);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            compute_.pipeline_layouts.spectrum_init, 0, 1,
+                            &compute_.descriptor_sets[currentBuffer]
+                                 .spectrum_init,
+                            0, nullptr);
+    vkCmdDispatch(cmdBuffer,
+                  compute_.spectrum_h0.width /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.spectrum_h0.height /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  1);
+  }
+
+  void spectrumUpdateCmd(const VkCommandBuffer& cmdBuffer) {
+    VkMemoryBarrier memoryBarrier = vks::initializers::memoryBarrier(
+        VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+    vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_FLAGS_NONE,
+                         1, &memoryBarrier, 0, nullptr, 0, nullptr);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      compute_.pipelines.spectrum_update);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            compute_.pipeline_layouts.spectrum_update, 0, 1,
+                            &compute_.descriptor_sets[currentBuffer]
+                                 .spectrum_update,
+                            0, nullptr);
+    vkCmdDispatch(cmdBuffer,
+                  compute_.spectrum_ht_ping.width /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.spectrum_ht_ping.height /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  1);
+  }
+
+  void fftHorizontalCmd(const VkCommandBuffer& cmdBuffer) {
+    VkMemoryBarrier memoryBarrier = vks::initializers::memoryBarrier(
+        VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+    vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_FLAGS_NONE,
+                         1, &memoryBarrier, 0, nullptr, 0, nullptr);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      compute_.pipelines.fft_horizontal);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            compute_.pipeline_layouts.fft_horizontal, 0, 1,
+                            &compute_.descriptor_sets[currentBuffer]
+                                 .fft_horizontal,
+                            0, nullptr);
+    vkCmdDispatch(cmdBuffer,
+                  compute_.spectrum_ht_ping.width /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.spectrum_ht_ping.height /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  1);
+  }
+
+  void fftVerticalCmd(const VkCommandBuffer& cmdBuffer) {
+    VkMemoryBarrier memoryBarrier = vks::initializers::memoryBarrier(
+        VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+    vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_FLAGS_NONE,
+                         1, &memoryBarrier, 0, nullptr, 0, nullptr);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      compute_.pipelines.fft_vertical);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            compute_.pipeline_layouts.fft_vertical, 0, 1,
+                            &compute_.descriptor_sets[currentBuffer]
+                                 .fft_vertical,
+                            0, nullptr);
+    vkCmdDispatch(cmdBuffer,
+                  compute_.spectrum_ht_pong.width /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  compute_.spectrum_ht_pong.height /
+                      VulkanExample::Compute::WORKGROUP_SIZE,
+                  1);
+  }
+
   void composeCmd(const VkCommandBuffer& cmdBuffer) {
+    VkMemoryBarrier memoryBarrier = vks::initializers::memoryBarrier(
+        VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+    vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_FLAGS_NONE,
+                         1, &memoryBarrier, 0, nullptr, 0, nullptr);
+
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                       compute_.pipelines.compose);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -1249,6 +1642,14 @@ class VulkanExample : public VulkanExampleBase {
         compute_.wave_normal_map.height /
             VulkanExample::Compute::WORKGROUP_SIZE,
         1);
+
+    VkMemoryBarrier graphicsBarrier = vks::initializers::memoryBarrier(
+        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+    vkCmdPipelineBarrier(
+        cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        VK_FLAGS_NONE, 1, &graphicsBarrier, 0, nullptr, 0, nullptr);
   }
 
   void buildCommandBuffer() {
@@ -1376,6 +1777,9 @@ class VulkanExample : public VulkanExampleBase {
       computeSubmitInfo.commandBufferCount = 1;
       computeSubmitInfo.pCommandBuffers =
           &compute_.commandBuffers[currentBuffer];
+      computeSubmitInfo.signalSemaphoreCount = 1;
+      computeSubmitInfo.pSignalSemaphores =
+          &compute_.semaphores[currentBuffer].complete;
       VK_CHECK_RESULT(vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo,
                                     compute_.fences[currentBuffer]));
     }
@@ -1384,7 +1788,45 @@ class VulkanExample : public VulkanExampleBase {
       VulkanExampleBase::prepareFrame();
       updateUniformBuffers();
       buildCommandBuffer();
-      VulkanExampleBase::submitFrame();
+
+      VkSemaphore waitSemaphores[] = {presentCompleteSemaphores[currentBuffer],
+                                      compute_.semaphores[currentBuffer]
+                                          .complete};
+      VkPipelineStageFlags waitStages[] = {
+          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+          VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
+              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT};
+      VkSubmitInfo submitInfo{
+          .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+          .waitSemaphoreCount = 2,
+          .pWaitSemaphores = waitSemaphores,
+          .pWaitDstStageMask = waitStages,
+          .commandBufferCount = 1,
+          .pCommandBuffers = &drawCmdBuffers[currentBuffer],
+          .signalSemaphoreCount = 1,
+          .pSignalSemaphores = &renderCompleteSemaphores[currentImageIndex]};
+      VK_CHECK_RESULT(
+          vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
+
+      VkPresentInfoKHR presentInfo{
+          .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+          .waitSemaphoreCount = 1,
+          .pWaitSemaphores = &renderCompleteSemaphores[currentImageIndex],
+          .swapchainCount = 1,
+          .pSwapchains = &swapChain.swapChain,
+          .pImageIndices = &currentImageIndex};
+      VkResult result = vkQueuePresentKHR(queue, &presentInfo);
+      if ((result == VK_ERROR_OUT_OF_DATE_KHR) ||
+          (result == VK_SUBOPTIMAL_KHR)) {
+        windowResize();
+        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+          return;
+        }
+      } else {
+        VK_CHECK_RESULT(result);
+      }
+
+      currentBuffer = (currentBuffer + 1) % maxConcurrentFrames;
     }
   }
 
@@ -1455,12 +1897,24 @@ class VulkanExample : public VulkanExampleBase {
       // Pipelines
       vkDestroyPipeline(device, graphics_.pipelines.sky_box, nullptr);
       vkDestroyPipeline(device, graphics_.pipelines.wave, nullptr);
+      vkDestroyPipeline(device, compute_.pipelines.spectrum_init, nullptr);
+      vkDestroyPipeline(device, compute_.pipelines.spectrum_update, nullptr);
+      vkDestroyPipeline(device, compute_.pipelines.fft_horizontal, nullptr);
+      vkDestroyPipeline(device, compute_.pipelines.fft_vertical, nullptr);
       vkDestroyPipeline(device, compute_.pipelines.compose, nullptr);
 
       // Pipeline Layouts
       vkDestroyPipelineLayout(device, graphics_.pipeline_layouts.sky_box,
                               nullptr);
       vkDestroyPipelineLayout(device, graphics_.pipeline_layouts.wave, nullptr);
+      vkDestroyPipelineLayout(device, compute_.pipeline_layouts.spectrum_init,
+                              nullptr);
+      vkDestroyPipelineLayout(device, compute_.pipeline_layouts.spectrum_update,
+                              nullptr);
+      vkDestroyPipelineLayout(device, compute_.pipeline_layouts.fft_horizontal,
+                              nullptr);
+      vkDestroyPipelineLayout(device, compute_.pipeline_layouts.fft_vertical,
+                              nullptr);
       vkDestroyPipelineLayout(device, compute_.pipeline_layouts.compose,
                               nullptr);
 
@@ -1471,9 +1925,9 @@ class VulkanExample : public VulkanExampleBase {
         buffer.wave_params.destroy();
         buffer.tess_config.destroy();
       }
-      // Buffers: Compose
+      // Buffers: Compute
       for (auto& buffer : compute_.uniform_buffers) {
-        buffer.compose.destroy();
+        buffer.spectrum.destroy();
       }
 
       // Vertex buffers
@@ -1486,12 +1940,45 @@ class VulkanExample : public VulkanExampleBase {
       vkDestroyDescriptorSetLayout(
           device, graphics_.descriptor_set_layouts.wave, nullptr);
       vkDestroyDescriptorSetLayout(
+          device, compute_.descriptor_set_layouts.spectrum_init, nullptr);
+      vkDestroyDescriptorSetLayout(
+          device, compute_.descriptor_set_layouts.spectrum_update, nullptr);
+      vkDestroyDescriptorSetLayout(
+          device, compute_.descriptor_set_layouts.fft_horizontal, nullptr);
+      vkDestroyDescriptorSetLayout(
+          device, compute_.descriptor_set_layouts.fft_vertical, nullptr);
+      vkDestroyDescriptorSetLayout(
           device, compute_.descriptor_set_layouts.compose, nullptr);
 
       // Cube map
       graphics_.textures.cube_map.destroy();
 
       // Compute textures
+      vkDestroyImageView(device, compute_.spectrum_h0.view, nullptr);
+      vkDestroyImage(device, compute_.spectrum_h0.image, nullptr);
+      vkDestroySampler(device, compute_.spectrum_h0.sampler, nullptr);
+      vkFreeMemory(device, compute_.spectrum_h0.deviceMemory, nullptr);
+
+      vkDestroyImageView(device, compute_.spectrum_ht_ping.view, nullptr);
+      vkDestroyImage(device, compute_.spectrum_ht_ping.image, nullptr);
+      vkDestroySampler(device, compute_.spectrum_ht_ping.sampler, nullptr);
+      vkFreeMemory(device, compute_.spectrum_ht_ping.deviceMemory, nullptr);
+
+      vkDestroyImageView(device, compute_.spectrum_ht_pong.view, nullptr);
+      vkDestroyImage(device, compute_.spectrum_ht_pong.image, nullptr);
+      vkDestroySampler(device, compute_.spectrum_ht_pong.sampler, nullptr);
+      vkFreeMemory(device, compute_.spectrum_ht_pong.deviceMemory, nullptr);
+
+      vkDestroyImageView(device, compute_.height_map.view, nullptr);
+      vkDestroyImage(device, compute_.height_map.image, nullptr);
+      vkDestroySampler(device, compute_.height_map.sampler, nullptr);
+      vkFreeMemory(device, compute_.height_map.deviceMemory, nullptr);
+
+      vkDestroyImageView(device, compute_.slope_map.view, nullptr);
+      vkDestroyImage(device, compute_.slope_map.image, nullptr);
+      vkDestroySampler(device, compute_.slope_map.sampler, nullptr);
+      vkFreeMemory(device, compute_.slope_map.deviceMemory, nullptr);
+
       vkDestroyImageView(device, compute_.wave_normal_map.view, nullptr);
       vkDestroyImage(device, compute_.wave_normal_map.image, nullptr);
       vkDestroySampler(device, compute_.wave_normal_map.sampler, nullptr);
