@@ -1263,6 +1263,27 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::commandBufferBeginInfo();
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
+    // Acquire ownership of compute images from graphics if queues differ
+    if (graphics_.queueFamilyIndex != compute_.queueFamilyIndex) {
+      VkImageMemoryBarrier barriers[2]{};
+      auto fillBarrier = [&](VkImageMemoryBarrier& barrier, VkImage image) {
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        barrier.srcQueueFamilyIndex = graphics_.queueFamilyIndex;
+        barrier.dstQueueFamilyIndex = compute_.queueFamilyIndex;
+        barrier.image = image;
+        barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+      };
+      fillBarrier(barriers[0], compute_.height_map.image);
+      fillBarrier(barriers[1], compute_.normal_map.image);
+      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
+                           0, nullptr, 2, barriers);
+    }
+
     if (!compute_.spectrum_initialized) {
       cmdBeginLabel(cmdBuffer, "Compute Init Spectrum");
       initSpectrumCmd(cmdBuffer);
@@ -1289,6 +1310,27 @@ class VulkanExample : public VulkanExampleBase {
     cmdBeginLabel(cmdBuffer, "Compute Normals");
     normalsCmd(cmdBuffer);
     cmdEndLabel(cmdBuffer);
+
+    // Release ownership of compute images to graphics if queues differ
+    if (graphics_.queueFamilyIndex != compute_.queueFamilyIndex) {
+      VkImageMemoryBarrier barriers[2]{};
+      auto fillBarrier = [&](VkImageMemoryBarrier& barrier, VkImage image) {
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        barrier.dstAccessMask = 0;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        barrier.srcQueueFamilyIndex = compute_.queueFamilyIndex;
+        barrier.dstQueueFamilyIndex = graphics_.queueFamilyIndex;
+        barrier.image = image;
+        barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+      };
+      fillBarrier(barriers[0], compute_.height_map.image);
+      fillBarrier(barriers[1], compute_.normal_map.image);
+      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                           VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr,
+                           0, nullptr, 2, barriers);
+    }
 
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
@@ -1411,18 +1453,54 @@ class VulkanExample : public VulkanExampleBase {
         vks::initializers::commandBufferBeginInfo();
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
+    // Ensure compute writes are visible to graphics sampling
+    VkImageMemoryBarrier computeReadBarriers[2]{};
+    auto fillComputeReadBarrier = [&](VkImageMemoryBarrier& barrier,
+                                      VkImage image) {
+      barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+      barrier.srcAccessMask = 0;
+      barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+      barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+      barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+      barrier.srcQueueFamilyIndex = compute_.queueFamilyIndex;
+      barrier.dstQueueFamilyIndex = graphics_.queueFamilyIndex;
+      barrier.image = image;
+      barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    };
+    fillComputeReadBarrier(computeReadBarriers[0], compute_.height_map.image);
+    fillComputeReadBarrier(computeReadBarriers[1], compute_.normal_map.image);
+    if (graphics_.queueFamilyIndex != compute_.queueFamilyIndex) {
+      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                           VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
+                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                           0, 0, nullptr, 0, nullptr, 2, computeReadBarriers);
+    } else {
+      // Same queue family: keep ownership ignored and use proper access sync
+      for (auto& barrier : computeReadBarriers) {
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+      }
+      vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                           VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
+                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                           0, 0, nullptr, 0, nullptr, 2, computeReadBarriers);
+    }
+
     // With dynamic rendering there are no subpass dependencies, so we need to
-    // take care of proper layout transitions by using barriers This set of
-    // barriers prepares the color and depth images for output
+    // take care of proper layout transitions by using barriers. This set of
+    // barriers prepares the color and depth images for output.
     vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, swapChain.images[currentImageIndex], 0,
+        cmdBuffer, swapChain.images[currentImageIndex],
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
     vks::tools::insertImageMemoryBarrier(
-        cmdBuffer, depthStencil.image, 0,
+        cmdBuffer, depthStencil.image,
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
         VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
         VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
@@ -1520,6 +1598,39 @@ class VulkanExample : public VulkanExampleBase {
     // End dynamic rendering
     vkCmdEndRendering(cmdBuffer);
 
+    // Transition to present
+    vks::tools::insertImageMemoryBarrier(
+        cmdBuffer, swapChain.images[currentImageIndex],
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+
+    // Release ownership back to compute if queues differ
+    if (graphics_.queueFamilyIndex != compute_.queueFamilyIndex) {
+      VkImageMemoryBarrier barriers[2]{};
+      auto fillBarrier = [&](VkImageMemoryBarrier& barrier, VkImage image) {
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        barrier.dstAccessMask = 0;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        barrier.srcQueueFamilyIndex = graphics_.queueFamilyIndex;
+        barrier.dstQueueFamilyIndex = compute_.queueFamilyIndex;
+        barrier.image = image;
+        barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+      };
+      fillBarrier(barriers[0], compute_.height_map.image);
+      fillBarrier(barriers[1], compute_.normal_map.image);
+      vkCmdPipelineBarrier(cmdBuffer,
+                           VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
+                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                           VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr,
+                           0, nullptr, 2, barriers);
+    }
+
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
 
@@ -1542,6 +1653,7 @@ class VulkanExample : public VulkanExampleBase {
         .signalSemaphoreCount = 1,
         .pSignalSemaphores = &renderCompleteSemaphores[currentImageIndex]};
 
+    VK_CHECK_RESULT(vkResetFences(device, 1, &waitFences[currentBuffer]));
     VK_CHECK_RESULT(
         vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
 
@@ -1568,30 +1680,44 @@ class VulkanExample : public VulkanExampleBase {
     if (!prepared) {
       return;
     }
-    {
-      // Compute
-      // Use a fence to ensure that compute command buffer has finished
-      // executing before using it again
-      VK_CHECK_RESULT(vkWaitForFences(
-          device, 1, &compute_.fences[currentBuffer], VK_TRUE, UINT64_MAX));
-      VK_CHECK_RESULT(
-          vkResetFences(device, 1, &compute_.fences[currentBuffer]));
-      updateComputeUniformBuffers();
-      buildComputeCommandBuffer();
+    const bool sameQueueFamily =
+        (graphics_.queueFamilyIndex == compute_.queueFamilyIndex);
 
-      VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
-      computeSubmitInfo.commandBufferCount = 1;
-      computeSubmitInfo.pCommandBuffers =
-          &compute_.commandBuffers[currentBuffer];
+    if (!sameQueueFamily) {
+      // Ensure previous graphics work that reads compute outputs is finished
+      VK_CHECK_RESULT(vkWaitForFences(device, 1, &waitFences[currentBuffer],
+                                      VK_TRUE, UINT64_MAX));
+      VK_CHECK_RESULT(vkResetFences(device, 1, &waitFences[currentBuffer]));
+    }
+
+    // Compute
+    // Use a fence to ensure that compute command buffer has finished
+    // executing before using it again
+    VK_CHECK_RESULT(vkWaitForFences(device, 1, &compute_.fences[currentBuffer],
+                                    VK_TRUE, UINT64_MAX));
+    VK_CHECK_RESULT(vkResetFences(device, 1, &compute_.fences[currentBuffer]));
+    updateComputeUniformBuffers();
+    buildComputeCommandBuffer();
+
+    VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
+    computeSubmitInfo.commandBufferCount = 1;
+    computeSubmitInfo.pCommandBuffers = &compute_.commandBuffers[currentBuffer];
+    if (!sameQueueFamily) {
       computeSubmitInfo.signalSemaphoreCount = 1;
       computeSubmitInfo.pSignalSemaphores =
           &compute_.semaphores[currentBuffer].complete;
-      VK_CHECK_RESULT(vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo,
-                                    compute_.fences[currentBuffer]));
     }
-    {
-      // Graphics
+    VK_CHECK_RESULT(vkQueueSubmit(compute_.queue, 1, &computeSubmitInfo,
+                                  compute_.fences[currentBuffer]));
+
+    // Graphics
+    if (sameQueueFamily) {
       VulkanExampleBase::prepareFrame();
+      updateGraphicsUniformBuffers();
+      buildCommandBuffer();
+      VulkanExampleBase::submitFrame();
+    } else {
+      VulkanExampleBase::prepareFrame(false);
       updateGraphicsUniformBuffers();
       buildCommandBuffer();
       submitFrameWithComputeWait();
