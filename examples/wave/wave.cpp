@@ -98,6 +98,11 @@ class VulkanExample : public VulkanExampleBase {
   // Command to enable dynamic states during rendering
   PFN_vkCmdSetPolygonModeEXT vkCmdSetPolygonModeEXT{VK_NULL_HANDLE};
 
+  // Debug labeling ext
+  static constexpr std::array<float, 4> debugColor_ = {.7f, 0.4f, 0.4f, 1.0f};
+  PFN_vkCmdBeginDebugUtilsLabelEXT vkCmdBeginDebugUtilsLabelEXT{nullptr};
+  PFN_vkCmdEndDebugUtilsLabelEXT vkCmdEndDebugUtilsLabelEXT{nullptr};
+
   // Handles all compute pipelines
   struct Compute {
     static constexpr int WORKGROUP_SIZE = 16;
@@ -1036,6 +1041,34 @@ class VulkanExample : public VulkanExampleBase {
         &compute_.pipelines.normals));
   }
 
+  void prepareDebugExt() {
+    vkCmdBeginDebugUtilsLabelEXT =
+        reinterpret_cast<PFN_vkCmdBeginDebugUtilsLabelEXT>(
+            vkGetInstanceProcAddr(instance, "vkCmdBeginDebugUtilsLabelEXT"));
+    vkCmdEndDebugUtilsLabelEXT =
+        reinterpret_cast<PFN_vkCmdEndDebugUtilsLabelEXT>(
+            vkGetInstanceProcAddr(instance, "vkCmdEndDebugUtilsLabelEXT"));
+  }
+
+  void cmdBeginLabel(const VkCommandBuffer& command_buffer,
+                     const char* label_name,
+                     const std::array<float, 4> color = debugColor_) const {
+    if (!vkCmdBeginDebugUtilsLabelEXT) {
+      return;
+    }
+    VkDebugUtilsLabelEXT label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT};
+    label.pLabelName = label_name;
+    memcpy(label.color, color.data(), sizeof(float) * 4);
+    vkCmdBeginDebugUtilsLabelEXT(command_buffer, &label);
+  }
+
+  void cmdEndLabel(const VkCommandBuffer& command_buffer) const {
+    if (!vkCmdEndDebugUtilsLabelEXT) {
+      return;
+    }
+    vkCmdEndDebugUtilsLabelEXT(command_buffer);
+  }
+
   void prepareCompute() {
     prepareComputeTextures();
     prepareComputeUniformBuffers();
@@ -1100,6 +1133,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void prepare() override {
     VulkanExampleBase::prepare();
+    prepareDebugExt();
     graphics_.queueFamilyIndex = vulkanDevice->queueFamilyIndices.graphics;
     compute_.queueFamilyIndex = vulkanDevice->queueFamilyIndices.compute;
     prepareDescriptorPool();
@@ -1126,21 +1160,31 @@ class VulkanExample : public VulkanExampleBase {
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
     if (!compute_.spectrum_initialized) {
+      cmdBeginLabel(cmdBuffer, "Compute Init Spectrum");
       initSpectrumCmd(cmdBuffer);
+      cmdEndLabel(cmdBuffer);
       compute_.spectrum_initialized = true;
       insertComputeBarrier(cmdBuffer);
     }
 
+    cmdBeginLabel(cmdBuffer, "Compute Spectrum");
     spectrumCmd(cmdBuffer);
+    cmdEndLabel(cmdBuffer);
     insertComputeBarrier(cmdBuffer);
 
+    cmdBeginLabel(cmdBuffer, "Compute FFT");
     fftCmd(cmdBuffer);
+    cmdEndLabel(cmdBuffer);
     insertComputeBarrier(cmdBuffer);
 
+    cmdBeginLabel(cmdBuffer, "Compute Resolve Height");
     resolveHeightCmd(cmdBuffer);
+    cmdEndLabel(cmdBuffer);
     insertComputeBarrier(cmdBuffer);
 
+    cmdBeginLabel(cmdBuffer, "Compute Normals");
     normalsCmd(cmdBuffer);
+    cmdEndLabel(cmdBuffer);
 
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
   }
@@ -1324,6 +1368,7 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
     // Skybox
+    cmdBeginLabel(cmdBuffer, "Graphics Skybox");
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             graphics_.pipeline_layouts.sky_box, 0, 1,
                             &graphics_.descriptor_sets[currentBuffer].sky_box,
@@ -1332,8 +1377,10 @@ class VulkanExample : public VulkanExampleBase {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       graphics_.pipelines.sky_box);
     graphics_.models.sky_box.draw(cmdBuffer);
+    cmdEndLabel(cmdBuffer);
 
     // Wave
+    cmdBeginLabel(cmdBuffer, "Graphics Wave");
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             graphics_.pipeline_layouts.wave, 0, 1,
                             &graphics_.descriptor_sets[currentBuffer].wave, 0,
@@ -1350,6 +1397,7 @@ class VulkanExample : public VulkanExampleBase {
                            &graphics_.wave_mesh_buffers.vertex_buffer.buffer,
                            offsets);
     vkCmdDraw(cmdBuffer, 4, 1, 0, 0);
+    cmdEndLabel(cmdBuffer);
 
     drawUI(cmdBuffer);
 
