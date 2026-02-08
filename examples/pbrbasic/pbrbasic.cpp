@@ -69,7 +69,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Physical based shading basics";
-		camera.type_ = Camera::CameraType::firstperson;
+		camera.type = Camera::CameraType::firstperson;
 		camera.setPosition(glm::vec3(10.0f, 13.0f, 1.8f));
 		camera.setRotation(glm::vec3(-62.5f, 90.0f, 0.0f));
 		camera.movementSpeed = 4.0f;

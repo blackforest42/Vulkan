@@ -99,7 +99,7 @@ class VulkanExample : public VulkanExampleBase {
 
   VulkanExample() : VulkanExampleBase() {
     title = "Dynamic terrain tessellation";
-    camera.type_ = Camera::CameraType::firstperson;
+    camera.type = Camera::CameraType::firstperson;
     camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
     camera.setRotation(glm::vec3(-12.0f, 159.0f, 0.0f));
     camera.setTranslation(glm::vec3(18.0f, 22.5f, 57.5f));

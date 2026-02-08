@@ -37,7 +37,7 @@ class Camera {
     }
     transM = glm::translate(glm::mat4(1.0f), translation);
 
-    if (type_ == CameraType::firstperson) {
+    if (type == CameraType::firstperson) {
       matrices.view = rotM * transM;
     } else {
       matrices.view = transM * rotM;
@@ -52,7 +52,7 @@ class Camera {
 
  public:
   enum CameraType { lookat, firstperson };
-  CameraType type_ = CameraType::lookat;
+  CameraType type = CameraType::lookat;
 
   glm::vec3 rotation = glm::vec3();
   glm::vec3 position = glm::vec3();
@@ -161,7 +161,7 @@ class Camera {
 
   void update(float deltaTime) {
     updated = false;
-    if (type_ == CameraType::firstperson) {
+    if (type == CameraType::firstperson) {
       if (moving()) {
         glm::vec3 camFront;
         camFront.x =
@@ -205,7 +205,7 @@ class Camera {
   bool updatePad(glm::vec2 axisLeft, glm::vec2 axisRight, float deltaTime) {
     bool retVal = false;
 
-    if (type_ == CameraType::firstperson) {
+    if (type == CameraType::firstperson) {
       // Use the common console thumbstick layout
       // Left = view, right = move
 

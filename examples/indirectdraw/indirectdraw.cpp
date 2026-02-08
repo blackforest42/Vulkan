@@ -87,7 +87,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Indirect rendering";
-		camera.type_ = Camera::CameraType::firstperson;
+		camera.type = Camera::CameraType::firstperson;
 		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
 		camera.setRotation(glm::vec3(-12.0f, 159.0f, 0.0f));
 		camera.setTranslation(glm::vec3(0.4f, 1.25f, 0.0f));

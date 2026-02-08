@@ -1805,7 +1805,7 @@ class VulkanExample : public VulkanExampleBase {
 
   VulkanExample() : VulkanExampleBase(), compute_{}, graphics_{} {
     title = "Wave Simulation";
-    camera.type_ = Camera::CameraType::firstperson;
+    camera.type = Camera::CameraType::firstperson;
     camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 1024.0f);
     camera.setTranslation(glm::vec3(0.0f, 20.0f, 0.0f));
     camera.movementSpeed = 100.0f;

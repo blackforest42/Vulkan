@@ -90,7 +90,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Multi threaded command buffer";
-		camera.type_ = Camera::CameraType::lookat;
+		camera.type = Camera::CameraType::lookat;
 		camera.setPosition(glm::vec3(0.0f, -0.0f, -32.5f));
 		camera.setRotation(glm::vec3(0.0f));
 		camera.setRotationSpeed(0.5f);

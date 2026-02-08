@@ -44,7 +44,7 @@ class VulkanExample : public VulkanExampleBase {
 
   VulkanExample() : VulkanExampleBase() {
     title = "Vulkan Demo Scene";
-    camera.type_ = Camera::CameraType::lookat;
+    camera.type = Camera::CameraType::lookat;
     // camera.flipY = true;
     camera.setPosition(glm::vec3(0.0f, 0.0f, -3.75f));
     camera.setRotation(glm::vec3(15.0f, 0.0f, 0.0f));

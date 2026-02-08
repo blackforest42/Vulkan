@@ -51,7 +51,7 @@ class VulkanExample : public VulkanExampleBase {
 
   VulkanExample() : VulkanExampleBase() {
     title = "Runtime mip map generation";
-    camera.type_ = Camera::CameraType::firstperson;
+    camera.type = Camera::CameraType::firstperson;
     camera.setPerspective(60.0f, (float)width / (float)height, 0.1f,
                            1024.0f);
     camera.setRotation(glm::vec3(0.0f, 90.0f, 0.0f));

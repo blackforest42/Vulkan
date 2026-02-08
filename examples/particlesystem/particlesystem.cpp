@@ -106,7 +106,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "CPU based particle system";
-		camera.type_ = Camera::CameraType::lookat;
+		camera.type = Camera::CameraType::lookat;
 		camera.setPosition(glm::vec3(0.0f, 0.0f, -75.0f));
 		camera.setRotation(glm::vec3(-15.0f, 45.0f, 0.0f));
 		camera.setPerspective(60.0f, (float)width / (float)height, 1.0f, 256.0f);

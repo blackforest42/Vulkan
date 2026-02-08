@@ -61,7 +61,7 @@ public:
 	{
 		title = "Parallax Mapping";
 		timerSpeed *= 0.5f;
-		camera.type_ = Camera::CameraType::firstperson;
+		camera.type = Camera::CameraType::firstperson;
 		camera.setPosition(glm::vec3(0.0f, 1.25f, -1.5f));
 		camera.setRotation(glm::vec3(-45.0f, 0.0f, 0.0f));
 		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);

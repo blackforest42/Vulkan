@@ -48,7 +48,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Pipeline statistics";
-		camera.type_ = Camera::CameraType::firstperson;
+		camera.type = Camera::CameraType::firstperson;
 		camera.setPosition(glm::vec3(-3.0f, 1.0f, -2.75f));
 		camera.setRotation(glm::vec3(-15.25f, -46.5f, 0.0f));
 		camera.movementSpeed = 4.0f;

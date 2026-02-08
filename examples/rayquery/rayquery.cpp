@@ -41,7 +41,7 @@ public:
 	VulkanExample() : VulkanRaytracingSample()
 	{
 		title = "Ray queries for ray traced shadows";
-		camera.type_ = Camera::CameraType::lookat;
+		camera.type = Camera::CameraType::lookat;
 		timerSpeed *= 0.25f;
 		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
 		camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));

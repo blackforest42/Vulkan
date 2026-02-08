@@ -59,7 +59,7 @@ class VulkanExample : public VulkanExampleBase {
 
   VulkanExample() : VulkanExampleBase() {
     title = "Texture loading";
-    camera.type_ = Camera::CameraType::lookat;
+    camera.type = Camera::CameraType::lookat;
     camera.setPosition(glm::vec3(0.0f, 0.0f, -2.5f));
     camera.setRotation(glm::vec3(0.0f, 15.0f, 0.0f));
     camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);

@@ -59,7 +59,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Graphics pipeline library";
-		camera.type_ = Camera::CameraType::lookat;
+		camera.type = Camera::CameraType::lookat;
 		camera.setPosition(glm::vec3(0.0f, 0.0f, -2.0f));
 		camera.setRotation(glm::vec3(-25.0f, 15.0f, 0.0f));
 		camera.setRotationSpeed(0.5f);

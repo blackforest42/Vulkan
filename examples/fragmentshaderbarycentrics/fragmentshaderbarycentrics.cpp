@@ -32,7 +32,7 @@ public:
 	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Fragment shader barycentrics";
-		camera.type_ = Camera::CameraType::firstperson;
+		camera.type = Camera::CameraType::firstperson;
 		camera.setPosition(glm::vec3(0.0f, 0.5f, -1.0f));
 		camera.setRotation(glm::vec3(-35.0f, 0.0f, 0.0f));
 		camera.movementSpeed = 4.0f;
