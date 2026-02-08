@@ -81,7 +81,7 @@ struct UiFeatures {
   bool pause_wave{false};
   bool show_mesh_only{false};
   float patch_scale{512.f};
-  float time_step{1};
+  float time_step{1.0f};
   float sun_scale{100.0f};
 } ui_features;
 
@@ -214,23 +214,23 @@ class VulkanExample : public VulkanExampleBase {
     } textures;
 
     struct SkyBoxUBO {
-      glm::mat4 perspective;
-      glm::mat4 view;
+      glm::mat4 perspective{1.0f};
+      glm::mat4 view{1.0f};
     };
 
     struct WaveUBO {
-      alignas(16) glm::mat4 perspective;
-      alignas(16) glm::mat4 view;
-      alignas(16) glm::vec3 camera_position;
-      alignas(8) glm::vec2 screen_res;
-      alignas(8) float patch_scale{};
-      alignas(16) glm::vec3 sun_position;
-      alignas(16) glm::vec3 sun_color;
+      alignas(16) glm::mat4 perspective{1.0f};
+      alignas(16) glm::mat4 view{1.0f};
+      alignas(16) glm::vec3 camera_position{0.0f};
+      alignas(8) glm::vec2 screen_res{0.0f};
+      alignas(8) float patch_scale{0.0f};
+      alignas(16) glm::vec3 sun_position{0.0f};
+      alignas(16) glm::vec3 sun_color{1.0f, 1.0f, 1.0f};
     };
 
     struct SunUBO {
-      glm::mat4 mvp;
-      glm::vec4 color;
+      glm::mat4 mvp{1.0f};
+      glm::vec4 color{1.0f};
     };
 
     struct TessellationConfigUBO {
@@ -242,11 +242,11 @@ class VulkanExample : public VulkanExampleBase {
     };
 
     struct {
-      SkyBoxUBO sky_box;
-      WaveUBO wave;
-      SunUBO sun;
-      OceanParams ocean_params;
-      TessellationConfigUBO tess_config;
+      SkyBoxUBO sky_box{};
+      WaveUBO wave{};
+      SunUBO sun{};
+      OceanParams ocean_params{};
+      TessellationConfigUBO tess_config{};
     } ubos;
 
     struct UniformBuffers {
@@ -968,7 +968,7 @@ class VulkanExample : public VulkanExampleBase {
 
   void clearAllComputeTextures() const {
     // Clear all textures
-    const VkCommandBuffer clearCmd = vulkanDevice->createCommandBuffer(
+    auto clearCmd = vulkanDevice->createCommandBuffer(
         VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
     constexpr VkClearColorValue clearColor = {{0.0f, 0.0f, 0.0f, 0.0f}};
     VkImageSubresourceRange range{};
@@ -1196,8 +1196,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void prepareInitialWaveState() {
-    const int32_t logN =
-        static_cast<int32_t>(std::log2(COMPUTE_TEXTURE_DIMENSION));
+    auto logN = static_cast<int32_t>(std::log2(COMPUTE_TEXTURE_DIMENSION));
     compute_.ubos.ocean.wind_dir_speed_amp =
         glm::vec4(1.0f, 0.0f, 20.0f, 0.05f);
     compute_.ubos.ocean.time_patch_chop_height =
@@ -1271,7 +1270,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void buildComputeCommandBuffer() {
-    const VkCommandBuffer cmdBuffer = compute_.commandBuffers[currentBuffer];
+    auto cmdBuffer = compute_.commandBuffers[currentBuffer];
     const VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
     VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
@@ -1460,7 +1459,7 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void buildCommandBuffer() {
-    const VkCommandBuffer cmdBuffer = drawCmdBuffers[currentBuffer];
+    auto cmdBuffer = drawCmdBuffers[currentBuffer];
 
     const VkCommandBufferBeginInfo cmdBufInfo =
         vks::initializers::commandBufferBeginInfo();
@@ -1772,8 +1771,6 @@ class VulkanExample : public VulkanExampleBase {
   }
 
   void loadAssets() {
-    VkSamplerCreateInfo samplerInfo = vks::initializers::samplerCreateInfo();
-
     // Skybox cube model
     const uint32_t glTFLoadingFlags =
         vkglTF::FileLoadingFlags::PreTransformVertices |
@@ -1806,7 +1803,7 @@ class VulkanExample : public VulkanExampleBase {
     };
   }
 
-  VulkanExample() : VulkanExampleBase() {
+  VulkanExample() : VulkanExampleBase(), compute_{}, graphics_{} {
     title = "Wave Simulation";
     camera.type_ = Camera::CameraType::firstperson;
     camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 1024.0f);
