@@ -698,10 +698,10 @@ class VulkanExample : public VulkanExampleBase {
     // Sun params for wave
     float sunAngle = compute_.ubos.ocean.time_patch_chop_height.x * 0.1f;
     const float sunRadius = 600.0f;
-    glm::vec3 basePos = glm::vec3(0.0f, 0.0f, sunRadius);
-    glm::mat4 rotX =
+    glm::vec3 basePos = glm::vec3(0.0f, 0.0f, -sunRadius);
+    glm::mat4 rotZ =
         glm::rotate(glm::mat4(1.0f), sunAngle, glm::vec3(1.0f, 0.0f, 0.0f));
-    glm::vec3 sunPos = glm::vec3(rotX * glm::vec4(basePos, 1.0f));
+    glm::vec3 sunPos = glm::vec3(rotZ * glm::vec4(basePos, 1.0f));
     glm::vec3 sunColor = glm::vec3(1.0f, 0.95f, 0.7f);
     graphics_.ubos.wave.sun_position = sunPos;
     graphics_.ubos.wave.sun_color = sunColor;
